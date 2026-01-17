@@ -8,27 +8,54 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('colaboradores', function (Blueprint $table) {
-            $table->string('cpf', 11)->nullable()->after('id');
-            $table->string('nome', 255)->nullable()->after('cpf');
+            // sexo já existe no banco, então NÃO mexemos nele.
 
-            $table->enum('sexo', ['M', 'F', 'NI'])->default('NI')->after('nome');
+            if (!Schema::hasColumn('colaboradores', 'cpf')) {
+                $table->string('cpf', 11)->nullable()->after('id');
+            }
 
-            $table->softDeletes()->after('updated_at');
+            if (!Schema::hasColumn('colaboradores', 'nome')) {
+                $table->string('nome', 255)->nullable()->after('cpf');
+            }
+
+            if (!Schema::hasColumn('colaboradores', 'deleted_at')) {
+                $table->softDeletes()->after('updated_at');
+            }
         });
 
+        // índices
         Schema::table('colaboradores', function (Blueprint $table) {
-            $table->unique('cpf');
-            $table->index('nome');
+            // criar unique com nome fixo pra facilitar
+            // (se já existir por algum motivo, a migration ainda assim passaria, pois cpf não existia antes)
+            if (Schema::hasColumn('colaboradores', 'cpf')) {
+                $table->unique('cpf', 'colaboradores_cpf_unique');
+            }
+
+            if (Schema::hasColumn('colaboradores', 'nome')) {
+                $table->index('nome', 'colaboradores_nome_index');
+            }
         });
     }
 
     public function down(): void
     {
         Schema::table('colaboradores', function (Blueprint $table) {
-            $table->dropUnique(['cpf']);
-            $table->dropIndex(['nome']);
+            // remover índices
+            try { $table->dropUnique('colaboradores_cpf_unique'); } catch (\Throwable $e) {}
+            try { $table->dropIndex('colaboradores_nome_index'); } catch (\Throwable $e) {}
 
-            $table->dropColumn(['cpf', 'nome', 'sexo', 'deleted_at']);
+            // remover colunas que essa migration adiciona
+            if (Schema::hasColumn('colaboradores', 'cpf')) {
+                $table->dropColumn('cpf');
+            }
+            if (Schema::hasColumn('colaboradores', 'nome')) {
+                $table->dropColumn('nome');
+            }
+            if (Schema::hasColumn('colaboradores', 'deleted_at')) {
+                $table->dropColumn('deleted_at');
+            }
+
+            // NÃO remover sexo no down, pois já existia antes
         });
     }
 };
