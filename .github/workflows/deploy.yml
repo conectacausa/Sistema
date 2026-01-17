@@ -12,6 +12,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
@@ -20,6 +21,9 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
+          timeout: 30s
+          command_timeout: 10m
+
           script: |
             set -e
 
@@ -28,28 +32,31 @@ jobs:
             echo "==> Entrando na pasta do app"
             cd "$APP_DIR"
 
-            echo "==> Garantindo remoto origin"
-            git remote -v || true
-
             echo "==> Atualizando codigo"
             git fetch --all --prune
             git reset --hard origin/master
 
-            echo "==> Instalando dependencias (prod)"
-            sudo /usr/local/bin/composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+            echo "==> Instalando dependencias (produção)"
+            sudo -n /usr/local/bin/composer install \
+              --no-dev \
+              --optimize-autoloader \
+              --no-interaction \
+              --prefer-dist
 
-            echo "==> Laravel: migracoes"
-            sudo /usr/bin/php artisan migrate --force || true
+            echo "==> Rodando migrations (se houver)"
+            sudo -n /usr/bin/php artisan migrate --force || true
 
-            echo "==> Laravel: limpar caches e otimizar"
-            sudo /usr/bin/php artisan optimize:clear
-            sudo /usr/bin/php artisan optimize
+            echo "==> Limpando caches"
+            sudo -n /usr/bin/php artisan optimize:clear
 
-            echo "==> Permissoes (somente diretorios essenciais)"
-            sudo /bin/chown -R deploy:www-data "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
-            sudo find "$APP_DIR/storage" "$APP_DIR/bootstrap/cache" -type d -exec /bin/chmod 775 {} \;
+            echo "==> Otimizando Laravel"
+            sudo -n /usr/bin/php artisan optimize
+
+            echo "==> Ajustando permissoes (somente diretorios)"
+            sudo -n /bin/chown -R deploy:www-data "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
+            sudo -n /usr/bin/find "$APP_DIR/storage" "$APP_DIR/bootstrap/cache" -type d -exec /bin/chmod 775 {} \;
 
             echo "==> Recarregando PHP-FPM"
-            sudo /usr/bin/systemctl reload php8.2-fpm || true
+            sudo -n /usr/bin/systemctl reload php8.2-fpm || true
 
-            echo "==> Deploy finalizado com sucesso"
+            echo "==> DEPLOY FINALIZADO COM SUCESSO"
