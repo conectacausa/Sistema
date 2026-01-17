@@ -5,74 +5,74 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Symfony\Component\HttpFoundation\Cookie;
+use Illuminate\Support\Facades\Hash;
+use App\Models\Usuario;
 
 class LoginController extends Controller
 {
-    public function show()
+    /**
+     * Exibe a tela de login
+     */
+    public function show(Request $request)
     {
         return view('auth.login');
     }
 
+    /**
+     * Processa o login
+     */
     public function login(Request $request)
     {
-        $data = $request->validate([
-            'cpf' => ['required','string'],
-            'password' => ['required','string'],
-            'remember_cpf' => ['nullable'],
+        // validação básica
+        $request->validate([
+            'cpf' => ['required'],
+            'password' => ['required'],
         ]);
 
-        $cpf = preg_replace('/\D+/', '', $data['cpf']); // só números
+        $cpf = preg_replace('/\D/', '', $request->cpf);
 
-        // Sua tabela de usuarios usa "senha" (não "password").
-        // A autenticação padrão do Laravel usa "password".
-        // Então: ou você adapta o Model para usar senha como password,
-        // ou faz login manual. Vamos fazer manual por enquanto:
+        $usuario = Usuario::query()
+            ->where('cpf', $cpf)
+            ->where('status', 'ativo')
+            ->first();
 
-        $user = \App\Models\Usuario::where('cpf', $cpf)->first();
-
-        if (!$user || !password_verify($data['password'], $user->senha)) {
+        // usuário não encontrado ou senha inválida
+        if (
+            !$usuario ||
+            !Hash::check($request->password, $usuario->senha)
+        ) {
             return back()
-                ->withInput(['cpf' => $data['cpf']])
-                ->with('toastr', ['type' => 'error', 'message' => 'CPF ou Senha estão inválidos.']);
+                ->withInput(['cpf' => $request->cpf])
+                ->with('toastr_error', 'CPF ou senha inválidos.');
         }
 
-        if ($user->status !== 'ativo') {
-            return back()
-                ->withInput(['cpf' => $data['cpf']])
-                ->with('toastr', ['type' => 'warning', 'message' => 'Usuário inativo.']);
+        // garante que o usuário pertence à empresa do subdomínio
+        if ($usuario->empresa_id !== session('tenant_empresa_id')) {
+            Auth::logout();
+            session()->invalidate();
+            session()->regenerateToken();
+
+            return redirect('/login')
+                ->with('toastr_error', 'Acesso não autorizado para esta empresa.');
         }
 
-        // valida tenant (empresa do subdomínio)
-        $empresa = config('tenant.empresa');
-        if ($empresa && $user->empresa_id !== $empresa->id) {
-            return back()
-                ->withInput(['cpf' => $data['cpf']])
-                ->with('toastr', ['type' => 'error', 'message' => 'Usuário não pertence a esta empresa.']);
-        }
+        Auth::login($usuario, $request->boolean('remember'));
 
-        Auth::login($user, false);
+        $request->session()->regenerate();
 
-        $cookie = null;
-        if ($request->boolean('remember_cpf')) {
-            $cookie = cookie('remember_cpf', $data['cpf'], 60 * 24 * 30); // 30 dias
-        } else {
-            $cookie = Cookie::create('remember_cpf')->withValue('')->withExpires(0);
-        }
-
-        return redirect()
-            ->route('dashboard')
-            ->withCookie($cookie)
-            ->with('toastr', ['type' => 'success', 'message' => 'Login realizado com sucesso!']);
+        return redirect()->route('dashboard');
     }
 
+    /**
+     * Logout
+     */
     public function logout(Request $request)
     {
         Auth::logout();
+
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login')
-            ->with('toastr', ['type' => 'info', 'message' => 'Sessão encerrada.']);
+        return redirect('/login');
     }
 }
