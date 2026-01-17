@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="{{ asset('assets/css/vendors_css.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
+  <link rel="stylesheet" href="/assets/plugins/toastr/toastr.min.css">
 </head>
 
 <body class="hold-transition theme-primary bg-img" style="background-image: url({{ asset('assets/images/auth-bg/bg-1.jpg') }})">
