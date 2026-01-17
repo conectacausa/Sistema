@@ -1,38 +1,26 @@
-name: Deploy to VPS
+script: |
+  set -e
+  cd /var/www/conecttarh/main
 
-on:
-  push:
-    branches: [ "master" ]
+  echo "Atualizando codigo..."
+  git fetch --all
+  git reset --hard origin/master
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            set -e
-            cd /var/www/conecttarh/main
+  echo "Instalando dependencias..."
+  sudo composer install --no-dev --optimize-autoloader
 
-            echo "Atualizando codigo..."
-            git fetch --all
-            git reset --hard origin/master
+  echo "Rodando migracoes (se houver)..."
+  sudo php artisan migrate --force || true
 
-            echo "Instalando dependencias..."
-            composer install --no-dev --optimize-autoloader
+  echo "Limpando e otimizando..."
+  sudo php artisan optimize:clear
+  sudo php artisan optimize
 
-            echo "Rodando migracoes (se houver)..."
-            php artisan migrate --force || true
+  echo "Ajustando permissoes (somente pastas essenciais)..."
+  sudo chown -R deploy:www-data /var/www/conecttarh/main/storage /var/www/conecttarh/main/bootstrap/cache
+  sudo find /var/www/conecttarh/main/storage /var/www/conecttarh/main/bootstrap/cache -type d -exec chmod 775 {} \;
 
-            echo "Limpando e otimizando..."
-            php artisan optimize:clear
-            php artisan optimize
+  echo "Recarregando PHP-FPM (opcional, mas bom)..."
+  sudo systemctl reload php8.2-fpm || true
 
-            echo "Ajustando permissoes..."
-            chmod -R 775 storage bootstrap/cache
-
-            echo "Deploy finalizado!"
+  echo "Deploy finalizado!"
