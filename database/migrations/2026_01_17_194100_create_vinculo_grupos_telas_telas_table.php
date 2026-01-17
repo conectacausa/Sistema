@@ -7,20 +7,20 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        Schema::create('grupos_telas', function (Blueprint $table) {
+        Schema::create('vinculo_grupos_telas_telas', function (Blueprint $table) {
             $table->id();
-            $table->string('nome_grupo', 180);
-            $table->string('icone', 120)->nullable();
+            $table->foreignId('tela_id')->constrained('telas')->cascadeOnDelete();
+            $table->foreignId('grupo_tela_id')->constrained('grupos_telas')->cascadeOnDelete();
 
             $table->timestamps();
             $table->softDeletes();
 
-            $table->unique('nome_grupo');
+            $table->unique(['tela_id', 'grupo_tela_id']);
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('grupos_telas');
+        Schema::dropIfExists('vinculo_grupos_telas_telas');
     }
 };
