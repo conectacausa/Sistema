@@ -11,16 +11,14 @@ return new class extends Migration {
             $table->string('slug', 220)->nullable()->after('nome_tela');
         });
 
-        // (Opcional, mas recomendado) índice/unique para slug por módulo
-        Schema::table('telas', function (Blueprint $table) {
-            $table->unique(['modulo_id', 'slug']);
-        });
+        // Vamos criar o unique depois (quando tivermos dados e certeza do padrão)
+        // Se quiser, a gente cria uma migration futura:
+        // unique(['modulo_id','slug']) quando modulo_id estiver sempre preenchido.
     }
 
     public function down(): void
     {
         Schema::table('telas', function (Blueprint $table) {
-            $table->dropUnique(['modulo_id', 'slug']);
             $table->dropColumn('slug');
         });
     }
