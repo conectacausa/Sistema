@@ -22,7 +22,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
           timeout: 30s
-          command_timeout: 10m
+          command_timeout: 15m
 
           script: |
             set -e
@@ -52,9 +52,13 @@ jobs:
             echo "==> Otimizando Laravel"
             sudo -n /usr/bin/php artisan optimize
 
-            echo "==> Ajustando permissoes (somente diretorios)"
+            echo "==> Permissoes (owner/grupo basico)"
             sudo -n /bin/chown -R deploy:www-data "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
-            sudo -n /usr/bin/find "$APP_DIR/storage" "$APP_DIR/bootstrap/cache" -type d -exec /bin/chmod 775 {} \;
+            sudo -n /bin/chmod -R 775 "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
+
+            echo "==> ACL (garante escrita para www-data agora e no futuro)"
+            sudo -n /usr/bin/setfacl -R -m u:www-data:rwx,g:www-data:rwx "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
+            sudo -n /usr/bin/setfacl -R -d -m u:www-data:rwx,g:www-data:rwx "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
 
             echo "==> Recarregando PHP-FPM"
             sudo -n /usr/bin/systemctl reload php8.2-fpm || true
