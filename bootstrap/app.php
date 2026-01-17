@@ -16,11 +16,14 @@ return Application::configure(basePath: dirname(__DIR__))
         // ALIASES DE MIDDLEWARE (Laravel 12)
         // ===============================
         $middleware->alias([
-            // Define a empresa (tenant) a partir do subdomínio
+            // Define empresa (tenant) pelo subdomínio
             'tenant' => \App\Http\Middleware\SetTenantFromSubdomain::class,
 
-            // Garante que o usuário pertence à empresa do subdomínio
+            // Garante que usuário pertence ao tenant
             'tenant.user' => \App\Http\Middleware\EnsureUserBelongsToTenant::class,
+
+            // OVERRIDE do auth para evitar route('login') exigir {sub}
+            'auth' => \App\Http\Middleware\Authenticate::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
