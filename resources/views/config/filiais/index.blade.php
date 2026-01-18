@@ -127,5 +127,5 @@
 <script>
   window.__SCREEN_ID__ = 5;
 </script>
-<script src="{{ asset('assets/js/pages/config-filiais.js') }}"></script>
+<script src="{{ asset('assets/js/pages/config-filiais.js') }}?v={{ filemtime(public_path('assets/js/pages/config-filiais.js')) }}"></script>
 @endpush
