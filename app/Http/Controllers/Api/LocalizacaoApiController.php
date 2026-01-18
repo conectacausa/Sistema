@@ -9,9 +9,14 @@ use Illuminate\Support\Facades\DB;
 
 class LocalizacaoApiController extends Controller
 {
+    private function central()
+    {
+        return DB::connection(env('DB_CENTRAL_CONNECTION', config('database.default')));
+    }
+
     public function paises(): JsonResponse
     {
-        $items = DB::table('paises')
+        $items = $this->central()->table('paises')
             ->select(['id', 'nome'])
             ->orderBy('nome')
             ->get();
@@ -19,12 +24,11 @@ class LocalizacaoApiController extends Controller
         return response()->json(['data' => $items]);
     }
 
-    // 👇 aceita string e converte (evita TypeError)
     public function estadosByPais(Request $request, string $paisId): JsonResponse
     {
         $paisIdInt = (int) $paisId;
 
-        $items = DB::table('estados')
+        $items = $this->central()->table('estados')
             ->where('pais_id', $paisIdInt)
             ->select(['id', 'nome', 'sigla', 'pais_id'])
             ->orderBy('nome')
@@ -33,12 +37,11 @@ class LocalizacaoApiController extends Controller
         return response()->json(['data' => $items]);
     }
 
-    // 👇 mesma ideia para cidades
     public function cidadesByEstado(Request $request, string $estadoId): JsonResponse
     {
         $estadoIdInt = (int) $estadoId;
 
-        $items = DB::table('cidades')
+        $items = $this->central()->table('cidades')
             ->where('estado_id', $estadoIdInt)
             ->select(['id', 'nome', 'estado_id'])
             ->orderBy('nome')
