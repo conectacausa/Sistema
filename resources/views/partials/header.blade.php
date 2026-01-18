@@ -17,70 +17,117 @@
      * - storage/app/public/...
      * - public/...
      * - storage/...
-     * - tenants/... (ou qualquer caminho relativo dentro do storage/public)
+     * - tenants/... (assume dentro de storage público)
      */
     $toUrl = function ($path) {
         if (!$path) return null;
 
         $path = trim((string) $path);
-
-        // Normaliza separadores (Windows -> Linux)
         $path = str_replace('\\', '/', $path);
+        $path = ltrim($path, '/');
 
-        // URL absoluta
         if (Str::startsWith($path, ['http://', 'https://'])) {
             return $path;
         }
 
-        // Remove barras iniciais
-        $path = ltrim($path, '/');
-
-        // 1) storage/app/public/... -> storage/...
+        // storage/app/public/... -> storage/...
         if (Str::startsWith($path, 'storage/app/public/')) {
             $path = Str::replaceFirst('storage/app/public/', 'storage/', $path);
         }
 
-        // 2) public/... -> storage/...
-        // (muito comum quando se usa Storage::putFile e salva o path "public/..")
+        // public/... -> storage/...
         if (Str::startsWith($path, 'public/')) {
             $path = Str::replaceFirst('public/', 'storage/', $path);
         }
 
-        // 3) Se já começa com storage/, ok
+        // Já está no formato público
         if (Str::startsWith($path, 'storage/')) {
             return asset($path);
         }
 
-        // 4) Se vier algo tipo "tenants/1/logo.png" ou "tenants/..."
-        // assume que está dentro do storage público
+        // Se vier "tenants/..." (ou semelhante), assume dentro do storage público
         if (Str::startsWith($path, ['tenants/', 'tenant/', 'uploads/'])) {
             return asset('storage/' . $path);
         }
 
-        // 5) Qualquer outro caminho relativo: tenta como está
         return asset($path);
     };
 
+    /**
+     * Adiciona cache-buster quando o path aponta para /public (ex: storage/...)
+     * Isso resolve muito caso o browser tenha cacheado uma imagem antiga/404.
+     */
+    $withVersion = function ($url, $originalPathFromDb = null) {
+        if (!$url) return null;
+
+        // Não mexe em URL absoluta externa
+        if (Str::startsWith($url, ['http://', 'https://'])) {
+            return $url;
+        }
+
+        // Tenta descobrir um path público para calcular filemtime
+        $path = $originalPathFromDb ? trim((string) $originalPathFromDb) : null;
+        $path = $path ? str_replace('\\', '/', $path) : null;
+        $path = $path ? ltrim($path, '/') : null;
+
+        if ($path) {
+            // Normaliza para algo dentro de /public
+            if (Str::startsWith($path, 'storage/app/public/')) {
+                $path = Str::replaceFirst('storage/app/public/', 'storage/', $path);
+            }
+            if (Str::startsWith($path, 'public/')) {
+                $path = Str::replaceFirst('public/', '', $path); // public/foo -> foo (dentro de /public)
+            }
+
+            // Se for "storage/..." está em /public/storage/...
+            if (Str::startsWith($path, 'storage/')) {
+                $full = public_path($path);
+                if (is_file($full)) {
+                    $v = @filemtime($full) ?: time();
+                    return $url . (str_contains($url, '?') ? '&' : '?') . 'v=' . $v;
+                }
+            }
+        }
+
+        // Fallback: versão por timestamp do config (se existir) ou time()
+        $v = ($GLOBALS['__tenant_cfg_updated_at_ts'] ?? null) ?: time();
+        return $url . (str_contains($url, '?') ? '&' : '?') . 'v=' . $v;
+    };
+
+    // Para o fallback do versionamento
+    $GLOBALS['__tenant_cfg_updated_at_ts'] = $config?->updated_at?->timestamp ?? time();
+
     /*
     |--------------------------------------------------------------------------
-    | Logos da empresa (Light / Dark) com fallback
+    | Fallbacks do template
     |--------------------------------------------------------------------------
     */
 
-    // Fallbacks quadrados (ajuste esses arquivos conforme existirem no seu template)
+    // Quadradas (ajuste se o arquivo dark não existir)
     $fallbackSquareLight = asset('assets/images/logo-letter.png');
     $fallbackSquareDark  = asset('assets/images/logo-letter-dark.png');
 
-    // Fallbacks horizontais (originais do template)
+    // Horizontais (originais do template)
     $fallbackHorizLight  = asset('assets/images/logo-dark-text.png');
     $fallbackHorizDark   = asset('assets/images/logo-light-text.png');
 
-    // Logos vindas do banco (normalizadas)
-    $logoSquareLight = $toUrl($config->logo_quadrado_light ?? null) ?: $fallbackSquareLight;
-    $logoSquareDark  = $toUrl($config->logo_quadrado_dark  ?? null) ?: $fallbackSquareDark;
+    /*
+    |--------------------------------------------------------------------------
+    | Logos vindas do banco (com versionamento)
+    |--------------------------------------------------------------------------
+    */
 
-    $logoHorizLight  = $toUrl($config->logo_horizontal_light ?? null) ?: $fallbackHorizLight;
-    $logoHorizDark   = $toUrl($config->logo_horizontal_dark  ?? null) ?: $fallbackHorizDark;
+    $dbSquareLight = $config->logo_quadrado_light ?? null; // ex: storage/tenants/1/logo_quadrada_azul.png
+    $dbSquareDark  = $config->logo_quadrado_dark  ?? null; // ex: storage/tenants/1/logo_quadrada_branca.png
+
+    $dbHorizLight  = $config->logo_horizontal_light ?? null;
+    $dbHorizDark   = $config->logo_horizontal_dark  ?? null;
+
+    $logoSquareLight = $withVersion($toUrl($dbSquareLight), $dbSquareLight) ?: $fallbackSquareLight;
+    $logoSquareDark  = $withVersion($toUrl($dbSquareDark),  $dbSquareDark)  ?: $fallbackSquareDark;
+
+    $logoHorizLight  = $withVersion($toUrl($dbHorizLight),  $dbHorizLight)  ?: $fallbackHorizLight;
+    $logoHorizDark   = $withVersion($toUrl($dbHorizDark),   $dbHorizDark)   ?: $fallbackHorizDark;
 
     /*
     |--------------------------------------------------------------------------
@@ -95,11 +142,9 @@
         $sexo = strtoupper((string) ($user->colaborador->sexo ?? 'NI'));
     }
 
-    if ($sexo === 'F') {
-        $avatarDefault = asset('assets/images/avatar/avatar-2.png');
-    } else {
-        $avatarDefault = asset('assets/images/avatar/avatar-15.png');
-    }
+    $avatarDefault = ($sexo === 'F')
+        ? asset('assets/images/avatar/avatar-2.png')
+        : asset('assets/images/avatar/avatar-15.png');
 
     $avatarFinal = $avatarUser ?: $avatarDefault;
 @endphp
@@ -108,23 +153,39 @@
     <div class="d-flex align-items-center logo-box justify-content-start">
         <!-- Logo -->
         <a href="{{ url('/') }}" class="logo">
-            <!-- logo quadrada -->
+            <!-- Logo quadrada -->
             <div class="logo-mini w-30">
                 <span class="light-logo">
-                    <img src="{{ $logoSquareLight }}" alt="logo">
+                    <img
+                        src="{{ $logoSquareLight }}"
+                        alt="logo"
+                        onerror="this.onerror=null;this.src='{{ $fallbackSquareLight }}';"
+                    >
                 </span>
                 <span class="dark-logo">
-                    <img src="{{ $logoSquareDark }}" alt="logo">
+                    <img
+                        src="{{ $logoSquareDark }}"
+                        alt="logo"
+                        onerror="this.onerror=null;this.src='{{ $fallbackSquareDark }}';"
+                    >
                 </span>
             </div>
 
-            <!-- logo horizontal -->
+            <!-- Logo horizontal -->
             <div class="logo-lg">
                 <span class="light-logo">
-                    <img src="{{ $logoHorizLight }}" alt="logo">
+                    <img
+                        src="{{ $logoHorizLight }}"
+                        alt="logo"
+                        onerror="this.onerror=null;this.src='{{ $fallbackHorizLight }}';"
+                    >
                 </span>
                 <span class="dark-logo">
-                    <img src="{{ $logoHorizDark }}" alt="logo">
+                    <img
+                        src="{{ $logoHorizDark }}"
+                        alt="logo"
+                        onerror="this.onerror=null;this.src='{{ $fallbackHorizDark }}';"
+                    >
                 </span>
             </div>
         </a>
@@ -148,7 +209,6 @@
 
         <div class="navbar-custom-menu r-side">
             <ul class="nav navbar-nav">
-
                 <!-- Toggle Dark / Light-->
                 <li class="dropdown notifications-menu btn-group">
                     <label class="switch">
