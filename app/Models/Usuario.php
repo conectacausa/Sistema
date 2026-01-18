@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Usuario extends Authenticatable
 {
@@ -16,6 +17,14 @@ class Usuario extends Authenticatable
     public function getAuthPassword(): string
     {
         return (string) $this->senha;
+    }
+
+    /**
+     * Relacionamentos
+     */
+    public function colaborador(): BelongsTo
+    {
+        return $this->belongsTo(Colaborador::class, 'colaborador_id');
     }
 
     protected $fillable = [
