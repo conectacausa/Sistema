@@ -86,7 +86,6 @@
 		<a href="{{ url('/') }}" class="logo">
 		  <!-- logo-->
 		  <div class="logo-mini w-30">
-              {{-- Não depende do CSS do template: 1 imagem trocada via JS --}}
               <img
                   id="logo-mini-img"
                   src="{{ $squareLightFinal }}"
@@ -175,47 +174,27 @@
 
 <script>
 (function () {
-    function getMiniImg() {
-        return document.getElementById('logo-mini-img');
-    }
-
-    // Determina DARK do jeito mais confiável para esse template:
-    // 1) pelo checkbox (é o que o template usa)
-    // 2) fallback por classe no body/html (alguns templates aplicam classe)
-    function isDark() {
-        const toggle = document.getElementById('toggle_left_sidebar_skin');
-        if (toggle) {
-            // Em alguns templates, checked = DARK; em outros é invertido.
-            // Então fazemos o "estado real" observando qual logo-lg está visível:
-            // (logo-lg já funciona corretamente)
-            const lg = document.querySelector('.logo-lg');
-            if (lg) {
-                const lightEl = lg.querySelector('.light-logo');
-                const darkEl  = lg.querySelector('.dark-logo');
-
-                const lightVisible = lightEl && window.getComputedStyle(lightEl).display !== 'none';
-                const darkVisible  = darkEl  && window.getComputedStyle(darkEl).display !== 'none';
-
-                if (darkVisible && !lightVisible) return true;
-                if (lightVisible && !darkVisible) return false;
-            }
-
-            // fallback: usa o checkbox
-            return !!toggle.checked;
-        }
-
-        const cls = ((document.body && document.body.className) || '') + ' ' + ((document.documentElement && document.documentElement.className) || '');
-        return cls.toLowerCase().includes('dark');
-    }
-
     function applyMini() {
-        const img = getMiniImg();
+        const img = document.getElementById('logo-mini-img');
         if (!img) return;
 
-        const light = img.getAttribute('data-light');
-        const dark  = img.getAttribute('data-dark');
+        const light = img.getAttribute('data-light') || '';
+        const dark  = img.getAttribute('data-dark')  || '';
 
-        img.src = isDark() ? (dark || light) : (light || dark);
+        // IMPORTANTÍSSIMO: no seu template, o comportamento está invertido.
+        // Você relatou que no modo claro estava vindo a branca (dark).
+        // Então aqui: checked = LIGHT (invertido), unchecked = DARK.
+        const toggle = document.getElementById('toggle_left_sidebar_skin');
+        const checked = toggle ? !!toggle.checked : false;
+
+        const isDark = !checked; // <-- INVERTIDO (ajuste definitivo)
+
+        const next = isDark ? (dark || light) : (light || dark);
+
+        // Evita setar vazio e cair em fallback
+        if (next && img.src !== next) {
+            img.src = next;
+        }
     }
 
     function bind() {
@@ -230,19 +209,17 @@
             });
         }
 
-        // Observa mudanças no DOM porque o template pode alternar tema via JS
+        // Alguns templates alteram tema via JS após o change
         const obs = new MutationObserver(function () {
             applyMini();
         });
 
         if (document.body) {
-            obs.observe(document.body, { attributes: true, attributeFilter: ['class', 'style'], subtree: false });
+            obs.observe(document.body, { attributes: true, attributeFilter: ['class', 'style'] });
         }
 
-        const lg = document.querySelector('.logo-lg');
-        if (lg) {
-            obs.observe(lg, { attributes: true, attributeFilter: ['class', 'style'], subtree: true });
-        }
+        // fallback extra
+        setInterval(applyMini, 1200);
     }
 
     if (document.readyState === 'loading') {
