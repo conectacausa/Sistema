@@ -54,6 +54,11 @@
     $avatarFinal = $avatarUser ?: $avatarDefault;
 @endphp
 
+{{-- DEBUG TEMP --}}
+<!-- TENANT_ID={{ $tenant->id ?? 'null' }} -->
+<!-- LOGO_DB={{ $config->logo_quadrado_light ?? 'null' }} -->
+<!-- LOGO_URL={{ $logoSquareLight ?? 'null' }} -->
+
 <header class="main-header">
 	<div class="d-flex align-items-center logo-box justify-content-start">
 		<!-- Logo -->
