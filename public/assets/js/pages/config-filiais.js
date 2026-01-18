@@ -1,9 +1,9 @@
 (function () {
     'use strict';
 
-    // ==========================
+    // =====================================================
     // CONFIGURAÇÕES
-    // ==========================
+    // =====================================================
     const SCREEN_ID = 5;
     const PER_PAGE = 50;
 
@@ -20,9 +20,9 @@
         editar: (id) => `/config/filiais/${id}/editar`
     };
 
-    // ==========================
+    // =====================================================
     // ELEMENTOS DOM
-    // ==========================
+    // =====================================================
     const elNova = document.getElementById('btnNovaFilial');
     const elQ = document.getElementById('filtroRazaoCnpj');
     const elPais = document.getElementById('filtroPais');
@@ -34,9 +34,9 @@
     const elPrev = document.getElementById('btnPrev');
     const elNext = document.getElementById('btnNext');
 
-    // ==========================
-    // ESTADO
-    // ==========================
+    // =====================================================
+    // ESTADO INTERNO
+    // =====================================================
     const state = {
         page: 1,
         lastPage: 1,
@@ -49,9 +49,9 @@
         }
     };
 
-    // ==========================
+    // =====================================================
     // HELPERS
-    // ==========================
+    // =====================================================
     const debounce = (fn, delay = 300) => {
         let t;
         return (...args) => {
@@ -89,9 +89,9 @@
         });
     };
 
-    // ==========================
-    // API
-    // ==========================
+    // =====================================================
+    // API HELPERS
+    // =====================================================
     const apiGet = async (url) => {
         const res = await fetch(`${url}?screen_id=${SCREEN_ID}`, {
             headers: { 'Accept': 'application/json' },
@@ -115,9 +115,9 @@
         return res.json();
     };
 
-    // ==========================
-    // RENDER
-    // ==========================
+    // =====================================================
+    // RENDERIZAÇÃO
+    // =====================================================
     const renderTabela = (rows) => {
         if (!rows.length) {
             elTBody.innerHTML = `
@@ -137,24 +137,31 @@
                 <td>${escapeHtml(r.estado?.sigla || '')}</td>
                 <td>${escapeHtml(r.pais?.nome || '')}</td>
                 <td>
-                    <button class="btn btn-sm btn-primary btnEditar" data-id="${r.id}">Editar</button>
-                    <button class="btn btn-sm btn-danger btnExcluir" data-id="${r.id}">Excluir</button>
+                    <button class="btn btn-sm btn-primary btnEditar" data-id="${r.id}">
+                        Editar
+                    </button>
+                    <button class="btn btn-sm btn-danger btnExcluir" data-id="${r.id}">
+                        Excluir
+                    </button>
                 </td>
             </tr>
         `).join('');
     };
 
     const renderPaginacao = () => {
-        const start = state.total ? ((state.page - 1) * PER_PAGE + 1) : 0;
+        const start = state.total
+            ? ((state.page - 1) * PER_PAGE + 1)
+            : 0;
         const end = Math.min(state.page * PER_PAGE, state.total);
+
         elInfo.textContent = `Mostrando ${start}–${end} de ${state.total}`;
         elPrev.disabled = state.page <= 1;
         elNext.disabled = state.page >= state.lastPage;
     };
 
-    // ==========================
+    // =====================================================
     // LOADERS
-    // ==========================
+    // =====================================================
     const carregarFiliais = async () => {
         const params = new URLSearchParams({
             page: state.page,
@@ -163,18 +170,20 @@
         });
 
         try {
-            const res = await fetch(`${API.filiais}?${params.toString()}&screen_id=${SCREEN_ID}`, {
-                headers: { 'Accept': 'application/json' },
-                credentials: 'include'
-            });
+            const res = await fetch(
+                `${API.filiais}?${params.toString()}&screen_id=${SCREEN_ID}`,
+                { headers: { 'Accept': 'application/json' }, credentials: 'include' }
+            );
 
             const json = await res.json();
+
             renderTabela(json.data || []);
             state.total = json.meta.total;
             state.lastPage = json.meta.last_page;
             state.page = json.meta.current_page;
+
             renderPaginacao();
-        } catch {
+        } catch (e) {
             elTBody.innerHTML = `
                 <tr>
                     <td colspan="6" class="text-center text-danger">
@@ -205,9 +214,9 @@
         elCidade.disabled = false;
     };
 
-    // ==========================
+    // =====================================================
     // EVENTOS
-    // ==========================
+    // =====================================================
     elNova.addEventListener('click', () => {
         window.location.href = ROUTES.nova;
     });
@@ -266,9 +275,9 @@
         }
     });
 
-    // ==========================
-    // AÇÕES DA TABELA
-    // ==========================
+    // =====================================================
+    // AÇÕES DA TABELA (EDITAR / EXCLUIR)
+    // =====================================================
     elTBody.addEventListener('click', (e) => {
         const btnEdit = e.target.closest('.btnEditar');
         const btnDel = e.target.closest('.btnExcluir');
@@ -279,44 +288,65 @@
         }
 
         if (btnDel) {
-            if (typeof swal === 'undefined') {
-                console.error('SweetAlert (v1) não carregado');
+            const swalFn =
+                (typeof window.swal === 'function')
+                    ? window.swal
+                    : (typeof window.sweetAlert === 'function' ? window.sweetAlert : null);
+
+            if (!swalFn) {
+                console.error('SweetAlert v1 não carregado.');
                 return;
             }
 
             const id = btnDel.dataset.id;
 
-            swal({
+            swalFn({
                 title: 'Excluir filial?',
                 text: 'Tem certeza que deseja excluir esta filial?',
                 icon: 'warning',
-                buttons: ['Cancelar', 'Sim, excluir'],
-                dangerMode: true
+                dangerMode: true,
+                buttons: {
+                    cancel: {
+                        text: 'Cancelar',
+                        value: null,
+                        visible: true,
+                        closeModal: true,
+                        className: 'btn btn-primary'
+                    },
+                    confirm: {
+                        text: 'Sim',
+                        value: true,
+                        visible: true,
+                        closeModal: false,
+                        className: 'btn btn-danger'
+                    }
+                }
             }).then(async (confirmado) => {
                 if (!confirmado) return;
 
                 try {
                     await apiDelete(API.deleteFilial(id));
 
-                    swal({
+                    swalFn({
                         title: 'Excluída',
-                        text: 'Filial excluída com sucesso',
+                        text: 'Filial excluída com sucesso.',
                         icon: 'success',
                         timer: 1500,
                         buttons: false
                     });
 
                     carregarFiliais();
-                } catch {
-                    swal('Erro', 'Não foi possível excluir a filial', 'error');
+                } catch (err) {
+                    console.error(err);
+                    swalFn('Erro', 'Não foi possível excluir a filial.', 'error');
                 }
             });
         }
     });
 
-    // ==========================
+    // =====================================================
     // INIT
-    // ==========================
+    // =====================================================
     (async function init() {
         elEstado.disabled = true;
         elCidade.disabled = true;
