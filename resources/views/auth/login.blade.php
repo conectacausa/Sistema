@@ -1,3 +1,52 @@
+@php
+    use Illuminate\Support\Str;
+
+    // Tenant/config vindos do middleware
+    $config = app()->bound('tenant.config') ? app('tenant.config') : null;
+
+    // Converte caminho do banco em URL pública
+    $toUrl = function ($path) {
+        if (!$path) return null;
+
+        $path = trim((string) $path);
+        $path = str_replace('\\', '/', $path);
+        $path = ltrim($path, '/');
+
+        if (Str::startsWith($path, ['http://', 'https://'])) {
+            return $path;
+        }
+
+        if (Str::startsWith($path, 'storage/')) {
+            return asset($path);
+        }
+
+        if (Str::startsWith($path, 'storage/app/public/')) {
+            $path = Str::replaceFirst('storage/app/public/', 'storage/', $path);
+            return asset($path);
+        }
+
+        if (Str::startsWith($path, 'public/')) {
+            $path = Str::replaceFirst('public/', 'storage/', $path);
+            return asset($path);
+        }
+
+        if (Str::startsWith($path, ['tenants/', 'tenant/', 'uploads/'])) {
+            return asset('storage/' . $path);
+        }
+
+        return asset($path);
+    };
+
+    // Logo horizontal (LIGHT) do banco
+    $logoFromDb = $toUrl($config->logo_horizontal_light ?? null);
+
+    // Fallback atual (o que você já usa hoje)
+    $fallbackLogo = asset('assets/images/logo-light-text2.png');
+
+    // URL final
+    $logoFinal = $logoFromDb ?: $fallbackLogo;
+@endphp
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -27,12 +76,13 @@
                 <div class="col-lg-5 col-md-6 col-12">
                     <div class="bg-white rounded10 shadow-lg">
 
-                        <!-- LOGO -->
+                        <!-- LOGO (ajustada para usar a do banco) -->
                         <div class="content-top-agile p-30 text-center">
                             <img
-                                src="{{ asset('assets/images/logo-light-text2.png') }}"
+                                src="{{ $logoFinal }}"
                                 alt="Conectta RH"
                                 style="max-width: 220px"
+                                onerror="this.onerror=null;this.src='{{ $fallbackLogo }}';"
                             >
                         </div>
 
