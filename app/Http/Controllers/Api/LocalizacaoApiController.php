@@ -19,9 +19,10 @@ class LocalizacaoApiController extends Controller
         return response()->json(['data' => $items]);
     }
 
-    public function estadosByPais(Request $request, string $paisId): JsonResponse
+    public function estadosByPais(Request $request): JsonResponse
     {
-        $paisIdInt = (int) $paisId;
+        // ✅ pega o parâmetro correto da rota
+        $paisIdInt = (int) $request->route('pais_id');
 
         $items = DB::table('public.estados')
             ->where('pais_id', $paisIdInt)
@@ -30,35 +31,24 @@ class LocalizacaoApiController extends Controller
             ->get();
 
         $searchPath = null;
-        $dbName = null;
-        $dbUser = null;
-
         try {
             $searchPath = DB::selectOne("SHOW search_path")->search_path ?? null;
-        } catch (\Throwable $e) {}
-
-        try {
-            $row = DB::selectOne("SELECT current_database() as db, current_user as usr");
-            $dbName = $row->db ?? null;
-            $dbUser = $row->usr ?? null;
         } catch (\Throwable $e) {}
 
         return response()->json([
             'data' => $items,
             'debug' => [
-                'pais_id_recebido' => $paisId,
+                'pais_id_route' => $request->route('pais_id'),
                 'pais_id_int' => $paisIdInt,
                 'qtd' => $items->count(),
                 'search_path' => $searchPath,
-                'database' => $dbName,
-                'db_user' => $dbUser,
             ],
         ]);
     }
 
-    public function cidadesByEstado(Request $request, string $estadoId): JsonResponse
+    public function cidadesByEstado(Request $request): JsonResponse
     {
-        $estadoIdInt = (int) $estadoId;
+        $estadoIdInt = (int) $request->route('estado_id');
 
         $items = DB::table('public.cidades')
             ->where('estado_id', $estadoIdInt)
@@ -69,7 +59,7 @@ class LocalizacaoApiController extends Controller
         return response()->json([
             'data' => $items,
             'debug' => [
-                'estado_id_recebido' => $estadoId,
+                'estado_id_route' => $request->route('estado_id'),
                 'estado_id_int' => $estadoIdInt,
                 'qtd' => $items->count(),
             ],
