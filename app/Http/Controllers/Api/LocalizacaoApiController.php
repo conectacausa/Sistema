@@ -3,15 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Pais;
-use App\Models\Estado;
-use App\Models\Cidade;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class LocalizacaoApiController extends Controller
 {
-    public function paises()
+    public function paises(): JsonResponse
     {
-        $items = Pais::query()
+        $items = DB::table('paises')
             ->select(['id', 'nome'])
             ->orderBy('nome')
             ->get();
@@ -19,10 +19,10 @@ class LocalizacaoApiController extends Controller
         return response()->json(['data' => $items]);
     }
 
-    public function estadosByPais(Pais $pais)
+    public function estadosByPais(Request $request, int $paisId): JsonResponse
     {
-        $items = Estado::query()
-            ->where('pais_id', $pais->id)
+        $items = DB::table('estados')
+            ->where('pais_id', $paisId)
             ->select(['id', 'nome', 'sigla', 'pais_id'])
             ->orderBy('nome')
             ->get();
@@ -30,10 +30,10 @@ class LocalizacaoApiController extends Controller
         return response()->json(['data' => $items]);
     }
 
-    public function cidadesByEstado(Estado $estado)
+    public function cidadesByEstado(Request $request, int $estadoId): JsonResponse
     {
-        $items = Cidade::query()
-            ->where('estado_id', $estado->id)
+        $items = DB::table('cidades')
+            ->where('estado_id', $estadoId)
             ->select(['id', 'nome', 'estado_id'])
             ->orderBy('nome')
             ->get();
