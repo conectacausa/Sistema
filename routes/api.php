@@ -9,11 +9,18 @@ Route::domain('{sub}.conecttarh.com.br')
     ->group(function () {
 
         // ==========================
-        // LOCALIZAÇÃO (GLOBAL - PUBLIC)
+        // LOCALIZAÇÃO (GLOBAL - public)
         // ==========================
         Route::get('/paises', [LocalizacaoApiController::class, 'paises'])->name('api.paises.index');
-        Route::get('/paises/{paisId}/estados', [LocalizacaoApiController::class, 'estadosByPais'])->name('api.estados.byPais');
-        Route::get('/estados/{estadoId}/cidades', [LocalizacaoApiController::class, 'cidadesByEstado'])->name('api.cidades.byEstado');
+
+        // ⚠️ usar snake_case para não conflitar com {sub}
+        Route::get('/paises/{pais_id}/estados', [LocalizacaoApiController::class, 'estadosByPais'])
+            ->whereNumber('pais_id')
+            ->name('api.estados.byPais');
+
+        Route::get('/estados/{estado_id}/cidades', [LocalizacaoApiController::class, 'cidadesByEstado'])
+            ->whereNumber('estado_id')
+            ->name('api.cidades.byEstado');
 
         // ==========================
         // FILIAIS (TENANT)
