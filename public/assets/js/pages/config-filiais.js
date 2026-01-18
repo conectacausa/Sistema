@@ -35,7 +35,7 @@
     const elNext = document.getElementById('btnNext');
 
     // ==========================
-    // ESTADO INTERNO
+    // ESTADO
     // ==========================
     const state = {
         page: 1,
@@ -89,6 +89,9 @@
         });
     };
 
+    // ==========================
+    // API
+    // ==========================
     const apiGet = async (url) => {
         const res = await fetch(`${url}?screen_id=${SCREEN_ID}`, {
             headers: { 'Accept': 'application/json' },
@@ -171,7 +174,7 @@
             state.lastPage = json.meta.last_page;
             state.page = json.meta.current_page;
             renderPaginacao();
-        } catch (e) {
+        } catch {
             elTBody.innerHTML = `
                 <tr>
                     <td colspan="6" class="text-center text-danger">
@@ -263,7 +266,10 @@
         }
     });
 
-    elTBody.addEventListener('click', async (e) => {
+    // ==========================
+    // AÇÕES DA TABELA
+    // ==========================
+    elTBody.addEventListener('click', (e) => {
         const btnEdit = e.target.closest('.btnEditar');
         const btnDel = e.target.closest('.btnExcluir');
 
@@ -273,40 +279,38 @@
         }
 
         if (btnDel) {
-            if (typeof Swal === 'undefined') {
-                console.error('SweetAlert2 não carregado');
+            if (typeof swal === 'undefined') {
+                console.error('SweetAlert (v1) não carregado');
                 return;
             }
 
             const id = btnDel.dataset.id;
 
-            const result = await Swal.fire({
+            swal({
                 title: 'Excluir filial?',
                 text: 'Tem certeza que deseja excluir esta filial?',
                 icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Sim, excluir',
-                cancelButtonText: 'Cancelar',
-                confirmButtonColor: '#d33'
+                buttons: ['Cancelar', 'Sim, excluir'],
+                dangerMode: true
+            }).then(async (confirmado) => {
+                if (!confirmado) return;
+
+                try {
+                    await apiDelete(API.deleteFilial(id));
+
+                    swal({
+                        title: 'Excluída',
+                        text: 'Filial excluída com sucesso',
+                        icon: 'success',
+                        timer: 1500,
+                        buttons: false
+                    });
+
+                    carregarFiliais();
+                } catch {
+                    swal('Erro', 'Não foi possível excluir a filial', 'error');
+                }
             });
-
-            if (!result.isConfirmed) return;
-
-            try {
-                await apiDelete(API.deleteFilial(id));
-
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Excluída',
-                    text: 'Filial excluída com sucesso',
-                    timer: 1500,
-                    showConfirmButton: false
-                });
-
-                carregarFiliais();
-            } catch {
-                Swal.fire('Erro', 'Não foi possível excluir a filial', 'error');
-            }
         }
     });
 
