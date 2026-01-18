@@ -1,41 +1,52 @@
 @php
     use Illuminate\Support\Str;
 
-    // Tenant/config vindos do middleware (se existir)
+    // Tenant/config vindos do middleware
     $tenant = app()->bound('tenant') ? app('tenant') : null;
     $config = app()->bound('tenant.config') ? app('tenant.config') : null;
 
     $user = auth()->user();
 
-    // Converte um caminho do banco em URL:
-    // - se for http/https, usa direto
-    // - se vier com "/", remove e usa asset
-    // - se vier "uploads/..." ou "storage/...", usa asset
+    /**
+     * Converte caminho salvo no banco em URL válida
+     */
     $toUrl = function ($path) {
         if (!$path) return null;
 
         $path = trim((string) $path);
 
+        // URL absoluta
         if (Str::startsWith($path, ['http://', 'https://'])) {
             return $path;
         }
 
-        return asset(ltrim($path, '/'));
+        // Se já começa com storage/
+        if (Str::startsWith($path, 'storage/')) {
+            return url($path);
+        }
+
+        // Se vier apenas tenants/...
+        if (Str::startsWith($path, 'tenants/')) {
+            return url('storage/' . $path);
+        }
+
+        // Qualquer outro caso
+        return url($path);
     };
 
-    // Fallbacks do template (iguais ao seu HTML)
+    // Logos vindas do banco (configuracoes)
+    $logoSquareLight = $toUrl($config->logo_quadrado_light ?? null);
+    $logoSquareDark  = $toUrl($config->logo_quadrado_dark ?? null);
+
+    $logoHorizLight  = $toUrl($config->logo_horizontal_light ?? null);
+    $logoHorizDark   = $toUrl($config->logo_horizontal_dark ?? null);
+
+    // Fallbacks do template
     $fallbackSquare = asset('assets/images/logo-letter.png');
     $fallbackHorizL = asset('assets/images/logo-dark-text.png');
     $fallbackHorizD = asset('assets/images/logo-light-text.png');
 
-    // Logos do banco (configuracoes) — se não tiver, cai no fallback
-    $logoSquareLight = $toUrl($config->logo_quadrado_light ?? null) ?: $fallbackSquare;
-    $logoSquareDark  = $toUrl($config->logo_quadrado_dark ?? null)  ?: $fallbackSquare;
-
-    $logoHorizLight  = $toUrl($config->logo_horizontal_light ?? null) ?: $fallbackHorizL;
-    $logoHorizDark   = $toUrl($config->logo_horizontal_dark ?? null)  ?: $fallbackHorizD;
-
-    // Avatar: se usuario tem foto usa, senão usa sexo do colaborador
+    // Avatar do usuário
     $avatarUser = $toUrl($user->foto ?? null);
 
     $sexo = 'NI';
@@ -43,94 +54,96 @@
         $sexo = strtoupper((string) ($user->colaborador->sexo ?? 'NI'));
     }
 
-    $avatarDefault = asset('assets/images/avatar/avatar-15.png'); // masculino padrão
     if ($sexo === 'F') {
         $avatarDefault = asset('assets/images/avatar/avatar-2.png');
     } else {
-        // M / NI / vazio -> masculino padrão
         $avatarDefault = asset('assets/images/avatar/avatar-15.png');
     }
 
     $avatarFinal = $avatarUser ?: $avatarDefault;
 @endphp
 
-{{-- DEBUG TEMP --}}
-<!-- TENANT_ID={{ $tenant->id ?? 'null' }} -->
-<!-- LOGO_DB={{ $config->logo_quadrado_light ?? 'null' }} -->
-<!-- LOGO_URL={{ $logoSquareLight ?? 'null' }} -->
-
 <header class="main-header">
 	<div class="d-flex align-items-center logo-box justify-content-start">
-		<!-- Logo -->
 		<a href="{{ url('/') }}" class="logo">
-		  <!-- logo-->
-		  <div class="logo-mini w-30">
-			  <span class="light-logo"><img src="{{ $logoSquareLight }}" alt="logo"></span>
-			  <span class="dark-logo"><img src="{{ $logoSquareDark }}" alt="logo"></span>
-		  </div>
-		  <div class="logo-lg">
-			  <span class="light-logo"><img src="{{ $logoHorizLight }}" alt="logo"></span>
-			  <span class="dark-logo"><img src="{{ $logoHorizDark }}" alt="logo"></span>
-		  </div>
+			<div class="logo-mini w-30">
+				<span class="light-logo">
+					<img src="{{ $logoSquareLight ?: $fallbackSquare }}" alt="logo">
+				</span>
+				<span class="dark-logo">
+					<img src="{{ $logoSquareDark ?: $fallbackSquare }}" alt="logo">
+				</span>
+			</div>
+
+			<div class="logo-lg">
+				<span class="light-logo">
+					<img src="{{ $logoHorizLight ?: $fallbackHorizL }}" alt="logo">
+				</span>
+				<span class="dark-logo">
+					<img src="{{ $logoHorizDark ?: $fallbackHorizD }}" alt="logo">
+				</span>
+			</div>
 		</a>
 	</div>
-    <!-- Header Navbar -->
-    <nav class="navbar navbar-static-top">
-      <!-- Sidebar toggle button-->
-	  <div class="app-menu">
-		<ul class="header-megamenu nav">
-			<li class="btn-group nav-item">
-				<a href="#" class="waves-effect waves-light nav-link push-btn btn-outline no-border btn-primary-light" data-toggle="push-menu" role="button">
-					<i data-feather="align-left"></i>
-			    </a>
-			</li>
-		</ul>
-	  </div>
 
-      <div class="navbar-custom-menu r-side">
-        <ul class="nav navbar-nav">
-
-			<!-- Toggle Dark / Light-->
-			<li class="dropdown notifications-menu btn-group">
-				<label class="switch">
-						<a class="waves-effect waves-light btn-outline no-border nav-link svg-bt-icon btn-info-light">
-						<input type="checkbox" data-mainsidebarskin="toggle" id="toggle_left_sidebar_skin">
-						<span class="switch-on"><i data-feather="moon"></i></span>
-						<span class="switch-off"><i data-feather="sun"></i></span>
+	<nav class="navbar navbar-static-top">
+		<div class="app-menu">
+			<ul class="header-megamenu nav">
+				<li class="btn-group nav-item">
+					<a href="#" class="waves-effect waves-light nav-link push-btn btn-outline no-border btn-primary-light" data-toggle="push-menu">
+						<i data-feather="align-left"></i>
 					</a>
-				</label>
-			</li>
+				</li>
+			</ul>
+		</div>
 
-			<!-- Full Screen-->
-			<li class="btn-group nav-item d-lg-inline-flex d-none">
-				<a href="#" data-provide="fullscreen" class="waves-effect waves-light nav-link btn-outline no-border full-screen btn-warning-light" title="Full Screen">
-					<i data-feather="maximize"></i>
-			    </a>
-			</li>
+		<div class="navbar-custom-menu r-side">
+			<ul class="nav navbar-nav">
 
-	      <!-- User Account-->
-          <li class="dropdown user user-menu">
-            <a href="#" class="waves-effect waves-light dropdown-toggle no-border p-5" data-bs-toggle="dropdown" title="User">
-				<!-- Colocar a foto do usuário que está logado, se o usuário não tiver foto e for Masculino, usar a foto "assets/images/avatar/avatar-15.png", se for feminino usar a foto "assets/images/avatar/avatar-2.png", se não tiver a informação se Masculino ou Feminino usar a Masculino -->
-				<img class="avatar avatar-pill" src="{{ $avatarFinal }}" alt="">
-            </a>
-            <ul class="dropdown-menu animated flipInX">
-              <li class="user-body">
-				 <a class="dropdown-item" href="{{ url('perfil') }}"><i class="ti-user text-muted me-2"></i>Perfil</a>
-				 <a class="dropdown-item" href="{{ url('/configuracao') }}"><i class="ti-settings text-muted me-2"></i> Configuração</a>
-				 <div class="dropdown-divider"></div>
+				<li class="dropdown notifications-menu btn-group">
+					<label class="switch">
+						<a class="waves-effect waves-light btn-outline no-border nav-link svg-bt-icon btn-info-light">
+							<input type="checkbox" data-mainsidebarskin="toggle" id="toggle_left_sidebar_skin">
+							<span class="switch-on"><i data-feather="moon"></i></span>
+							<span class="switch-off"><i data-feather="sun"></i></span>
+						</a>
+					</label>
+				</li>
 
-                 <form method="POST" action="{{ route('logout') }}">
-                     @csrf
-                     <button type="submit" class="dropdown-item">
-                         <i class="ti-lock text-muted me-2"></i> Sair
-                     </button>
-                 </form>
-              </li>
-            </ul>
-          </li>
+				<li class="btn-group nav-item d-lg-inline-flex d-none">
+					<a href="#" data-provide="fullscreen" class="waves-effect waves-light nav-link btn-outline no-border full-screen btn-warning-light">
+						<i data-feather="maximize"></i>
+					</a>
+				</li>
 
-        </ul>
-      </div>
-    </nav>
+				<li class="dropdown user user-menu">
+					<a href="#" class="waves-effect waves-light dropdown-toggle no-border p-5" data-bs-toggle="dropdown">
+						<img class="avatar avatar-pill" src="{{ $avatarFinal }}" alt="">
+					</a>
+
+					<ul class="dropdown-menu animated flipInX">
+						<li class="user-body">
+							<a class="dropdown-item" href="{{ url('perfil') }}">
+								<i class="ti-user text-muted me-2"></i> Perfil
+							</a>
+
+							<a class="dropdown-item" href="{{ url('configuracao') }}">
+								<i class="ti-settings text-muted me-2"></i> Configuração
+							</a>
+
+							<div class="dropdown-divider"></div>
+
+							<form method="POST" action="{{ route('logout') }}">
+								@csrf
+								<button type="submit" class="dropdown-item">
+									<i class="ti-lock text-muted me-2"></i> Sair
+								</button>
+							</form>
+						</li>
+					</ul>
+				</li>
+
+			</ul>
+		</div>
+	</nav>
 </header>
