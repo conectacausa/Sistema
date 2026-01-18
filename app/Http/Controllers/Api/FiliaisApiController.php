@@ -5,20 +5,21 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Filial;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class FiliaisApiController extends Controller
 {
     public function index(Request $request)
     {
         $perPage = (int) $request->integer('per_page', 50);
-        $perPage = max(1, min($perPage, 200)); // trava pra evitar abuso
+        $perPage = max(1, min($perPage, 200));
+
         $q = trim((string) $request->query('q', ''));
         $paisId = $request->query('pais_id');
         $estadoId = $request->query('estado_id');
         $cidadeId = $request->query('cidade_id');
 
         $query = Filial::query()
-            ->whereNull('deleted_at')
             ->with([
                 'cidade:id,nome,estado_id',
                 'estado:id,nome,sigla,pais_id',
@@ -33,22 +34,23 @@ class FiliaisApiController extends Controller
                 'estado_id',
                 'pais_id',
             ])
-            ->orderBy('id', 'desc');
+            ->orderByDesc('id');
 
-        // Filtro Razão OU CNPJ (9)
+        // (9) Busca por Razão OU Nome Fantasia OU CNPJ
         if ($q !== '') {
             $qDigits = preg_replace('/\D+/', '', $q);
 
             $query->where(function ($w) use ($q, $qDigits) {
+                // Razão social / Nome fantasia
                 $w->where('razao_social', 'ilike', '%' . $q . '%')
                   ->orWhere('nome_fantasia', 'ilike', '%' . $q . '%');
 
-                // Se tiver dígito, compara com CNPJ "limpo"
+                // CNPJ (robusto: remove tudo que não é número dentro do SQL)
                 if ($qDigits !== '') {
-                    $w->orWhere('cnpj', 'like', '%' . $qDigits . '%');
-                } else {
-                    // fallback (caso armazenem com máscara - não recomendado)
-                    $w->orWhere('cnpj', 'ilike', '%' . $q . '%');
+                    $w->orWhereRaw(
+                        "regexp_replace(cnpj, '[^0-9]', '', 'g') LIKE ?",
+                        ['%' . $qDigits . '%']
+                    );
                 }
             });
         }
@@ -78,11 +80,8 @@ class FiliaisApiController extends Controller
 
     public function destroy(Request $request, Filial $filial)
     {
-        // (8) Soft delete: preencher deleted_at
         $filial->delete();
 
-        return response()->json([
-            'ok' => true,
-        ]);
+        return response()->json(['ok' => true]);
     }
 }
