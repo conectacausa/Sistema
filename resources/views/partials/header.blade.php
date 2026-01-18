@@ -86,8 +86,8 @@
 		<a href="{{ url('/') }}" class="logo">
 		  <!-- logo-->
 		  <div class="logo-mini w-30">
-              <span class="light-logo"><img src="{{ $squareLightFinal }}" alt="logo"></span>
-			  <span class="dark-logo"><img src="{{ $squareDarkFinal }}" alt="logo"></span>
+              <span class="light-logo"><img src="{{ $squareDarkFinal }}" alt="logo"></span>
+			  <span class="dark-logo"><img src="{{ $squareLightFinal }}" alt="logo"></span>
 		  </div>
 		  <div class="logo-lg">
 			  <span class="light-logo">
