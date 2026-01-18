@@ -1,6 +1,10 @@
 <footer class="main-footer">
-  <div class="pull-right d-none d-sm-inline-block">
-    <b>Ano:</b> {{ now()->year }}
-  </div>
-  <strong>ConecttaRH</strong>
+    <div class="pull-right d-none d-sm-inline-block">
+        <ul class="nav nav-primary nav-dotted nav-dot-separated justify-content-center justify-content-md-end">
+		  <li class="nav-item">
+			<a class="nav-link" href="javascript:void(0)">Ajuda</a>
+		  </li>
+		</ul>
+    </div>
+	  &copy; {{ date('Y') }} <a href="https://www.conecttarh.com.br/">Conectta RH</a>. Todos os Direitos Reservados.
 </footer>
