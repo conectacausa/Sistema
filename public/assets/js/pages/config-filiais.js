@@ -1,22 +1,35 @@
+/**
+ * Tela: Configuração > Filiais
+ * Slug: config/filiais
+ * Screen ID: 5
+ */
+
 (function () {
+  'use strict';
+
+  // ===============================
+  // CONFIGURAÇÕES
+  // ===============================
   const SCREEN_ID = window.__SCREEN_ID__ || 5;
 
-  // Rotas (páginas)
+  // Rotas de páginas
   const ROUTE_NOVA = '/config/filiais/nova';
   const ROUTE_EDIT = (id) => `/config/filiais/${id}/editar`;
 
   // APIs
-  const API_PAISES = '/api/paises';
-  const API_ESTADOS = (paisId) => `/api/paises/${paisId}/estados`;
-  const API_CIDADES = (estadoId) => `/api/estados/${estadoId}/cidades`;
+  const API_BASE = '/api';
+  const API_FILIAIS = `${API_BASE}/filiais`;
+  const API_DELETE_FILIAL = (id) => `${API_BASE}/filiais/${id}`;
 
-  // Listagem + paginação
-  const API_FILIAIS = '/api/filiais';
-  const API_DELETE_FILIAL = (id) => `/api/filiais/${id}`;
+  const API_PAISES = `${API_BASE}/paises`;
+  const API_ESTADOS = (paisId) => `${API_BASE}/paises/${paisId}/estados`;
+  const API_CIDADES = (estadoId) => `${API_BASE}/estados/${estadoId}/cidades`;
 
   const PER_PAGE = 50;
 
-  // Elements
+  // ===============================
+  // ELEMENTOS
+  // ===============================
   const elNova = document.getElementById('btnNovaFilial');
   const elQ = document.getElementById('filtroRazaoCnpj');
   const elPais = document.getElementById('filtroPais');
@@ -28,6 +41,9 @@
   const elPrev = document.getElementById('btnPrev');
   const elNext = document.getElementById('btnNext');
 
+  // ===============================
+  // STATE
+  // ===============================
   const state = {
     page: 1,
     total: 0,
@@ -41,6 +57,9 @@
     }
   };
 
+  // ===============================
+  // HELPERS
+  // ===============================
   function debounce(fn, wait) {
     let t;
     return function (...args) {
@@ -49,86 +68,111 @@
     };
   }
 
+  function getCsrfToken() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.getAttribute('content') : '';
+  }
+
   async function apiGet(url) {
     const res = await fetch(url, {
       headers: { 'Accept': 'application/json' },
       credentials: 'include'
     });
-    if (!res.ok) throw new Error('Falha ao buscar dados');
+
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`GET ${url} → ${res.status}: ${txt}`);
+    }
+
     return res.json();
   }
 
   async function apiDelete(url) {
+    const csrf = getCsrfToken();
+
     const res = await fetch(url, {
       method: 'DELETE',
-      headers: { 'Accept': 'application/json' },
+      headers: {
+        'Accept': 'application/json',
+        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {})
+      },
       credentials: 'include'
     });
-    if (!res.ok) throw new Error('Falha ao excluir');
+
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`DELETE ${url} → ${res.status}: ${txt}`);
+    }
+
     return res.json().catch(() => ({}));
   }
 
   function setOptions(selectEl, items, placeholder) {
     selectEl.innerHTML = '';
+
     const opt0 = document.createElement('option');
     opt0.value = '';
     opt0.textContent = placeholder;
     selectEl.appendChild(opt0);
 
-    items.forEach(it => {
+    items.forEach(item => {
       const opt = document.createElement('option');
-      opt.value = String(it.id);
-      opt.textContent = it.nome ?? it.descricao ?? it.sigla ?? `#${it.id}`;
+      opt.value = String(item.id);
+      opt.textContent =
+        item.nome ||
+        item.descricao ||
+        item.sigla ||
+        `#${item.id}`;
       selectEl.appendChild(opt);
     });
   }
 
-  // CNPJ com máscara (00.000.000/0000-00)
+  function escapeHtml(str) {
+    return String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  // CNPJ: 00.000.000/0000-00
   function maskCnpj(cnpj) {
     const digits = String(cnpj || '').replace(/\D/g, '').padStart(14, '0').slice(-14);
     return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
   }
 
-  function escapeHtml(str) {
-    return String(str ?? '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#039;');
-  }
-
+  // ===============================
+  // RENDER
+  // ===============================
   function renderRows(rows) {
     if (!rows || rows.length === 0) {
       elTBody.innerHTML = `
         <tr>
-          <td colspan="6" class="text-center text-muted">Nenhuma filial encontrada.</td>
-        </tr>
-      `;
+          <td colspan="6" class="text-center text-muted">
+            Nenhuma filial encontrada.
+          </td>
+        </tr>`;
       return;
     }
 
-    elTBody.innerHTML = rows.map(r => {
-      const nomeFantasia = escapeHtml(r.nome_fantasia || r.razao_social || '');
-      const cnpj = maskCnpj(r.cnpj);
-      const cidade = escapeHtml((r.cidade && r.cidade.nome) || r.cidade_nome || '');
-      const uf = escapeHtml((r.estado && r.estado.sigla) || r.uf || '');
-      const pais = escapeHtml((r.pais && r.pais.nome) || r.pais_nome || '');
-
-      return `
-        <tr>
-          <td>${nomeFantasia}</td>
-          <td>${cnpj}</td>
-          <td>${cidade}</td>
-          <td>${uf}</td>
-          <td>${pais}</td>
-          <td>
-            <button type="button" class="btn btn-sm btn-primary me-1 btnEditar" data-id="${r.id}">Editar</button>
-            <button type="button" class="btn btn-sm btn-danger btnExcluir" data-id="${r.id}">Excluir</button>
-          </td>
-        </tr>
-      `;
-    }).join('');
+    elTBody.innerHTML = rows.map(r => `
+      <tr>
+        <td>${escapeHtml(r.nome_fantasia || r.razao_social || '')}</td>
+        <td>${maskCnpj(r.cnpj)}</td>
+        <td>${escapeHtml(r.cidade?.nome || '')}</td>
+        <td>${escapeHtml(r.estado?.sigla || '')}</td>
+        <td>${escapeHtml(r.pais?.nome || '')}</td>
+        <td>
+          <button class="btn btn-sm btn-primary btnEditar" data-id="${r.id}">
+            Editar
+          </button>
+          <button class="btn btn-sm btn-danger btnExcluir" data-id="${r.id}">
+            Excluir
+          </button>
+        </td>
+      </tr>
+    `).join('');
   }
 
   function renderPagination() {
@@ -141,19 +185,23 @@
   }
 
   function buildFiliaisUrl() {
-    const params = new URLSearchParams();
-    params.set('screen_id', String(SCREEN_ID));
-    params.set('page', String(state.page));
-    params.set('per_page', String(PER_PAGE));
+    const p = new URLSearchParams({
+      screen_id: SCREEN_ID,
+      page: state.page,
+      per_page: PER_PAGE
+    });
 
-    if (state.filtros.q) params.set('q', state.filtros.q);
-    if (state.filtros.pais_id) params.set('pais_id', state.filtros.pais_id);
-    if (state.filtros.estado_id) params.set('estado_id', state.filtros.estado_id);
-    if (state.filtros.cidade_id) params.set('cidade_id', state.filtros.cidade_id);
+    if (state.filtros.q) p.set('q', state.filtros.q);
+    if (state.filtros.pais_id) p.set('pais_id', state.filtros.pais_id);
+    if (state.filtros.estado_id) p.set('estado_id', state.filtros.estado_id);
+    if (state.filtros.cidade_id) p.set('cidade_id', state.filtros.cidade_id);
 
-    return `${API_FILIAIS}?${params.toString()}`;
+    return `${API_FILIAIS}?${p.toString()}`;
   }
 
+  // ===============================
+  // LOADERS
+  // ===============================
   async function carregarFiliais() {
     state.loading = true;
     renderPagination();
@@ -161,24 +209,24 @@
     try {
       const data = await apiGet(buildFiliaisUrl());
 
-      const rows = data.data ?? data.rows ?? [];
+      const rows = data.data ?? [];
       const meta = data.meta ?? {};
-      state.total = Number(meta.total ?? data.total ?? rows.length ?? 0);
-      state.lastPage = Number(meta.last_page ?? data.last_page ?? 1);
-      state.page = Number(meta.current_page ?? data.current_page ?? state.page);
+
+      state.total = Number(meta.total ?? 0);
+      state.lastPage = Number(meta.last_page ?? 1);
+      state.page = Number(meta.current_page ?? state.page);
 
       renderRows(rows);
-      renderPagination();
-
-    } catch (e) {
+    } catch (err) {
+      console.error(err);
       elTBody.innerHTML = `
         <tr>
-          <td colspan="6" class="text-center text-danger">Erro ao carregar filiais.</td>
-        </tr>
-      `;
+          <td colspan="6" class="text-center text-danger">
+            Erro ao carregar filiais
+          </td>
+        </tr>`;
       state.total = 0;
       state.lastPage = 1;
-      renderPagination();
     } finally {
       state.loading = false;
       renderPagination();
@@ -186,95 +234,75 @@
   }
 
   async function carregarPaises() {
-    const data = await apiGet(`${API_PAISES}?screen_id=${encodeURIComponent(SCREEN_ID)}`);
-    const items = data.data ?? data;
-    setOptions(elPais, items, 'Lista de País');
+    const data = await apiGet(`${API_PAISES}?screen_id=${SCREEN_ID}`);
+    setOptions(elPais, data.data || [], 'Lista de País');
   }
 
+  // ===============================
+  // EVENTS
+  // ===============================
   async function onChangePais() {
-    const paisId = elPais.value || '';
+    const paisId = elPais.value;
     state.filtros.pais_id = paisId;
-
-    // Reset estado/cidade
     state.filtros.estado_id = '';
     state.filtros.cidade_id = '';
-    elEstado.value = '';
-    elCidade.value = '';
+
+    elEstado.disabled = true;
     elCidade.disabled = true;
+    setOptions(elEstado, [], 'Lista de Estado');
     setOptions(elCidade, [], 'Lista de Cidade');
 
-    if (!paisId) {
-      elEstado.disabled = true;
-      setOptions(elEstado, [], 'Lista de Estado');
-      state.page = 1;
-      await carregarFiliais();
-      return;
+    if (paisId) {
+      const data = await apiGet(`${API_ESTADOS(paisId)}?screen_id=${SCREEN_ID}`);
+      setOptions(elEstado, data.data || [], 'Lista de Estado');
+      elEstado.disabled = false;
     }
 
-    // (3) Estado só habilita após País + lista filtrada
-    elEstado.disabled = true;
-    setOptions(elEstado, [], 'Carregando...');
-    const data = await apiGet(`${API_ESTADOS(paisId)}?screen_id=${encodeURIComponent(SCREEN_ID)}`);
-    const items = data.data ?? data;
-    setOptions(elEstado, items, 'Lista de Estado');
-    elEstado.disabled = false;
-
     state.page = 1;
-    await carregarFiliais();
+    carregarFiliais();
   }
 
   async function onChangeEstado() {
-    const estadoId = elEstado.value || '';
+    const estadoId = elEstado.value;
     state.filtros.estado_id = estadoId;
-
-    // Reset cidade
     state.filtros.cidade_id = '';
-    elCidade.value = '';
 
-    if (!estadoId) {
-      elCidade.disabled = true;
-      setOptions(elCidade, [], 'Lista de Cidade');
-      state.page = 1;
-      await carregarFiliais();
-      return;
+    elCidade.disabled = true;
+    setOptions(elCidade, [], 'Lista de Cidade');
+
+    if (estadoId) {
+      const data = await apiGet(`${API_CIDADES(estadoId)}?screen_id=${SCREEN_ID}`);
+      setOptions(elCidade, data.data || [], 'Lista de Cidade');
+      elCidade.disabled = false;
     }
 
-    // (4) Cidade só habilita após Estado + lista filtrada
-    elCidade.disabled = true;
-    setOptions(elCidade, [], 'Carregando...');
-    const data = await apiGet(`${API_CIDADES(estadoId)}?screen_id=${encodeURIComponent(SCREEN_ID)}`);
-    const items = data.data ?? data;
-    setOptions(elCidade, items, 'Lista de Cidade');
-    elCidade.disabled = false;
-
     state.page = 1;
-    await carregarFiliais();
+    carregarFiliais();
   }
 
-  async function onChangeCidade() {
-    state.filtros.cidade_id = elCidade.value || '';
+  function onChangeCidade() {
+    state.filtros.cidade_id = elCidade.value;
     state.page = 1;
-    await carregarFiliais();
+    carregarFiliais();
   }
 
-  const onTypingQ = debounce(async function () {
-    state.filtros.q = (elQ.value || '').trim();
+  const onTypingQ = debounce(() => {
+    state.filtros.q = elQ.value.trim();
     state.page = 1;
-    await carregarFiliais();
+    carregarFiliais();
   }, 250);
 
-  async function onTableClick(ev) {
-    const btnEdit = ev.target.closest('.btnEditar');
-    const btnDel = ev.target.closest('.btnExcluir');
+  async function onTableClick(e) {
+    const btnEdit = e.target.closest('.btnEditar');
+    const btnDelete = e.target.closest('.btnExcluir');
 
     if (btnEdit) {
-      const id = btnEdit.getAttribute('data-id');
-      window.location.href = ROUTE_EDIT(id);
+      window.location.href = ROUTE_EDIT(btnEdit.dataset.id);
       return;
     }
 
-    if (btnDel) {
-      const id = btnDel.getAttribute('data-id');
+    if (btnDelete) {
+      const id = btnDelete.dataset.id;
 
       const result = await Swal.fire({
         title: 'Excluir filial?',
@@ -288,41 +316,18 @@
       if (!result.isConfirmed) return;
 
       try {
-        await apiDelete(`${API_DELETE_FILIAL(id)}?screen_id=${encodeURIComponent(SCREEN_ID)}`);
-        await Swal.fire({ title: 'Excluída!', text: 'A filial foi excluída.', icon: 'success' });
-
-        // Se apagou o último item da página, tenta voltar 1 página
-        const beforeTotal = state.total;
-        await carregarFiliais();
-        if (beforeTotal > 0 && state.total === (beforeTotal - 1) && state.page > state.lastPage) {
-          state.page = state.lastPage;
-          await carregarFiliais();
-        }
-
-      } catch (e) {
-        await Swal.fire({ title: 'Erro', text: 'Não foi possível excluir a filial.', icon: 'error' });
+        await apiDelete(API_DELETE_FILIAL(id));
+        await Swal.fire('Excluída!', 'A filial foi excluída com sucesso.', 'success');
+        carregarFiliais();
+      } catch (err) {
+        console.error(err);
+        Swal.fire('Erro', 'Não foi possível excluir a filial.', 'error');
       }
     }
   }
 
-  async function onPrev() {
-    if (state.page <= 1) return;
-    state.page -= 1;
-    await carregarFiliais();
-  }
-
-  async function onNext() {
-    if (state.page >= state.lastPage) return;
-    state.page += 1;
-    await carregarFiliais();
-  }
-
-  function onNovaFilial() {
-    window.location.href = ROUTE_NOVA;
-  }
-
-  async function init() {
-    elNova.addEventListener('click', onNovaFilial);
+  function init() {
+    elNova.addEventListener('click', () => window.location.href = ROUTE_NOVA);
 
     elQ.addEventListener('input', onTypingQ);
     elPais.addEventListener('change', onChangePais);
@@ -330,15 +335,14 @@
     elCidade.addEventListener('change', onChangeCidade);
 
     elTBody.addEventListener('click', onTableClick);
-
-    elPrev.addEventListener('click', onPrev);
-    elNext.addEventListener('click', onNext);
+    elPrev.addEventListener('click', () => { if (state.page > 1) { state.page--; carregarFiliais(); } });
+    elNext.addEventListener('click', () => { if (state.page < state.lastPage) { state.page++; carregarFiliais(); } });
 
     elEstado.disabled = true;
     elCidade.disabled = true;
 
-    try { await carregarPaises(); } catch (e) {}
-    await carregarFiliais();
+    carregarPaises();
+    carregarFiliais();
   }
 
   init();
