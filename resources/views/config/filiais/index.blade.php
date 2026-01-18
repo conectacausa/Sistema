@@ -236,8 +236,8 @@
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
-<!-- SweetAlert2 -->
-<script src="{{ asset('assets/vendor_components/sweetalert2/sweetalert2.min.js') }}"></script>
+<!-- SweetAlert -->
+<script src="{{ asset('assets/vendor_components/sweetalert/sweetalert.min.js') }}"></script>
 
 <!-- JS da tela -->
 <script src="{{ asset('assets/js/pages/config-filiais.js') }}?v={{ filemtime(public_path('assets/js/pages/config-filiais.js')) }}"></script>
