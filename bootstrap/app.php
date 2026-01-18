@@ -24,6 +24,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
             // OVERRIDE do auth para evitar route('login') exigir {sub}
             'auth' => \App\Http\Middleware\Authenticate::class,
+
+            // Controle de acesso por tela (screen_id)
+            'screen' => \App\Http\Middleware\ScreenAuthorization::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
