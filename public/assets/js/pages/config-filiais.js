@@ -1,9 +1,3 @@
-/**
- * Tela: Configuração > Filiais
- * Slug: config/filiais
- * Screen ID: 5
- */
-
 (function () {
   'use strict';
 
@@ -38,12 +32,7 @@
     total: 0,
     lastPage: 1,
     loading: false,
-    filtros: {
-      q: '',
-      pais_id: '',
-      estado_id: '',
-      cidade_id: ''
-    }
+    filtros: { q: '', pais_id: '', estado_id: '', cidade_id: '' }
   };
 
   function debounce(fn, wait) {
@@ -59,21 +48,46 @@
     return meta ? meta.getAttribute('content') : '';
   }
 
+  async function notifyError(title, text) {
+    try {
+      if (window.Swal && typeof window.Swal.fire === 'function') {
+        await window.Swal.fire(title, text, 'error');
+      } else {
+        alert(`${title}\n\n${text}`);
+      }
+    } catch {
+      alert(`${title}\n\n${text}`);
+    }
+  }
+
   async function apiGet(url) {
+    console.log('[GET]', url);
+
     const res = await fetch(url, {
       headers: { 'Accept': 'application/json' },
       credentials: 'include'
     });
 
+    const contentType = res.headers.get('content-type') || '';
+
+    // Se veio HTML, é quase certo redirect/login/erro
+    if (!contentType.includes('application/json')) {
+      const txt = await res.text();
+      throw new Error(`Resposta não-JSON (${res.status}) em ${url}. Content-Type=${contentType}. Body(início)=${txt.slice(0, 200)}`);
+    }
+
     if (!res.ok) {
       const txt = await res.text();
       throw new Error(`GET ${url} -> ${res.status}: ${txt}`);
     }
+
     return res.json();
   }
 
   async function apiDelete(url) {
     const csrf = getCsrfToken();
+
+    console.log('[DELETE]', url);
 
     const res = await fetch(url, {
       method: 'DELETE',
@@ -88,12 +102,12 @@
       const txt = await res.text();
       throw new Error(`DELETE ${url} -> ${res.status}: ${txt}`);
     }
+
     return res.json().catch(() => ({}));
   }
 
   function setOptions(selectEl, items, placeholder) {
     selectEl.innerHTML = '';
-
     const opt0 = document.createElement('option');
     opt0.value = '';
     opt0.textContent = placeholder;
@@ -109,10 +123,8 @@
 
   function escapeHtml(str) {
     return String(str ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   }
 
@@ -123,10 +135,7 @@
 
   function renderRows(rows) {
     if (!rows || rows.length === 0) {
-      elTBody.innerHTML = `
-        <tr>
-          <td colspan="6" class="text-center text-muted">Nenhuma filial encontrada.</td>
-        </tr>`;
+      elTBody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">Nenhuma filial encontrada.</td></tr>`;
       return;
     }
 
@@ -175,6 +184,8 @@
 
     try {
       const data = await apiGet(buildFiliaisUrl());
+      console.log('[Filiais] Response:', data);
+
       const rows = data.data ?? [];
       const meta = data.meta ?? {};
 
@@ -185,12 +196,10 @@
       renderRows(rows);
     } catch (err) {
       console.error('[Filiais] Erro ao carregar', err);
-      elTBody.innerHTML = `
-        <tr>
-          <td colspan="6" class="text-center text-danger">Erro ao carregar filiais</td>
-        </tr>`;
+      elTBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Erro ao carregar filiais</td></tr>`;
       state.total = 0;
       state.lastPage = 1;
+      await notifyError('Erro', 'Falha ao carregar filiais. Veja o Console (F12) para o motivo exato.');
     } finally {
       state.loading = false;
       renderPagination();
@@ -204,7 +213,10 @@
 
   async function onChangePais() {
     const paisId = elPais.value || '';
+    console.log('[UI] Pais selecionado:', paisId);
+
     state.filtros.pais_id = paisId;
+    state.page = 1;
 
     // reset estado/cidade
     state.filtros.estado_id = '';
@@ -218,27 +230,32 @@
     if (paisId) {
       try {
         setOptions(elEstado, [], 'Carregando...');
-        const data = await apiGet(`${API_ESTADOS(paisId)}?screen_id=${SCREEN_ID}`);
+        const url = `${API_ESTADOS(paisId)}?screen_id=${SCREEN_ID}`;
+        const data = await apiGet(url);
+
+        console.log('[Estados] Response:', data);
+
         setOptions(elEstado, data.data || [], 'Lista de Estado');
         elEstado.disabled = false;
       } catch (err) {
         console.error('[Estados] Erro ao carregar', err);
-        await Swal.fire('Erro', 'Não foi possível carregar os estados deste país.', 'error');
-        elEstado.disabled = true;
+        // garante que sai do "Carregando..."
         setOptions(elEstado, [], 'Lista de Estado');
+        elEstado.disabled = true;
+        await notifyError('Erro', 'Não foi possível carregar os estados deste país. Veja o Console (F12).');
       }
     }
 
-    state.page = 1;
+    // ✅ sempre filtra tabela pelo país selecionado
     await carregarFiliais();
   }
 
   async function onChangeEstado() {
     const estadoId = elEstado.value || '';
     state.filtros.estado_id = estadoId;
-
-    // reset cidade
     state.filtros.cidade_id = '';
+    state.page = 1;
+
     elCidade.disabled = true;
     setOptions(elCidade, [], 'Lista de Cidade');
 
@@ -250,13 +267,12 @@
         elCidade.disabled = false;
       } catch (err) {
         console.error('[Cidades] Erro ao carregar', err);
-        await Swal.fire('Erro', 'Não foi possível carregar as cidades deste estado.', 'error');
-        elCidade.disabled = true;
         setOptions(elCidade, [], 'Lista de Cidade');
+        elCidade.disabled = true;
+        await notifyError('Erro', 'Não foi possível carregar as cidades deste estado. Veja o Console (F12).');
       }
     }
 
-    state.page = 1;
     await carregarFiliais();
   }
 
@@ -284,44 +300,36 @@
     if (btnDel) {
       const id = btnDel.dataset.id;
 
-      const result = await Swal.fire({
-        title: 'Excluir filial?',
-        text: 'Tem certeza que deseja excluir esta filial?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Sim, excluir',
-        cancelButtonText: 'Cancelar'
-      });
+      let confirmed = false;
+      if (window.Swal && typeof window.Swal.fire === 'function') {
+        const result = await window.Swal.fire({
+          title: 'Excluir filial?',
+          text: 'Tem certeza que deseja excluir esta filial?',
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Sim, excluir',
+          cancelButtonText: 'Cancelar'
+        });
+        confirmed = !!result.isConfirmed;
+      } else {
+        confirmed = confirm('Tem certeza que deseja excluir esta filial?');
+      }
 
-      if (!result.isConfirmed) return;
+      if (!confirmed) return;
 
       try {
-        await apiDelete(API_DELETE_FILIAL(id));
-        await Swal.fire('Excluída!', 'A filial foi excluída com sucesso.', 'success');
+        await apiDelete(`${API_DELETE_FILIAL(id)}?screen_id=${SCREEN_ID}`);
         await carregarFiliais();
       } catch (err) {
         console.error('[Excluir] Erro', err);
-        await Swal.fire('Erro', 'Não foi possível excluir a filial.', 'error');
+        await notifyError('Erro', 'Não foi possível excluir a filial.');
       }
     }
-  }
-
-  async function onPrev() {
-    if (state.page <= 1) return;
-    state.page -= 1;
-    await carregarFiliais();
-  }
-
-  async function onNext() {
-    if (state.page >= state.lastPage) return;
-    state.page += 1;
-    await carregarFiliais();
   }
 
   async function init() {
     elNova.addEventListener('click', () => window.location.href = ROUTE_NOVA);
 
-    // garante reset mesmo ao limpar colando/apagando
     elQ.addEventListener('input', onTypingQ);
     elQ.addEventListener('change', onTypingQ);
     elQ.addEventListener('keyup', onTypingQ);
@@ -332,8 +340,8 @@
 
     elTBody.addEventListener('click', onTableClick);
 
-    elPrev.addEventListener('click', onPrev);
-    elNext.addEventListener('click', onNext);
+    elPrev.addEventListener('click', async () => { if (state.page > 1) { state.page--; await carregarFiliais(); } });
+    elNext.addEventListener('click', async () => { if (state.page < state.lastPage) { state.page++; await carregarFiliais(); } });
 
     elEstado.disabled = true;
     elCidade.disabled = true;
