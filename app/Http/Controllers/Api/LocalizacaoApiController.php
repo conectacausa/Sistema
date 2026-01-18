@@ -19,10 +19,13 @@ class LocalizacaoApiController extends Controller
         return response()->json(['data' => $items]);
     }
 
-    public function estadosByPais(Request $request, int $paisId): JsonResponse
+    // 👇 aceita string e converte (evita TypeError)
+    public function estadosByPais(Request $request, string $paisId): JsonResponse
     {
+        $paisIdInt = (int) $paisId;
+
         $items = DB::table('estados')
-            ->where('pais_id', $paisId)
+            ->where('pais_id', $paisIdInt)
             ->select(['id', 'nome', 'sigla', 'pais_id'])
             ->orderBy('nome')
             ->get();
@@ -30,10 +33,13 @@ class LocalizacaoApiController extends Controller
         return response()->json(['data' => $items]);
     }
 
-    public function cidadesByEstado(Request $request, int $estadoId): JsonResponse
+    // 👇 mesma ideia para cidades
+    public function cidadesByEstado(Request $request, string $estadoId): JsonResponse
     {
+        $estadoIdInt = (int) $estadoId;
+
         $items = DB::table('cidades')
-            ->where('estado_id', $estadoId)
+            ->where('estado_id', $estadoIdInt)
             ->select(['id', 'nome', 'estado_id'])
             ->orderBy('nome')
             ->get();
