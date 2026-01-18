@@ -86,15 +86,8 @@
 		<a href="{{ url('/') }}" class="logo">
 		  <!-- logo-->
 		  <div class="logo-mini w-30">
-              <img
-                  id="logo-mini-img"
-                  src="{{ $squareLightFinal }}"
-                  data-light="{{ $squareLightFinal }}"
-                  data-dark="{{ $squareDarkFinal }}"
-                  data-fallback="{{ $fallbackSquare }}"
-                  alt="logo"
-                  onerror="this.onerror=null;this.src='{{ $fallbackSquare }}';"
-              >
+              <span class="light-logo"><img src="{{ $squareLightFinal }}" alt="logo"></span>
+			  <span class="dark-logo"><img src="{{ $squareDarkFinal }}" alt="logo"></span>
 		  </div>
 		  <div class="logo-lg">
 			  <span class="light-logo">
