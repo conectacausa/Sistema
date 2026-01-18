@@ -32,12 +32,12 @@
             $path = Str::replaceFirst('public/', 'storage/', $path);
         }
 
-        // Se já começa com storage/, ok
+        // Já está no formato público
         if (Str::startsWith($path, 'storage/')) {
             return asset($path);
         }
 
-        // Se vier algo tipo "tenants/1/logo.png", assume que está dentro do storage público
+        // Ex: tenants/1/logo.png -> storage/tenants/1/logo.png
         if (Str::startsWith($path, ['tenants/', 'tenant/', 'uploads/'])) {
             return asset('storage/' . $path);
         }
@@ -45,7 +45,11 @@
         return asset($path);
     };
 
-    // Logos vindas do banco
+    /*
+    |--------------------------------------------------------------------------
+    | Logos vindas do banco (seus exemplos)
+    |--------------------------------------------------------------------------
+    */
     $dbSquareLight = $config->logo_quadrado_light ?? null; // storage/tenants/1/logo_quadrada_azul.png
     $dbSquareDark  = $config->logo_quadrado_dark  ?? null; // storage/tenants/1/logo_quadrada_branca.png
 
@@ -54,7 +58,7 @@
 
     // Fallbacks
     $fallbackSquareLight = asset('assets/images/logo-letter.png');
-    $fallbackSquareDark  = asset('assets/images/logo-letter-dark.png');
+    $fallbackSquareDark  = asset('assets/images/logo-letter.png'); // no original era o mesmo (ok)
 
     $fallbackHorizLight  = asset('assets/images/logo-dark-text.png');
     $fallbackHorizDark   = asset('assets/images/logo-light-text.png');
@@ -66,7 +70,11 @@
     $logoHorizLight  = $toUrl($dbHorizLight)  ?: $fallbackHorizLight;
     $logoHorizDark   = $toUrl($dbHorizDark)   ?: $fallbackHorizDark;
 
-    // Avatar do usuário
+    /*
+    |--------------------------------------------------------------------------
+    | Avatar do usuário
+    |--------------------------------------------------------------------------
+    */
     $avatarUser = $toUrl($user->foto ?? null);
 
     $sexo = 'NI';
@@ -74,53 +82,33 @@
         $sexo = strtoupper((string) ($user->colaborador->sexo ?? 'NI'));
     }
 
-    $avatarDefault = ($sexo === 'F')
-        ? asset('assets/images/avatar/avatar-2.png')
-        : asset('assets/images/avatar/avatar-15.png');
+    if ($sexo === 'F') {
+        $avatarDefault = asset('assets/images/avatar/avatar-2.png');
+    } else {
+        $avatarDefault = asset('assets/images/avatar/avatar-15.png');
+    }
 
     $avatarFinal = $avatarUser ?: $avatarDefault;
 @endphp
-
-{{-- FIX: garante que o logo-mini respeite o tema (alguns templates forçam sempre dark no mini) --}}
-<style>
-    /* default (tema claro): mostra light, esconde dark */
-    .main-header .logo .logo-mini .light-logo { display: inline-block !important; }
-    .main-header .logo .logo-mini .dark-logo  { display: none !important; }
-
-    /* tema escuro: mostra dark, esconde light
-       cobre classes comuns de templates admin */
-    body.dark-skin .main-header .logo .logo-mini .light-logo,
-    body.dark-theme .main-header .logo .logo-mini .light-logo,
-    body.theme-dark .main-header .logo .logo-mini .light-logo,
-    body.skin-dark .main-header .logo .logo-mini .light-logo {
-        display: none !important;
-    }
-
-    body.dark-skin .main-header .logo .logo-mini .dark-logo,
-    body.dark-theme .main-header .logo .logo-mini .dark-logo,
-    body.theme-dark .main-header .logo .logo-mini .dark-logo,
-    body.skin-dark .main-header .logo .logo-mini .dark-logo {
-        display: inline-block !important;
-    }
-</style>
 
 <header class="main-header">
     <div class="d-flex align-items-center logo-box justify-content-start">
         <!-- Logo -->
         <a href="{{ url('/') }}" class="logo">
-            <!-- logo quadrada -->
+            <!-- logo mini (quadrada) - NÃO depende mais do CSS do template -->
             <div class="logo-mini w-30">
-                <span class="light-logo">
-                    <img src="{{ $logoSquareLight }}" alt="logo"
-                         onerror="this.onerror=null;this.src='{{ $fallbackSquareLight }}';">
-                </span>
-                <span class="dark-logo">
-                    <img src="{{ $logoSquareDark }}" alt="logo"
-                         onerror="this.onerror=null;this.src='{{ $fallbackSquareDark }}';">
-                </span>
+                <img
+                    id="tenantLogoMini"
+                    src="{{ $logoSquareLight }}"
+                    data-logo-light="{{ $logoSquareLight }}"
+                    data-logo-dark="{{ $logoSquareDark }}"
+                    alt="logo"
+                    style="display:inline-block;"
+                    onerror="this.onerror=null;this.src='{{ $fallbackSquareLight }}';"
+                >
             </div>
 
-            <!-- logo horizontal -->
+            <!-- logo horizontal (mantém padrão original do template, pois já funciona) -->
             <div class="logo-lg">
                 <span class="light-logo">
                     <img src="{{ $logoHorizLight }}" alt="logo"
@@ -140,8 +128,7 @@
         <div class="app-menu">
             <ul class="header-megamenu nav">
                 <li class="btn-group nav-item">
-                    <a href="#"
-                       class="waves-effect waves-light nav-link push-btn btn-outline no-border btn-primary-light"
+                    <a href="#" class="waves-effect waves-light nav-link push-btn btn-outline no-border btn-primary-light"
                        data-toggle="push-menu" role="button">
                         <i data-feather="align-left"></i>
                     </a>
@@ -151,6 +138,7 @@
 
         <div class="navbar-custom-menu r-side">
             <ul class="nav navbar-nav">
+
                 <!-- Toggle Dark / Light-->
                 <li class="dropdown notifications-menu btn-group">
                     <label class="switch">
@@ -164,20 +152,16 @@
 
                 <!-- Full Screen-->
                 <li class="btn-group nav-item d-lg-inline-flex d-none">
-                    <a href="#" data-provide="fullscreen"
-                       class="waves-effect waves-light nav-link btn-outline no-border full-screen btn-warning-light"
-                       title="Full Screen">
+                    <a href="#" data-provide="fullscreen" class="waves-effect waves-light nav-link btn-outline no-border full-screen btn-warning-light" title="Full Screen">
                         <i data-feather="maximize"></i>
                     </a>
                 </li>
 
                 <!-- User Account-->
                 <li class="dropdown user user-menu">
-                    <a href="#" class="waves-effect waves-light dropdown-toggle no-border p-5"
-                       data-bs-toggle="dropdown" title="User">
+                    <a href="#" class="waves-effect waves-light dropdown-toggle no-border p-5" data-bs-toggle="dropdown" title="User">
                         <img class="avatar avatar-pill" src="{{ $avatarFinal }}" alt="">
                     </a>
-
                     <ul class="dropdown-menu animated flipInX">
                         <li class="user-body">
                             <a class="dropdown-item" href="{{ url('perfil') }}">
@@ -204,3 +188,63 @@
         </div>
     </nav>
 </header>
+
+<script>
+(function () {
+    function isDarkMode() {
+        const body = document.body;
+        const cls = body.className || '';
+
+        // muitos templates alternam essas classes
+        const byClass =
+            cls.includes('dark') ||
+            cls.includes('dark-skin') ||
+            cls.includes('theme-dark') ||
+            cls.includes('skin-dark');
+
+        // fallback: estado do checkbox (muitos templates usam ele)
+        const toggle = document.getElementById('toggle_left_sidebar_skin');
+        const byToggle = toggle ? !!toggle.checked : false;
+
+        return byClass || byToggle;
+    }
+
+    function applyMiniLogo() {
+        const img = document.getElementById('tenantLogoMini');
+        if (!img) return;
+
+        const light = img.getAttribute('data-logo-light');
+        const dark  = img.getAttribute('data-logo-dark');
+
+        img.src = isDarkMode() ? (dark || light) : (light || dark);
+    }
+
+    // aplica ao carregar
+    document.addEventListener('DOMContentLoaded', function () {
+        applyMiniLogo();
+
+        // reaplica quando o usuário troca o tema
+        const toggle = document.getElementById('toggle_left_sidebar_skin');
+        if (toggle) {
+            toggle.addEventListener('change', function () {
+                // alguns templates aplicam classe com pequeno delay
+                setTimeout(applyMiniLogo, 50);
+                setTimeout(applyMiniLogo, 250);
+            });
+        }
+
+        // reaplica em qualquer clique (cobre templates que trocam tema via JS sem change)
+        document.addEventListener('click', function (e) {
+            const t = e.target;
+            if (!t) return;
+            if (t.id === 'toggle_left_sidebar_skin' || (t.closest && t.closest('#toggle_left_sidebar_skin'))) {
+                setTimeout(applyMiniLogo, 50);
+                setTimeout(applyMiniLogo, 250);
+            }
+        });
+    });
+
+    // reaplica também se classes do body mudarem depois (fallback simples)
+    setInterval(applyMiniLogo, 1500);
+})();
+</script>
