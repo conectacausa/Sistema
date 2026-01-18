@@ -57,11 +57,11 @@
     $dbHorizDark   = $config->logo_horizontal_dark  ?? null;
 
     // Fallbacks do template
-    $fallbackSquare = asset('assets/images/logo-letter.png'); // fallback único como no template original
+    $fallbackSquare = asset('assets/images/logo-letter.png');
     $fallbackHorizL = asset('assets/images/logo-dark-text.png');
     $fallbackHorizD = asset('assets/images/logo-light-text.png');
 
-    // URLs finais
+    // URLs finais (EXATAMENTE como você quer)
     $logoSquareLight = $toUrl($dbSquareLight) ?: $fallbackSquare; // AZUL
     $logoSquareDark  = $toUrl($dbSquareDark)  ?: $fallbackSquare; // BRANCA
 
@@ -91,25 +91,36 @@
     <div class="d-flex align-items-center logo-box justify-content-start">
         <!-- Logo -->
         <a href="{{ url('/') }}" class="logo">
-            <!-- logo mini (quadrada) -->
-            <div class="logo-mini w-30">
-                <img
-                    id="tenantLogoMini"
-                    src="{{ $logoSquareLight }}"
-                    data-logo-light="{{ $logoSquareLight }}"
-                    data-logo-dark="{{ $logoSquareDark }}"
-                    alt="logo"
-                    onerror="this.onerror=null;this.src='{{ $fallbackSquare }}';"
-                >
+            <!-- logo mini (quadrada) - estrutura original -->
+            <div class="logo-mini w-30" id="tenantLogoMiniWrap">
+                <span class="light-logo" id="miniLightSpan">
+                    <img
+                        id="miniLightImg"
+                        src="{{ $logoSquareLight }}"
+                        data-src="{{ $logoSquareLight }}"
+                        alt="logo"
+                        onerror="this.onerror=null;this.src='{{ $fallbackSquare }}';"
+                    >
+                </span>
+
+                <span class="dark-logo" id="miniDarkSpan">
+                    <img
+                        id="miniDarkImg"
+                        src="{{ $logoSquareDark }}"
+                        data-src="{{ $logoSquareDark }}"
+                        alt="logo"
+                        onerror="this.onerror=null;this.src='{{ $fallbackSquare }}';"
+                    >
+                </span>
             </div>
 
-            <!-- logo horizontal (mantém o comportamento perfeito do template) -->
+            <!-- logo horizontal (como no template; está perfeito) -->
             <div class="logo-lg" id="tenantLogoLg">
-                <span class="light-logo">
+                <span class="light-logo" id="lgLightSpan">
                     <img src="{{ $logoHorizLight }}" alt="logo"
                          onerror="this.onerror=null;this.src='{{ $fallbackHorizL }}';">
                 </span>
-                <span class="dark-logo">
+                <span class="dark-logo" id="lgDarkSpan">
                     <img src="{{ $logoHorizDark }}" alt="logo"
                          onerror="this.onerror=null;this.src='{{ $fallbackHorizD }}';">
                 </span>
@@ -186,73 +197,100 @@
 
 <script>
 (function () {
-    function isElementVisible(el) {
+    function isVisible(el) {
         if (!el) return false;
-        // cobre display:none, visibility:hidden e elementos fora do layout
-        const style = window.getComputedStyle(el);
-        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return false;
+        const cs = window.getComputedStyle(el);
+        if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
         return el.getClientRects().length > 0;
     }
 
-    function applyMiniLogoFromLg() {
-        const mini = document.getElementById('tenantLogoMini');
-        const lg = document.getElementById('tenantLogoLg');
-        if (!mini || !lg) return;
-
-        const lightSpan = lg.querySelector('.light-logo');
-        const darkSpan  = lg.querySelector('.dark-logo');
-
-        // Se o span light do logo-lg está visível, estamos em light mode
-        const lightVisible = isElementVisible(lightSpan);
-        const darkVisible  = isElementVisible(darkSpan);
-
-        const lightUrl = mini.getAttribute('data-logo-light');
-        const darkUrl  = mini.getAttribute('data-logo-dark');
-
-        // Prioridade: segue exatamente o que está visível no logo-lg
-        if (lightVisible && !darkVisible) {
-            if (mini.src !== lightUrl) mini.src = lightUrl;
-            return;
-        }
-        if (darkVisible && !lightVisible) {
-            if (mini.src !== darkUrl) mini.src = darkUrl;
-            return;
-        }
-
-        // Fallback (se ambos visíveis/ocultos por algum CSS estranho):
-        // tenta inferir pelo body class “dark” se existir
-        const bodyCls = (document.body.className || '').toLowerCase();
-        const seemsDark = bodyCls.includes('dark');
-        mini.src = seemsDark ? (darkUrl || lightUrl) : (lightUrl || darkUrl);
+    function forceDisplay(el, value) {
+        if (!el) return;
+        // Vence CSS do template mesmo com !important
+        el.style.setProperty('display', value, 'important');
+        el.style.setProperty('visibility', value === 'none' ? 'hidden' : 'visible', 'important');
+        el.style.setProperty('opacity', value === 'none' ? '0' : '1', 'important');
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
-        applyMiniLogoFromLg();
+    function applyMiniByLg() {
+        const lg = document.getElementById('tenantLogoLg');
+        if (!lg) return;
 
-        // Quando troca o tema, alguns templates atualizam o DOM com delay
+        const lgLight = document.getElementById('lgLightSpan') || lg.querySelector('.light-logo');
+        const lgDark  = document.getElementById('lgDarkSpan')  || lg.querySelector('.dark-logo');
+
+        const miniLightSpan = document.getElementById('miniLightSpan');
+        const miniDarkSpan  = document.getElementById('miniDarkSpan');
+
+        const miniLightImg = document.getElementById('miniLightImg');
+        const miniDarkImg  = document.getElementById('miniDarkImg');
+
+        // Garante que os src estão sempre os corretos (mesmo se algum JS mexer)
+        if (miniLightImg && miniLightImg.dataset && miniLightImg.dataset.src) {
+            if (miniLightImg.src !== miniLightImg.dataset.src) miniLightImg.src = miniLightImg.dataset.src;
+        }
+        if (miniDarkImg && miniDarkImg.dataset && miniDarkImg.dataset.src) {
+            if (miniDarkImg.src !== miniDarkImg.dataset.src) miniDarkImg.src = miniDarkImg.dataset.src;
+        }
+
+        const lightOn = isVisible(lgLight) && !isVisible(lgDark);
+        const darkOn  = isVisible(lgDark)  && !isVisible(lgLight);
+
+        if (lightOn) {
+            // LIGHT: mostra AZUL (logo_quadrado_light)
+            forceDisplay(miniLightSpan, 'inline-block');
+            forceDisplay(miniDarkSpan, 'none');
+            return;
+        }
+
+        if (darkOn) {
+            // DARK: mostra BRANCA (logo_quadrado_dark)
+            forceDisplay(miniLightSpan, 'none');
+            forceDisplay(miniDarkSpan, 'inline-block');
+            return;
+        }
+
+        // Fallback: se ambos visíveis/ocultos por alguma transição,
+        // tenta inferir por classe dark no body
+        const cls = (document.body.className || '').toLowerCase();
+        const seemsDark = cls.includes('dark');
+
+        forceDisplay(miniLightSpan, seemsDark ? 'none' : 'inline-block');
+        forceDisplay(miniDarkSpan,  seemsDark ? 'inline-block' : 'none');
+    }
+
+    function bind() {
+        applyMiniByLg();
+
         const toggle = document.getElementById('toggle_left_sidebar_skin');
         if (toggle) {
             toggle.addEventListener('change', function () {
-                setTimeout(applyMiniLogoFromLg, 10);
-                setTimeout(applyMiniLogoFromLg, 100);
-                setTimeout(applyMiniLogoFromLg, 300);
+                setTimeout(applyMiniByLg, 10);
+                setTimeout(applyMiniByLg, 100);
+                setTimeout(applyMiniByLg, 300);
             });
         }
 
-        // Observa mudanças de classe/estilo no logo-lg e no body
+        // Observa mudanças no body e no logo-lg
         const obs = new MutationObserver(function () {
-            applyMiniLogoFromLg();
+            applyMiniByLg();
         });
 
-        obs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        obs.observe(document.body, { attributes: true, attributeFilter: ['class', 'style'] });
 
         const lg = document.getElementById('tenantLogoLg');
         if (lg) {
             obs.observe(lg, { attributes: true, subtree: true, attributeFilter: ['class', 'style'] });
         }
 
-        // Fallback extra (cobre templates que mexem em CSS via JS sem mutation clara)
-        setInterval(applyMiniLogoFromLg, 1200);
-    });
+        // Fallback: alguns templates reaplicam CSS/JS depois
+        setInterval(applyMiniByLg, 800);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bind);
+    } else {
+        bind();
+    }
 })();
 </script>
