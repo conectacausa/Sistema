@@ -9,14 +9,9 @@ use Illuminate\Support\Facades\DB;
 
 class LocalizacaoApiController extends Controller
 {
-    private function central()
-    {
-        return DB::connection(env('DB_CENTRAL_CONNECTION', config('database.default')));
-    }
-
     public function paises(): JsonResponse
     {
-        $items = $this->central()->table('paises')
+        $items = DB::table('public.paises')
             ->select(['id', 'nome'])
             ->orderBy('nome')
             ->get();
@@ -28,7 +23,7 @@ class LocalizacaoApiController extends Controller
     {
         $paisIdInt = (int) $paisId;
 
-        $items = $this->central()->table('estados')
+        $items = DB::table('public.estados')
             ->where('pais_id', $paisIdInt)
             ->select(['id', 'nome', 'sigla', 'pais_id'])
             ->orderBy('nome')
@@ -41,7 +36,7 @@ class LocalizacaoApiController extends Controller
     {
         $estadoIdInt = (int) $estadoId;
 
-        $items = $this->central()->table('cidades')
+        $items = DB::table('public.cidades')
             ->where('estado_id', $estadoIdInt)
             ->select(['id', 'nome', 'estado_id'])
             ->orderBy('nome')
