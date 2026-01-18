@@ -46,8 +46,8 @@
     };
 
     // Logos vindas do banco (CONFIRMADAS)
-    $logoSquareLight = $toUrl($config->logo_quadrado_light ?? null); // azul
-    $logoSquareDark  = $toUrl($config->logo_quadrado_dark ?? null);  // branca
+    $logoSquareLight = $toUrl($config->logo_quadrado_light ?? null); // light (ex: storage/tenants/1/logo_quadrada_azul.png)
+    $logoSquareDark  = $toUrl($config->logo_quadrado_dark ?? null);  // dark  (ex: storage/tenants/1/logo_quadrada_branca.png)
 
     $logoHorizLight  = $toUrl($config->logo_horizontal_light ?? null);
     $logoHorizDark   = $toUrl($config->logo_horizontal_dark ?? null);
@@ -73,9 +73,9 @@
 
     $avatarFinal = $avatarUser ?: $avatarDefault;
 
-    // URLs finais garantidas
-    $squareLightFinal = $logoSquareLight ?: $fallbackSquare; // azul
-    $squareDarkFinal  = $logoSquareDark  ?: $fallbackSquare; // branca
+    // URLs finais garantidas (NUNCA vazias)
+    $squareLightFinal = $logoSquareLight ?: $fallbackSquare;
+    $squareDarkFinal  = $logoSquareDark  ?: $fallbackSquare;
     $horizLightFinal  = $logoHorizLight  ?: $fallbackHorizL;
     $horizDarkFinal   = $logoHorizDark   ?: $fallbackHorizD;
 @endphp
@@ -91,6 +91,7 @@
                   src="{{ $squareLightFinal }}"
                   data-light="{{ $squareLightFinal }}"
                   data-dark="{{ $squareDarkFinal }}"
+                  data-fallback="{{ $fallbackSquare }}"
                   alt="logo"
                   onerror="this.onerror=null;this.src='{{ $fallbackSquare }}';"
               >
@@ -179,21 +180,24 @@
         if (!img) return;
 
         const light = img.getAttribute('data-light') || '';
-        const dark  = img.getAttribute('data-dark')  || '';
+        const dark  = img.getAttribute('data-dark') || '';
+        const fallback = img.getAttribute('data-fallback') || '';
 
-        // IMPORTANTÍSSIMO: no seu template, o comportamento está invertido.
-        // Você relatou que no modo claro estava vindo a branca (dark).
-        // Então aqui: checked = LIGHT (invertido), unchecked = DARK.
         const toggle = document.getElementById('toggle_left_sidebar_skin');
         const checked = toggle ? !!toggle.checked : false;
 
-        const isDark = !checked; // <-- INVERTIDO (ajuste definitivo)
+        // Mantemos a regra que funcionou no seu template:
+        // checked = LIGHT (invertido), unchecked = DARK
+        const isDark = !checked;
 
-        const next = isDark ? (dark || light) : (light || dark);
+        // Se estiver em LIGHT, a prioridade ABSOLUTA é o light do banco.
+        // Se estiver em DARK, a prioridade ABSOLUTA é o dark do banco.
+        const desired = isDark ? (dark || light || fallback) : (light || dark || fallback);
 
-        // Evita setar vazio e cair em fallback
-        if (next && img.src !== next) {
-            img.src = next;
+        // Se por algum motivo o template/JS colocou fallback em LIGHT,
+        // aqui nós forçamos de volta para o desejado.
+        if (desired && img.src !== desired) {
+            img.src = desired;
         }
     }
 
@@ -209,7 +213,7 @@
             });
         }
 
-        // Alguns templates alteram tema via JS após o change
+        // Observa mudanças (alguns templates mexem no DOM após o toggle)
         const obs = new MutationObserver(function () {
             applyMini();
         });
@@ -218,8 +222,8 @@
             obs.observe(document.body, { attributes: true, attributeFilter: ['class', 'style'] });
         }
 
-        // fallback extra
-        setInterval(applyMini, 1200);
+        // reforço para vencer JS do template que reescreve o src
+        setInterval(applyMini, 700);
     }
 
     if (document.readyState === 'loading') {
