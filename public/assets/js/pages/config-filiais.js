@@ -7,16 +7,11 @@
 (function () {
   'use strict';
 
-  // ===============================
-  // CONFIGURAÇÕES
-  // ===============================
   const SCREEN_ID = window.__SCREEN_ID__ || 5;
 
-  // Rotas de páginas
   const ROUTE_NOVA = '/config/filiais/nova';
   const ROUTE_EDIT = (id) => `/config/filiais/${id}/editar`;
 
-  // APIs
   const API_BASE = '/api';
   const API_FILIAIS = `${API_BASE}/filiais`;
   const API_DELETE_FILIAL = (id) => `${API_BASE}/filiais/${id}`;
@@ -27,9 +22,6 @@
 
   const PER_PAGE = 50;
 
-  // ===============================
-  // ELEMENTOS
-  // ===============================
   const elNova = document.getElementById('btnNovaFilial');
   const elQ = document.getElementById('filtroRazaoCnpj');
   const elPais = document.getElementById('filtroPais');
@@ -41,9 +33,6 @@
   const elPrev = document.getElementById('btnPrev');
   const elNext = document.getElementById('btnNext');
 
-  // ===============================
-  // STATE
-  // ===============================
   const state = {
     page: 1,
     total: 0,
@@ -57,9 +46,6 @@
     }
   };
 
-  // ===============================
-  // HELPERS
-  // ===============================
   function debounce(fn, wait) {
     let t;
     return function (...args) {
@@ -81,9 +67,8 @@
 
     if (!res.ok) {
       const txt = await res.text();
-      throw new Error(`GET ${url} → ${res.status}: ${txt}`);
+      throw new Error(`GET ${url} -> ${res.status}: ${txt}`);
     }
-
     return res.json();
   }
 
@@ -101,9 +86,8 @@
 
     if (!res.ok) {
       const txt = await res.text();
-      throw new Error(`DELETE ${url} → ${res.status}: ${txt}`);
+      throw new Error(`DELETE ${url} -> ${res.status}: ${txt}`);
     }
-
     return res.json().catch(() => ({}));
   }
 
@@ -115,14 +99,10 @@
     opt0.textContent = placeholder;
     selectEl.appendChild(opt0);
 
-    items.forEach(item => {
+    (items || []).forEach(item => {
       const opt = document.createElement('option');
       opt.value = String(item.id);
-      opt.textContent =
-        item.nome ||
-        item.descricao ||
-        item.sigla ||
-        `#${item.id}`;
+      opt.textContent = item.nome || item.descricao || item.sigla || `#${item.id}`;
       selectEl.appendChild(opt);
     });
   }
@@ -136,22 +116,16 @@
       .replace(/'/g, '&#039;');
   }
 
-  // CNPJ: 00.000.000/0000-00
   function maskCnpj(cnpj) {
     const digits = String(cnpj || '').replace(/\D/g, '').padStart(14, '0').slice(-14);
     return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
   }
 
-  // ===============================
-  // RENDER
-  // ===============================
   function renderRows(rows) {
     if (!rows || rows.length === 0) {
       elTBody.innerHTML = `
         <tr>
-          <td colspan="6" class="text-center text-muted">
-            Nenhuma filial encontrada.
-          </td>
+          <td colspan="6" class="text-center text-muted">Nenhuma filial encontrada.</td>
         </tr>`;
       return;
     }
@@ -164,12 +138,8 @@
         <td>${escapeHtml(r.estado?.sigla || '')}</td>
         <td>${escapeHtml(r.pais?.nome || '')}</td>
         <td>
-          <button class="btn btn-sm btn-primary btnEditar" data-id="${r.id}">
-            Editar
-          </button>
-          <button class="btn btn-sm btn-danger btnExcluir" data-id="${r.id}">
-            Excluir
-          </button>
+          <button type="button" class="btn btn-sm btn-primary me-1 btnEditar" data-id="${r.id}">Editar</button>
+          <button type="button" class="btn btn-sm btn-danger btnExcluir" data-id="${r.id}">Excluir</button>
         </td>
       </tr>
     `).join('');
@@ -186,9 +156,9 @@
 
   function buildFiliaisUrl() {
     const p = new URLSearchParams({
-      screen_id: SCREEN_ID,
-      page: state.page,
-      per_page: PER_PAGE
+      screen_id: String(SCREEN_ID),
+      page: String(state.page),
+      per_page: String(PER_PAGE)
     });
 
     if (state.filtros.q) p.set('q', state.filtros.q);
@@ -199,16 +169,12 @@
     return `${API_FILIAIS}?${p.toString()}`;
   }
 
-  // ===============================
-  // LOADERS
-  // ===============================
   async function carregarFiliais() {
     state.loading = true;
     renderPagination();
 
     try {
       const data = await apiGet(buildFiliaisUrl());
-
       const rows = data.data ?? [];
       const meta = data.meta ?? {};
 
@@ -218,12 +184,10 @@
 
       renderRows(rows);
     } catch (err) {
-      console.error(err);
+      console.error('[Filiais] Erro ao carregar', err);
       elTBody.innerHTML = `
         <tr>
-          <td colspan="6" class="text-center text-danger">
-            Erro ao carregar filiais
-          </td>
+          <td colspan="6" class="text-center text-danger">Erro ao carregar filiais</td>
         </tr>`;
       state.total = 0;
       state.lastPage = 1;
@@ -238,12 +202,11 @@
     setOptions(elPais, data.data || [], 'Lista de País');
   }
 
-  // ===============================
-  // EVENTS
-  // ===============================
   async function onChangePais() {
-    const paisId = elPais.value;
+    const paisId = elPais.value || '';
     state.filtros.pais_id = paisId;
+
+    // reset estado/cidade
     state.filtros.estado_id = '';
     state.filtros.cidade_id = '';
 
@@ -253,56 +216,73 @@
     setOptions(elCidade, [], 'Lista de Cidade');
 
     if (paisId) {
-      const data = await apiGet(`${API_ESTADOS(paisId)}?screen_id=${SCREEN_ID}`);
-      setOptions(elEstado, data.data || [], 'Lista de Estado');
-      elEstado.disabled = false;
+      try {
+        setOptions(elEstado, [], 'Carregando...');
+        const data = await apiGet(`${API_ESTADOS(paisId)}?screen_id=${SCREEN_ID}`);
+        setOptions(elEstado, data.data || [], 'Lista de Estado');
+        elEstado.disabled = false;
+      } catch (err) {
+        console.error('[Estados] Erro ao carregar', err);
+        await Swal.fire('Erro', 'Não foi possível carregar os estados deste país.', 'error');
+        elEstado.disabled = true;
+        setOptions(elEstado, [], 'Lista de Estado');
+      }
     }
 
     state.page = 1;
-    carregarFiliais();
+    await carregarFiliais();
   }
 
   async function onChangeEstado() {
-    const estadoId = elEstado.value;
+    const estadoId = elEstado.value || '';
     state.filtros.estado_id = estadoId;
-    state.filtros.cidade_id = '';
 
+    // reset cidade
+    state.filtros.cidade_id = '';
     elCidade.disabled = true;
     setOptions(elCidade, [], 'Lista de Cidade');
 
     if (estadoId) {
-      const data = await apiGet(`${API_CIDADES(estadoId)}?screen_id=${SCREEN_ID}`);
-      setOptions(elCidade, data.data || [], 'Lista de Cidade');
-      elCidade.disabled = false;
+      try {
+        setOptions(elCidade, [], 'Carregando...');
+        const data = await apiGet(`${API_CIDADES(estadoId)}?screen_id=${SCREEN_ID}`);
+        setOptions(elCidade, data.data || [], 'Lista de Cidade');
+        elCidade.disabled = false;
+      } catch (err) {
+        console.error('[Cidades] Erro ao carregar', err);
+        await Swal.fire('Erro', 'Não foi possível carregar as cidades deste estado.', 'error');
+        elCidade.disabled = true;
+        setOptions(elCidade, [], 'Lista de Cidade');
+      }
     }
 
     state.page = 1;
-    carregarFiliais();
+    await carregarFiliais();
   }
 
-  function onChangeCidade() {
-    state.filtros.cidade_id = elCidade.value;
+  async function onChangeCidade() {
+    state.filtros.cidade_id = elCidade.value || '';
     state.page = 1;
-    carregarFiliais();
+    await carregarFiliais();
   }
 
-  const onTypingQ = debounce(() => {
-    state.filtros.q = elQ.value.trim();
+  const onTypingQ = debounce(async function () {
+    state.filtros.q = (elQ.value || '').trim();
     state.page = 1;
-    carregarFiliais();
+    await carregarFiliais();
   }, 250);
 
   async function onTableClick(e) {
     const btnEdit = e.target.closest('.btnEditar');
-    const btnDelete = e.target.closest('.btnExcluir');
+    const btnDel = e.target.closest('.btnExcluir');
 
     if (btnEdit) {
       window.location.href = ROUTE_EDIT(btnEdit.dataset.id);
       return;
     }
 
-    if (btnDelete) {
-      const id = btnDelete.dataset.id;
+    if (btnDel) {
+      const id = btnDel.dataset.id;
 
       const result = await Swal.fire({
         title: 'Excluir filial?',
@@ -318,31 +298,48 @@
       try {
         await apiDelete(API_DELETE_FILIAL(id));
         await Swal.fire('Excluída!', 'A filial foi excluída com sucesso.', 'success');
-        carregarFiliais();
+        await carregarFiliais();
       } catch (err) {
-        console.error(err);
-        Swal.fire('Erro', 'Não foi possível excluir a filial.', 'error');
+        console.error('[Excluir] Erro', err);
+        await Swal.fire('Erro', 'Não foi possível excluir a filial.', 'error');
       }
     }
   }
 
-  function init() {
+  async function onPrev() {
+    if (state.page <= 1) return;
+    state.page -= 1;
+    await carregarFiliais();
+  }
+
+  async function onNext() {
+    if (state.page >= state.lastPage) return;
+    state.page += 1;
+    await carregarFiliais();
+  }
+
+  async function init() {
     elNova.addEventListener('click', () => window.location.href = ROUTE_NOVA);
 
+    // garante reset mesmo ao limpar colando/apagando
     elQ.addEventListener('input', onTypingQ);
+    elQ.addEventListener('change', onTypingQ);
+    elQ.addEventListener('keyup', onTypingQ);
+
     elPais.addEventListener('change', onChangePais);
     elEstado.addEventListener('change', onChangeEstado);
     elCidade.addEventListener('change', onChangeCidade);
 
     elTBody.addEventListener('click', onTableClick);
-    elPrev.addEventListener('click', () => { if (state.page > 1) { state.page--; carregarFiliais(); } });
-    elNext.addEventListener('click', () => { if (state.page < state.lastPage) { state.page++; carregarFiliais(); } });
+
+    elPrev.addEventListener('click', onPrev);
+    elNext.addEventListener('click', onNext);
 
     elEstado.disabled = true;
     elCidade.disabled = true;
 
-    carregarPaises();
-    carregarFiliais();
+    await carregarPaises();
+    await carregarFiliais();
   }
 
   init();
