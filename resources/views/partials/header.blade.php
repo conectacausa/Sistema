@@ -5,39 +5,61 @@
     $user   = auth()->user();
     $sub    = request()->route('sub') ?? session('tenant_subdominio');
 
+    // Helper seguro: SEMPRE retorna string válida ou null
     $toUrl = function ($path) {
-        if (!$path) return null;
+        if (!is_string($path) || trim($path) === '') {
+            return null;
+        }
 
-        $path = ltrim(str_replace('\\', '/', $path), '/');
+        $path = trim(str_replace('\\', '/', $path));
+        $path = ltrim($path, '/');
 
         if (Str::startsWith($path, ['http://', 'https://'])) {
             return $path;
         }
 
+        // storage/tenants/...  → público
         if (Str::startsWith($path, 'storage/')) {
             return asset($path);
         }
 
+        // public/tenants/... → storage/tenants/...
         if (Str::startsWith($path, 'public/')) {
             return asset(Str::replaceFirst('public/', 'storage/', $path));
         }
 
+        // tenants/... → storage/tenants/...
         return asset('storage/' . $path);
     };
 
-    // Logos do banco
-    $logoQuadradoLight = $toUrl($config->logo_quadrado_light ?? null); // AZUL
-    $logoQuadradoDark  = $toUrl($config->logo_quadrado_dark  ?? null); // BRANCA
+    /*
+    |--------------------------------------------------------------------------
+    | LOGOS DO BANCO (RESOLVIDOS UMA ÚNICA VEZ)
+    |--------------------------------------------------------------------------
+    */
+    $rawSquareLight = $config->logo_quadrado_light ?? null; // AZUL
+    $rawSquareDark  = $config->logo_quadrado_dark  ?? null; // BRANCA
 
-    $logoHorizLight = $toUrl($config->logo_horizontal_light ?? null);
-    $logoHorizDark  = $toUrl($config->logo_horizontal_dark  ?? null);
+    $rawHorizLight  = $config->logo_horizontal_light ?? null;
+    $rawHorizDark   = $config->logo_horizontal_dark  ?? null;
 
-    // Fallbacks originais do template
+    // Fallbacks do template
     $fallbackSquare = asset('assets/images/logo-letter.png');
     $fallbackHorizL = asset('assets/images/logo-dark-text.png');
     $fallbackHorizD = asset('assets/images/logo-light-text.png');
 
-    // Avatar
+    // URLs finais (GARANTIDAS)
+    $squareLightUrl = $toUrl($rawSquareLight) ?: $fallbackSquare; // AZUL
+    $squareDarkUrl  = $toUrl($rawSquareDark)  ?: $fallbackSquare; // BRANCA
+
+    $horizLightUrl  = $toUrl($rawHorizLight)  ?: $fallbackHorizL;
+    $horizDarkUrl   = $toUrl($rawHorizDark)   ?: $fallbackHorizD;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Avatar
+    |--------------------------------------------------------------------------
+    */
     $avatarUser = $toUrl($user->foto ?? null);
     $sexo = strtoupper($user->colaborador->sexo ?? 'NI');
 
@@ -50,34 +72,31 @@
 
 <header class="main-header">
 	<div class="d-flex align-items-center logo-box justify-content-start">	
-		<!-- Logo -->
 		<a href="{{ url('/') }}" class="logo">
 
-            <!-- LOGO MINI (QUADRADA) -->
-            <!-- O TEMPLATE SEMPRE MOSTRA .dark-logo -->
+            <!-- LOGO MINI (TEMPLATE USA SEMPRE .dark-logo) -->
             <div class="logo-mini w-30">
                 <span class="light-logo">
-                    <img src="{{ $logoQuadradoDark ?: $fallbackSquare }}" alt="logo">
+                    <img src="{{ $squareDarkUrl }}" alt="logo">
                 </span>
                 <span class="dark-logo">
-                    <img src="{{ $logoQuadradoLight ?: $fallbackSquare }}" alt="logo">
+                    <img src="{{ $squareLightUrl }}" alt="logo">
                 </span>
             </div>
 
             <!-- LOGO GRANDE (FUNCIONA NORMAL) -->
             <div class="logo-lg">
                 <span class="light-logo">
-                    <img src="{{ $logoHorizLight ?: $fallbackHorizL }}" alt="logo">
+                    <img src="{{ $horizLightUrl }}" alt="logo">
                 </span>
                 <span class="dark-logo">
-                    <img src="{{ $logoHorizDark ?: $fallbackHorizD }}" alt="logo">
+                    <img src="{{ $horizDarkUrl }}" alt="logo">
                 </span>
             </div>
 
 		</a>	
 	</div>  
 
-    <!-- Header Navbar -->
     <nav class="navbar navbar-static-top">
         <div class="app-menu">
             <ul class="header-megamenu nav">
@@ -104,15 +123,7 @@
                     </label>
                 </li>
 
-                <!-- Full Screen-->
-                <li class="btn-group nav-item d-lg-inline-flex d-none">
-                    <a href="#" data-provide="fullscreen"
-                       class="waves-effect waves-light nav-link btn-outline no-border full-screen btn-warning-light">
-                        <i data-feather="maximize"></i>
-                    </a>
-                </li>
-
-                <!-- User Account-->
+                <!-- User -->
                 <li class="dropdown user user-menu">
                     <a href="#" class="waves-effect waves-light dropdown-toggle no-border p-5"
                        data-bs-toggle="dropdown">
