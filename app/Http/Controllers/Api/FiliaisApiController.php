@@ -11,18 +11,15 @@ class FiliaisApiController extends Controller
 {
     private function tenantEmpresaId(Request $request): ?int
     {
-        // 1) Se o middleware SetTenantFromSubdomain registrou "tenant" no container
         if (app()->bound('tenant')) {
             $tenant = app('tenant');
             if (is_object($tenant)) {
-                // tenta padrões comuns
                 if (isset($tenant->id)) return (int) $tenant->id;
                 if (isset($tenant->empresa_id)) return (int) $tenant->empresa_id;
                 if (method_exists($tenant, 'getKey')) return (int) $tenant->getKey();
             }
         }
 
-        // 2) Se existir helper tenant() (alguns pacotes usam)
         if (function_exists('tenant')) {
             try {
                 $t = tenant();
@@ -33,7 +30,6 @@ class FiliaisApiController extends Controller
             } catch (\Throwable $e) {}
         }
 
-        // 3) Se o middleware colocou no request attributes
         $attr = $request->attributes->get('tenant_id');
         if (!empty($attr)) return (int) $attr;
 
@@ -49,28 +45,46 @@ class FiliaisApiController extends Controller
         $estadoId = $request->query('estado_id');
         $cidadeId = $request->query('cidade_id');
 
-        // Colunas reais de localização (aceita pais_id ou pais etc.)
-        $colPais   = Schema::hasColumn('filiais', 'pais_id')   ? 'pais_id'   : (Schema::hasColumn('filiais', 'pais')   ? 'pais'   : null);
-        $colEstado = Schema::hasColumn('filiais', 'estado_id') ? 'estado_id' : (Schema::hasColumn('filiais', 'estado') ? 'estado' : null);
-        $colCidade = Schema::hasColumn('filiais', 'cidade_id') ? 'cidade_id' : (Schema::hasColumn('filiais', 'cidade') ? 'cidade' : null);
-
-        // Coluna de empresa
+        // Colunas de empresa
         $colEmpresa = Schema::hasColumn('filiais', 'empresa_id')
             ? 'empresa_id'
             : (Schema::hasColumn('filiais', 'empresa') ? 'empresa' : null);
 
+        // Colunas padrão de localização (preferimos *_id)
+        $hasPaisId = Schema::hasColumn('filiais', 'pais_id');
+        $hasEstadoId = Schema::hasColumn('filiais', 'estado_id');
+        $hasCidadeId = Schema::hasColumn('filiais', 'cidade_id');
+
+        // Se não existirem *_id, tentamos alternativas (pais/estado/cidade)
+        $colPaisAlt   = (!$hasPaisId && Schema::hasColumn('filiais', 'pais'))   ? 'pais'   : null;
+        $colEstadoAlt = (!$hasEstadoId && Schema::hasColumn('filiais', 'estado')) ? 'estado' : null;
+        $colCidadeAlt = (!$hasCidadeId && Schema::hasColumn('filiais', 'cidade')) ? 'cidade' : null;
+
         $empresaId = $this->tenantEmpresaId($request);
 
+        // ✅ Inclui FKs no select quando existirem (necessário para with() funcionar)
+        $select = ['id', 'nome_fantasia', 'razao_social', 'cnpj'];
+
+        if ($hasPaisId)   $select[] = 'pais_id';
+        if ($hasEstadoId) $select[] = 'estado_id';
+        if ($hasCidadeId) $select[] = 'cidade_id';
+
+        if (!$hasPaisId && $colPaisAlt)   $select[] = $colPaisAlt;
+        if (!$hasEstadoId && $colEstadoAlt) $select[] = $colEstadoAlt;
+        if (!$hasCidadeId && $colCidadeAlt) $select[] = $colCidadeAlt;
+
+        if ($colEmpresa) $select[] = $colEmpresa;
+
         $query = Filial::query()
-            ->select(['id', 'nome_fantasia', 'razao_social', 'cnpj'])
+            ->select(array_values(array_unique($select)))
             ->orderByDesc('id');
 
-        // Sempre filtrar pela empresa do tenant (se possível)
+        // ✅ Filtrar pela empresa do tenant
         if ($colEmpresa && $empresaId) {
             $query->where($colEmpresa, $empresaId);
         }
 
-        // Busca por Razão/Nome Fantasia/CNPJ
+        // ✅ Busca por Razão/Nome Fantasia/CNPJ
         if ($q !== '') {
             $qDigits = preg_replace('/\D+/', '', $q);
 
@@ -87,19 +101,24 @@ class FiliaisApiController extends Controller
             });
         }
 
-        // Filtros por localização
-        if ($colPais && $paisId !== null && $paisId !== '') {
-            $query->where($colPais, (int) $paisId);
-        }
-        if ($colEstado && $estadoId !== null && $estadoId !== '') {
-            $query->where($colEstado, (int) $estadoId);
-        }
-        if ($colCidade && $cidadeId !== null && $cidadeId !== '') {
-            $query->where($colCidade, (int) $cidadeId);
+        // ✅ Filtros por localização
+        if ($paisId !== null && $paisId !== '') {
+            if ($hasPaisId) $query->where('pais_id', (int) $paisId);
+            elseif ($colPaisAlt) $query->where($colPaisAlt, (int) $paisId);
         }
 
-        // Só faz with() se existir padrão *_id
-        if (Schema::hasColumn('filiais', 'pais_id') && Schema::hasColumn('filiais', 'estado_id') && Schema::hasColumn('filiais', 'cidade_id')) {
+        if ($estadoId !== null && $estadoId !== '') {
+            if ($hasEstadoId) $query->where('estado_id', (int) $estadoId);
+            elseif ($colEstadoAlt) $query->where($colEstadoAlt, (int) $estadoId);
+        }
+
+        if ($cidadeId !== null && $cidadeId !== '') {
+            if ($hasCidadeId) $query->where('cidade_id', (int) $cidadeId);
+            elseif ($colCidadeAlt) $query->where($colCidadeAlt, (int) $cidadeId);
+        }
+
+        // ✅ Só faz with() se existirem os *_id (padrão das relações)
+        if ($hasPaisId && $hasEstadoId && $hasCidadeId) {
             $query->with([
                 'cidade:id,nome,estado_id',
                 'estado:id,nome,sigla,pais_id',
@@ -122,7 +141,6 @@ class FiliaisApiController extends Controller
 
     public function destroy(Request $request, Filial $filial)
     {
-        // Segurança: só excluir se for da empresa do tenant
         $colEmpresa = Schema::hasColumn('filiais', 'empresa_id')
             ? 'empresa_id'
             : (Schema::hasColumn('filiais', 'empresa') ? 'empresa' : null);
