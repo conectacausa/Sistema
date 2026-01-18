@@ -16,9 +16,7 @@ class LocalizacaoApiController extends Controller
             ->orderBy('nome')
             ->get();
 
-        return response()->json([
-            'data' => $items,
-        ]);
+        return response()->json(['data' => $items]);
     }
 
     public function estadosByPais(Request $request, string $paisId): JsonResponse
@@ -31,13 +29,19 @@ class LocalizacaoApiController extends Controller
             ->orderBy('nome')
             ->get();
 
-        // DEBUG: mostra search_path atual (para confirmar se tenant interferiu)
         $searchPath = null;
+        $dbName = null;
+        $dbUser = null;
+
         try {
             $searchPath = DB::selectOne("SHOW search_path")->search_path ?? null;
-        } catch (\Throwable $e) {
-            // ignora se não suportar
-        }
+        } catch (\Throwable $e) {}
+
+        try {
+            $row = DB::selectOne("SELECT current_database() as db, current_user as usr");
+            $dbName = $row->db ?? null;
+            $dbUser = $row->usr ?? null;
+        } catch (\Throwable $e) {}
 
         return response()->json([
             'data' => $items,
@@ -46,6 +50,8 @@ class LocalizacaoApiController extends Controller
                 'pais_id_int' => $paisIdInt,
                 'qtd' => $items->count(),
                 'search_path' => $searchPath,
+                'database' => $dbName,
+                'db_user' => $dbUser,
             ],
         ]);
     }
