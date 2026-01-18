@@ -13,24 +13,27 @@
     // - se vier "uploads/..." ou "storage/...", usa asset
     $toUrl = function ($path) {
         if (!$path) return null;
+
         $path = trim((string) $path);
 
-        if (Str::startsWith($path, ['http://', 'https://'])) return $path;
+        if (Str::startsWith($path, ['http://', 'https://'])) {
+            return $path;
+        }
 
         return asset(ltrim($path, '/'));
     };
 
-    // Logos do banco (configuracoes)
-    $logoSquareLight = $toUrl($config->logo_quadrado_light ?? null);
-    $logoSquareDark  = $toUrl($config->logo_quadrado_dark ?? null);
-
-    $logoHorizLight  = $toUrl($config->logo_horizontal_light ?? null);
-    $logoHorizDark   = $toUrl($config->logo_horizontal_dark ?? null);
-
     // Fallbacks do template (iguais ao seu HTML)
-    $fallbackSquare    = asset('assets/images/logo-letter.png');
-    $fallbackHorizL    = asset('assets/images/logo-dark-text.png');
-    $fallbackHorizD    = asset('assets/images/logo-light-text.png');
+    $fallbackSquare = asset('assets/images/logo-letter.png');
+    $fallbackHorizL = asset('assets/images/logo-dark-text.png');
+    $fallbackHorizD = asset('assets/images/logo-light-text.png');
+
+    // Logos do banco (configuracoes) — se não tiver, cai no fallback
+    $logoSquareLight = $toUrl($config->logo_quadrado_light ?? null) ?: $fallbackSquare;
+    $logoSquareDark  = $toUrl($config->logo_quadrado_dark ?? null)  ?: $fallbackSquare;
+
+    $logoHorizLight  = $toUrl($config->logo_horizontal_light ?? null) ?: $fallbackHorizL;
+    $logoHorizDark   = $toUrl($config->logo_horizontal_dark ?? null)  ?: $fallbackHorizD;
 
     // Avatar: se usuario tem foto usa, senão usa sexo do colaborador
     $avatarUser = $toUrl($user->foto ?? null);
@@ -57,12 +60,12 @@
 		<a href="{{ url('/') }}" class="logo">
 		  <!-- logo-->
 		  <div class="logo-mini w-30">
-			  <span class="light-logo"><img src="{{ $logoSquareLight ?: $fallbackSquare }}" alt="logo"></span>
-			  <span class="dark-logo"><img src="{{ $logoSquareDark ?: $fallbackSquare }}" alt="logo"></span>
+			  <span class="light-logo"><img src="{{ $logoSquareLight }}" alt="logo"></span>
+			  <span class="dark-logo"><img src="{{ $logoSquareDark }}" alt="logo"></span>
 		  </div>
 		  <div class="logo-lg">
-			  <span class="light-logo"><img src="{{ $logoHorizLight ?: $fallbackHorizL }}" alt="logo"></span>
-			  <span class="dark-logo"><img src="{{ $logoHorizDark ?: $fallbackHorizD }}" alt="logo"></span>
+			  <span class="light-logo"><img src="{{ $logoHorizLight }}" alt="logo"></span>
+			  <span class="dark-logo"><img src="{{ $logoHorizDark }}" alt="logo"></span>
 		  </div>
 		</a>
 	</div>
@@ -125,4 +128,4 @@
         </ul>
       </div>
     </nav>
-  </header>
+</header>
