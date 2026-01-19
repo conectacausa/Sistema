@@ -8,7 +8,7 @@
 
     <link rel="icon" href="{{ asset('assets/images/favicon.ico') }}">
 
-    <title>{{ config('app.name') }} | Filiais</title>
+    <title>Conectta RH | Filiais</title>
 
     <!-- Vendors Style-->
     <link rel="stylesheet" href="{{ asset('assets/css/vendors_css.css') }}">
@@ -23,19 +23,9 @@
 <div class="wrapper">
     <div id="loader"></div>
 
-    {{-- =========================
-         HEADER (fallback de includes)
-         ========================= --}}
+    {{-- HEADER (fallback) --}}
     @php
-        $headerCandidates = [
-            'layouts.header',
-            'layout.header',
-            'includes.header',
-            'include.header',
-            'partials.header',
-            'partial.header',
-            'components.header',
-        ];
+        $headerCandidates = ['layouts.header','layout.header','includes.header','partials.header','components.header'];
     @endphp
     @foreach($headerCandidates as $v)
         @if(View::exists($v))
@@ -44,23 +34,9 @@
         @endif
     @endforeach
 
-    {{-- =========================
-         MENU (fallback de includes)
-         ========================= --}}
+    {{-- MENU (fallback) --}}
     @php
-        $menuCandidates = [
-            'layouts.menu',
-            'layout.menu',
-            'includes.menu',
-            'include.menu',
-            'partials.menu',
-            'partial.menu',
-            'components.menu',
-            'layouts.sidebar',
-            'layout.sidebar',
-            'includes.sidebar',
-            'partials.sidebar',
-        ];
+        $menuCandidates = ['layouts.menu','layout.menu','includes.menu','partials.menu','components.menu','layouts.sidebar','includes.sidebar','partials.sidebar'];
     @endphp
     @foreach($menuCandidates as $v)
         @if(View::exists($v))
@@ -89,9 +65,7 @@
                         </div>
                     </div>
 
-                    <button type="button"
-                            id="btnNovaFilial"
-                            class="waves-effect waves-light btn mb-5 bg-gradient-success">
+                    <button type="button" id="btnNovaFilial" class="waves-effect waves-light btn mb-5 bg-gradient-success">
                         Nova Filial
                     </button>
                 </div>
@@ -107,15 +81,13 @@
                             <div class="box-header with-border">
                                 <h4 class="box-title">Filtros</h4>
                             </div>
+
                             <div class="box-body">
                                 <div class="row">
                                     <div class="col-md-12">
                                         <div class="form-group">
                                             <label class="form-label">Razão Social ou CNPJ</label>
-                                            <input type="text"
-                                                   id="filtroRazaoCnpj"
-                                                   class="form-control"
-                                                   placeholder="Razão Social ou CNPJ">
+                                            <input type="text" id="filtroRazaoCnpj" class="form-control" placeholder="Razão Social ou CNPJ">
                                         </div>
                                     </div>
                                 </div>
@@ -149,8 +121,8 @@
                                     </div>
                                 </div>
 
-                            </div>
-                        </div>
+                            </div><!-- /box-body -->
+                        </div><!-- /box -->
                     </div>
                 </div>
 
@@ -161,6 +133,7 @@
                             <div class="box-header with-border">
                                 <h4 class="box-title">Filiais</h4>
                             </div>
+
                             <div class="box-body">
                                 <div class="table-responsive">
                                     <table class="table">
@@ -175,11 +148,9 @@
                                         </tr>
                                         </thead>
                                         <tbody id="tabelaFiliaisBody">
-                                        <tr>
-                                            <td colspan="6" class="text-center text-muted">
-                                                Carregando filiais...
-                                            </td>
-                                        </tr>
+                                            <tr>
+                                                <td colspan="6" class="text-center text-muted">Carregando filiais...</td>
+                                            </tr>
                                         </tbody>
                                     </table>
                                 </div>
@@ -193,29 +164,18 @@
                                     </div>
                                 </div>
 
-                            </div>
-                        </div>
+                            </div><!-- /box-body -->
+                        </div><!-- /box -->
                     </div>
                 </div>
 
             </section>
-
         </div>
     </div>
 
-    {{-- =========================
-         FOOTER (fallback de includes)
-         ========================= --}}
+    {{-- FOOTER (fallback) --}}
     @php
-        $footerCandidates = [
-            'layouts.footer',
-            'layout.footer',
-            'includes.footer',
-            'include.footer',
-            'partials.footer',
-            'partial.footer',
-            'components.footer',
-        ];
+        $footerCandidates = ['layouts.footer','layout.footer','includes.footer','partials.footer','components.footer'];
     @endphp
     @foreach($footerCandidates as $v)
         @if(View::exists($v))
@@ -236,8 +196,8 @@
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
-<!-- SweetAlert -->
-<script src="{{ asset('assets/vendor_components/sweetalert/sweetalert.min.js') }}"></script>
+<!-- ✅ SweetAlert2 via CDN (garantido) -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <!-- JS da tela -->
 <script src="{{ asset('assets/js/pages/config-filiais.js') }}?v={{ filemtime(public_path('assets/js/pages/config-filiais.js')) }}"></script>
