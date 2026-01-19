@@ -1,9 +1,6 @@
 (function () {
     'use strict';
 
-    // =====================================================
-    // CONFIGURAÇÕES
-    // =====================================================
     const SCREEN_ID = 5;
     const PER_PAGE = 50;
 
@@ -20,9 +17,6 @@
         editar: (id) => `/config/filiais/${id}/editar`
     };
 
-    // =====================================================
-    // ELEMENTOS DOM
-    // =====================================================
     const elNova = document.getElementById('btnNovaFilial');
     const elQ = document.getElementById('filtroRazaoCnpj');
     const elPais = document.getElementById('filtroPais');
@@ -34,24 +28,13 @@
     const elPrev = document.getElementById('btnPrev');
     const elNext = document.getElementById('btnNext');
 
-    // =====================================================
-    // ESTADO INTERNO
-    // =====================================================
     const state = {
         page: 1,
         lastPage: 1,
         total: 0,
-        filtros: {
-            q: '',
-            pais_id: '',
-            estado_id: '',
-            cidade_id: ''
-        }
+        filtros: { q: '', pais_id: '', estado_id: '', cidade_id: '' }
     };
 
-    // =====================================================
-    // HELPERS
-    // =====================================================
     const debounce = (fn, delay = 300) => {
         let t;
         return (...args) => {
@@ -89,39 +72,12 @@
         });
     };
 
-    const getSwal = () => {
-        if (typeof window.swal === 'function') return window.swal;
-        if (typeof window.sweetAlert === 'function') return window.sweetAlert;
-        return null;
-    };
-
-    // aplica classes bootstrap nos botões do SweetAlert v1 (compatível)
-    const applySwalButtonStyles = () => {
-        try {
-            const btns = document.querySelectorAll('.swal-button');
-            if (!btns || !btns.length) return;
-
-            // normalmente: [0]=cancel, [1]=confirm
-            if (btns[0]) {
-                btns[0].classList.add('btn', 'btn-primary');
-            }
-            if (btns[1]) {
-                btns[1].classList.add('btn', 'btn-danger');
-            }
-        } catch (e) {
-            // ignora
-        }
-    };
-
-    // =====================================================
-    // API HELPERS
-    // =====================================================
     const apiGet = async (url) => {
         const res = await fetch(`${url}?screen_id=${SCREEN_ID}`, {
             headers: { 'Accept': 'application/json' },
             credentials: 'include'
         });
-        if (!res.ok) throw new Error(`Erro ${res.status}`);
+        if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`);
         return res.json();
     };
 
@@ -137,25 +93,21 @@
             },
             credentials: 'include'
         });
+
         if (!res.ok) {
             let body = '';
             try { body = await res.text(); } catch (_) {}
-            throw new Error(`Erro ${res.status} ${body}`);
+            throw new Error(`DELETE ${url} -> ${res.status}: ${body}`);
         }
+
         return res.json().catch(() => ({}));
     };
 
-    // =====================================================
-    // RENDERIZAÇÃO
-    // =====================================================
     const renderTabela = (rows) => {
         if (!rows || !rows.length) {
             elTBody.innerHTML = `
-                <tr>
-                    <td colspan="6" class="text-center text-muted">
-                        Nenhuma filial encontrada
-                    </td>
-                </tr>`;
+                <tr><td colspan="6" class="text-center text-muted">Nenhuma filial encontrada</td></tr>
+            `;
             return;
         }
 
@@ -183,9 +135,6 @@
         elNext.disabled = state.page >= state.lastPage;
     };
 
-    // =====================================================
-    // LOADERS
-    // =====================================================
     const carregarFiliais = async () => {
         const params = new URLSearchParams({
             page: String(state.page),
@@ -213,11 +162,8 @@
         } catch (e) {
             console.error(e);
             elTBody.innerHTML = `
-                <tr>
-                    <td colspan="6" class="text-center text-danger">
-                        Erro ao carregar filiais
-                    </td>
-                </tr>`;
+                <tr><td colspan="6" class="text-center text-danger">Erro ao carregar filiais</td></tr>
+            `;
         }
     };
 
@@ -242,165 +188,116 @@
         elCidade.disabled = false;
     };
 
-    // =====================================================
-    // EVENTOS
-    // =====================================================
-    if (elNova) {
-        elNova.addEventListener('click', () => {
-            window.location.href = ROUTES.nova;
-        });
-    }
+    // Eventos
+    elNova?.addEventListener('click', () => (window.location.href = ROUTES.nova));
 
-    if (elQ) {
-        elQ.addEventListener('input', debounce(() => {
-            state.filtros.q = (elQ.value || '').trim();
-            state.page = 1;
-            carregarFiliais();
-        }));
-    }
+    elQ?.addEventListener('input', debounce(() => {
+        state.filtros.q = (elQ.value || '').trim();
+        state.page = 1;
+        carregarFiliais();
+    }));
 
-    if (elPais) {
-        elPais.addEventListener('change', async () => {
-            state.filtros.pais_id = elPais.value || '';
-            state.filtros.estado_id = '';
-            state.filtros.cidade_id = '';
-            state.page = 1;
+    elPais?.addEventListener('change', async () => {
+        state.filtros.pais_id = elPais.value || '';
+        state.filtros.estado_id = '';
+        state.filtros.cidade_id = '';
+        state.page = 1;
 
-            elEstado.disabled = true;
-            elCidade.disabled = true;
+        elEstado.disabled = true;
+        elCidade.disabled = true;
+        setOptions(elEstado, [], 'Lista de Estado');
+        setOptions(elCidade, [], 'Lista de Cidade');
 
-            setOptions(elEstado, [], 'Lista de Estado');
-            setOptions(elCidade, [], 'Lista de Cidade');
+        if (elPais.value) await carregarEstados(elPais.value);
+        carregarFiliais();
+    });
 
-            if (elPais.value) {
-                await carregarEstados(elPais.value);
-            }
+    elEstado?.addEventListener('change', async () => {
+        state.filtros.estado_id = elEstado.value || '';
+        state.filtros.cidade_id = '';
+        state.page = 1;
 
-            carregarFiliais();
-        });
-    }
+        elCidade.disabled = true;
+        setOptions(elCidade, [], 'Lista de Cidade');
 
-    if (elEstado) {
-        elEstado.addEventListener('change', async () => {
-            state.filtros.estado_id = elEstado.value || '';
-            state.filtros.cidade_id = '';
-            state.page = 1;
+        if (elEstado.value) await carregarCidades(elEstado.value);
+        carregarFiliais();
+    });
 
-            setOptions(elCidade, [], 'Lista de Cidade');
-            elCidade.disabled = true;
+    elCidade?.addEventListener('change', () => {
+        state.filtros.cidade_id = elCidade.value || '';
+        state.page = 1;
+        carregarFiliais();
+    });
 
-            if (elEstado.value) {
-                await carregarCidades(elEstado.value);
-            }
+    elPrev?.addEventListener('click', () => {
+        if (state.page > 1) { state.page--; carregarFiliais(); }
+    });
 
-            carregarFiliais();
-        });
-    }
+    elNext?.addEventListener('click', () => {
+        if (state.page < state.lastPage) { state.page++; carregarFiliais(); }
+    });
 
-    if (elCidade) {
-        elCidade.addEventListener('change', () => {
-            state.filtros.cidade_id = elCidade.value || '';
-            state.page = 1;
-            carregarFiliais();
-        });
-    }
+    elTBody?.addEventListener('click', async (e) => {
+        const btnEdit = e.target.closest('.btnEditar');
+        const btnDel = e.target.closest('.btnExcluir');
 
-    if (elPrev) {
-        elPrev.addEventListener('click', () => {
-            if (state.page > 1) {
-                state.page--;
-                carregarFiliais();
-            }
-        });
-    }
+        if (btnEdit) {
+            window.location.href = ROUTES.editar(btnEdit.dataset.id);
+            return;
+        }
 
-    if (elNext) {
-        elNext.addEventListener('click', () => {
-            if (state.page < state.lastPage) {
-                state.page++;
-                carregarFiliais();
-            }
-        });
-    }
-
-    // =====================================================
-    // AÇÕES DA TABELA (EDITAR / EXCLUIR)
-    // =====================================================
-    if (elTBody) {
-        elTBody.addEventListener('click', (e) => {
-            const btnEdit = e.target.closest('.btnEditar');
-            const btnDel = e.target.closest('.btnExcluir');
-
-            if (btnEdit) {
-                window.location.href = ROUTES.editar(btnEdit.dataset.id);
+        if (btnDel) {
+            if (typeof window.Swal === 'undefined') {
+                console.error('SweetAlert2 (Swal) não carregado.');
                 return;
             }
 
-            if (btnDel) {
-                const swalFn = getSwal();
-                if (!swalFn) {
-                    console.error('SweetAlert v1 não carregado (swal/sweetAlert undefined).');
-                    return;
+            const id = btnDel.dataset.id;
+
+            const result = await Swal.fire({
+                title: 'Excluir filial?',
+                text: 'Tem certeza que deseja excluir esta filial?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sim',
+                cancelButtonText: 'Cancelar',
+                buttonsStyling: false,
+                customClass: {
+                    confirmButton: 'btn btn-danger',
+                    cancelButton: 'btn btn-primary me-2'
                 }
+            });
 
-                const id = btnDel.dataset.id;
+            if (!result.isConfirmed) return;
 
-                // SweetAlert v1 compatível: 2 botões via array
-                swalFn({
-                    title: 'Excluir filial?',
-                    text: 'Tem certeza que deseja excluir esta filial?',
-                    icon: 'warning',
-                    dangerMode: true,
-                    buttons: ['Cancelar', 'Sim']
-                }).then(async (confirmado) => {
-                    if (!confirmado) return;
+            try {
+                await apiDelete(API.deleteFilial(id));
 
-                    // Feedback "processando" (v1 não tem loading elegante nativo)
-                    swalFn({
-                        title: 'Excluindo...',
-                        text: 'Aguarde',
-                        icon: 'info',
-                        buttons: false,
-                        closeOnClickOutside: false,
-                        closeOnEsc: false
-                    });
-
-                    try {
-                        await apiDelete(API.deleteFilial(id));
-
-                        swalFn({
-                            title: 'Excluída',
-                            text: 'Filial excluída com sucesso.',
-                            icon: 'success',
-                            timer: 1500,
-                            buttons: false
-                        });
-
-                        carregarFiliais();
-                    } catch (err) {
-                        console.error(err);
-                        swalFn({
-                            title: 'Erro',
-                            text: 'Não foi possível excluir a filial.',
-                            icon: 'error'
-                        });
-                    }
+                await Swal.fire({
+                    title: 'Excluída',
+                    text: 'Filial excluída com sucesso.',
+                    icon: 'success',
+                    timer: 1500,
+                    showConfirmButton: false
                 });
 
-                // aplica classes bootstrap depois que o modal renderizar
-                setTimeout(applySwalButtonStyles, 50);
-                setTimeout(applySwalButtonStyles, 150);
+                carregarFiliais();
+            } catch (err) {
+                console.error(err);
+                Swal.fire({
+                    title: 'Erro',
+                    text: 'Não foi possível excluir a filial.',
+                    icon: 'error'
+                });
             }
-        });
-    }
+        }
+    });
 
-    // =====================================================
-    // INIT
-    // =====================================================
+    // Init
     (async function init() {
-        if (elEstado) elEstado.disabled = true;
-        if (elCidade) elCidade.disabled = true;
-
+        elEstado && (elEstado.disabled = true);
+        elCidade && (elCidade.disabled = true);
         await carregarPaises();
         await carregarFiliais();
     })();
