@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Cargo\CboController;
 
 Route::domain('{sub}.conecttarh.com.br')
     ->middleware(['web', 'tenant'])
@@ -20,12 +21,35 @@ Route::domain('{sub}.conecttarh.com.br')
 
         Route::middleware(['auth', 'tenant.user'])->group(function () {
 
-            Route::get('/dashboard', fn () => view('dashboard.index'))->name('dashboard');
+            Route::get('/dashboard', fn () => view('dashboard.index'))
+                ->name('dashboard');
+
+            /*
+            |--------------------------------------------------------------------------
+            | CONFIGURAÇÕES
+            |--------------------------------------------------------------------------
+            */
 
             // ✅ Tela Filiais (tela_id = 5)
             Route::get('/config/filiais', fn () => view('config.filiais.index'))
                 ->middleware('screen:5')
                 ->name('config.filiais.index');
+
+            /*
+            |--------------------------------------------------------------------------
+            | CADASTROS → CARGOS
+            |--------------------------------------------------------------------------
+            */
+
+            // ✅ Tela CBOs (tela_id = 6 | slug = cargos/cbo)
+            Route::get('/cargos/cbo', [CboController::class, 'index'])
+                ->middleware('screen:6')
+                ->name('cargos.cbo.index');
+
+            // ✅ Novo CBO (mesma tela_id = 6, valida permissão de cadastro no controller)
+            Route::get('/cargos/cbo/novo', [CboController::class, 'create'])
+                ->middleware('screen:6')
+                ->name('cargos.cbo.create');
 
         });
     });
