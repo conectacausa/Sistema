@@ -9,6 +9,7 @@
   <title>Conectta RH | Headcount</title>
 
   <link rel="stylesheet" href="{{ asset('assets/css/vendors_css.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/vendor_components/select2/dist/css/select2.min.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
 
@@ -211,6 +212,7 @@
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
+<script src="{{ asset('assets/vendor_components/select2/dist/js/select2.full.min.js') }}"></script>
 
 {{-- Se o template inicializa select2 aqui, ok manter --}}
 <script src="{{ asset('assets/js/pages/advanced-form-element.js') }}"></script>
