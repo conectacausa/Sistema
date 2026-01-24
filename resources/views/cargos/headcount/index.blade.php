@@ -12,41 +12,46 @@
   <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
 
-  {{-- Override: tags do Select2 na cor primária do template --}}
+  {{-- FORÇA VISUAL DE TAG (pílula) no Select2 e usa cor primária do template --}}
   <style>
-    /* container select2 */
     .select2-container--default .select2-selection--multiple {
       min-height: 42px;
+      padding: 4px;
       border-radius: 6px;
-      padding: 2px 6px;
     }
 
-    /* tag (choice) */
-    .select2-container--default .select2-selection--multiple .select2-selection__choice {
-      background: var(--primary, var(--bs-primary, #0d6efd)) !important;
-      border: 1px solid transparent !important;
+    .select2-container--default
+    .select2-selection--multiple
+    .select2-selection__choice {
+      background-color: var(--primary, var(--bs-primary, #0d6efd)) !important;
+      border: none !important;
       color: #fff !important;
-      padding: 4px 10px !important;
+      padding: 5px 10px !important;
       margin-top: 6px !important;
       margin-right: 6px !important;
       border-radius: 4px !important;
+      font-size: 13px !important;
       display: inline-flex;
       align-items: center;
     }
 
-    /* X do remove */
-    .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+    .select2-container--default
+    .select2-selection--multiple
+    .select2-selection__choice__remove {
       color: #fff !important;
       margin-right: 6px;
-      opacity: .9;
-    }
-    .select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
-      opacity: .75;
+      opacity: .85;
     }
 
-    /* dropdown */
-    .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
-      background: var(--primary, var(--bs-primary, #0d6efd)) !important;
+    .select2-container--default
+    .select2-selection--multiple
+    .select2-selection__choice__remove:hover {
+      opacity: 1;
+    }
+
+    .select2-container--default
+    .select2-results__option--highlighted.select2-results__option--selectable {
+      background-color: var(--primary, var(--bs-primary, #0d6efd)) !important;
       color: #fff !important;
     }
   </style>
@@ -114,11 +119,16 @@
 
                 <div class="row">
 
-                  {{-- FILIAL (select2 multiple com busca) --}}
+                  {{-- FILIAL (select2 multiple -> TAGS) --}}
                   <div class="col-md-4">
                     <div class="form-group">
                       <label class="form-label">Filial</label>
-                      <select id="filtro-filial" class="form-control" multiple>
+                      <select
+                        id="filtro-filial"
+                        class="form-control select2"
+                        multiple
+                        data-placeholder="Selecione"
+                      >
                         @foreach(($filiais ?? []) as $filial)
                           <option value="{{ $filial->id }}"
                             @selected(in_array((int)$filial->id, (array)request('filial_id', [])))>
@@ -126,15 +136,19 @@
                           </option>
                         @endforeach
                       </select>
-                      <small class="text-muted">Opcional. Se vazio, mostra todas as filiais da sua lotação.</small>
                     </div>
                   </div>
 
-                  {{-- SETOR (select2 multiple com busca, dependente das filiais selecionadas) --}}
+                  {{-- SETOR (select2 multiple -> TAGS) --}}
                   <div class="col-md-4">
                     <div class="form-group">
                       <label class="form-label">Setor</label>
-                      <select id="filtro-setor" class="form-control" multiple>
+                      <select
+                        id="filtro-setor"
+                        class="form-control select2"
+                        multiple
+                        data-placeholder="Selecione"
+                      >
                         @foreach(($setores ?? []) as $setor)
                           <option value="{{ $setor->id }}"
                             @selected(in_array((int)$setor->id, (array)request('setor_id', [])))>
@@ -142,11 +156,10 @@
                           </option>
                         @endforeach
                       </select>
-                      <small class="text-muted">Ao selecionar filiais, lista apenas setores dessas filiais.</small>
                     </div>
                   </div>
 
-                  {{-- LIBERAÇÃO (obrigatório, vem do controller com default) --}}
+                  {{-- LIBERAÇÃO --}}
                   <div class="col-md-4">
                     <div class="form-group">
                       <label class="form-label">Liberação</label>
@@ -157,13 +170,12 @@
                           </option>
                         @endforeach
                       </select>
-                      <small class="text-muted">Obrigatório.</small>
                     </div>
                   </div>
 
                 </div>
 
-              </div>
+              </div>{{-- box-body --}}
             </div>
           </div>
         </div>
@@ -200,7 +212,7 @@
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
-{{-- Se o template já inicializa select2 aqui, ok manter --}}
+{{-- Se o template inicializa select2 aqui, ok manter --}}
 <script src="{{ asset('assets/js/pages/advanced-form-element.js') }}"></script>
 
 <script>
@@ -246,40 +258,50 @@
     }
   }
 
-  // init select2 + busca digitando
-  function initSelect2() {
-    if (!window.jQuery || !jQuery.fn || !jQuery.fn.select2) return;
+  function initSelect2Tags() {
+    if (!window.jQuery || !jQuery.fn.select2) return;
 
-    // Filial
-    jQuery(selFilial).select2({
+    // Se já estiver inicializado, destrói e recria
+    const $filial = jQuery(selFilial);
+    const $setor  = jQuery(selSetor);
+
+    if ($filial.data('select2')) $filial.select2('destroy');
+    if ($setor.data('select2'))  $setor.select2('destroy');
+
+    $filial.select2({
       width: '100%',
-      placeholder: 'Selecione',
-      closeOnSelect: false
+      closeOnSelect: false,
+      placeholder: 'Selecione'
     });
 
-    // Setor
-    jQuery(selSetor).select2({
+    $setor.select2({
       width: '100%',
-      placeholder: 'Selecione',
-      closeOnSelect: false
+      closeOnSelect: false,
+      placeholder: 'Selecione'
+    });
+
+    // Eventos do Select2 (garante atualização com adicionar/remover tag)
+    $filial.off('change.headcount').on('change.headcount', function () {
+      carregarSetoresPorFiliais();
+    });
+
+    $setor.off('change.headcount').on('change.headcount', function () {
+      fetchTable(null);
     });
   }
 
-  // Recarregar setores conforme filiais selecionadas (AJAX)
   async function carregarSetoresPorFiliais() {
     const filiais = getMultiValues(selFilial);
-
-    // guarda setores selecionados (para tentar manter os que ainda existirem)
     const selectedBefore = new Set(getMultiValues(selSetor));
 
-    // limpa options
+    // limpa options do setor
     selSetor.innerHTML = '';
 
-    // se não tem filiais, pode deixar setor vazio (opcional) e atualizar tabela
+    // se não tiver filiais selecionadas, setor fica vazio e tabela atualiza
     if (!filiais.length) {
-      // reinit select2 porque mexemos no DOM
-      if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
-        jQuery(selSetor).trigger('change.select2');
+      // reset select2 setor
+      if (window.jQuery && jQuery.fn.select2) {
+        jQuery(selSetor).val(null).trigger('change');
       }
       fetchTable(null);
       return;
@@ -295,7 +317,6 @@
 
       const data = await res.json();
 
-      // recria options e restaura seleção se ainda existir
       const stillSelected = [];
       for (const item of data) {
         const opt = document.createElement('option');
@@ -308,9 +329,21 @@
         }
       }
 
-      // atualiza select2 e seta valores
-      if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
-        jQuery(selSetor).val(stillSelected).trigger('change');
+      // Recria select2 do setor para refletir novas options
+      if (window.jQuery && jQuery.fn.select2) {
+        const $setor = jQuery(selSetor);
+        if ($setor.data('select2')) $setor.select2('destroy');
+
+        $setor.select2({
+          width: '100%',
+          closeOnSelect: false,
+          placeholder: 'Selecione'
+        });
+
+        $setor.val(stillSelected).trigger('change');
+        $setor.off('change.headcount').on('change.headcount', function () {
+          fetchTable(null);
+        });
       }
 
       fetchTable(null);
@@ -320,29 +353,16 @@
     }
   }
 
-  // Eventos: filtro texto
+  // ===== INIT =====
+  initSelect2Tags();
+
   inputQ.addEventListener('keyup', function () {
     clearTimeout(timer);
     timer = setTimeout(() => fetchTable(null), 250);
   });
 
-  // Select2 dispara change quando seleciona e quando remove tag (x)
-  if (window.jQuery) {
-    jQuery(selFilial).on('change', function () {
-      carregarSetoresPorFiliais();
-    });
-    jQuery(selSetor).on('change', function () {
-      fetchTable(null);
-    });
-  } else {
-    // fallback se algum dia não tiver jQuery
-    selFilial.addEventListener('change', carregarSetoresPorFiliais);
-    selSetor.addEventListener('change', () => fetchTable(null));
-  }
-
   selLib.addEventListener('change', () => fetchTable(null));
 
-  // Paginação AJAX (se você colocar paginação depois)
   document.addEventListener('click', function (e) {
     const a = e.target.closest('#headcount-table-wrap .pagination a');
     if (!a) return;
@@ -350,8 +370,6 @@
     fetchTable(a.getAttribute('href'));
   });
 
-  // init
-  initSelect2();
 })();
 </script>
 
