@@ -85,7 +85,7 @@
                           </option>
                         @endforeach
                       </select>
-                      <small class="text-muted">Selecione uma ou mais filiais (opcional).</small>
+                      <small class="text-muted">Opcional. Se vazio, mostra todas as filiais da sua lotação.</small>
                     </div>
                   </div>
 
@@ -100,7 +100,7 @@
                           </option>
                         @endforeach
                       </select>
-                      <small class="text-muted">Opções variam conforme filiais (opcional).</small>
+                      <small class="text-muted">Opcional. Ao escolher filiais, lista apenas setores dessas filiais.</small>
                     </div>
                   </div>
 
@@ -115,7 +115,7 @@
                           </option>
                         @endforeach
                       </select>
-                      <small class="text-muted">Obrigatório. Mostra apenas meses que possuem liberação.</small>
+                      <small class="text-muted">Obrigatório (mês atual por padrão quando existir).</small>
                     </div>
                   </div>
                 </div>
@@ -156,7 +156,7 @@
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
-{{-- IMPORTANTE: este arquivo do template normalmente inicializa select2 e deixa no estilo "tags" igual ao tema --}}
+{{-- Este arquivo do template normalmente inicializa select2 no estilo do tema --}}
 <script src="{{ asset('assets/js/pages/advanced-form-element.js') }}"></script>
 
 <script>
@@ -183,11 +183,8 @@
     const lib = selLib.value || '';
 
     if (q.length) url.searchParams.set('q', q);
-
-    // multi params
     for (const f of filiais) url.searchParams.append('filial_id[]', f);
     for (const s of setores) url.searchParams.append('setor_id[]', s);
-
     if (lib) url.searchParams.set('liberacao', lib);
 
     url.searchParams.set('ajax', '1');
@@ -233,7 +230,7 @@
     selSetor.innerHTML = '';
 
     if (!filiais.length) {
-      // sem filiais: deixa setor vazio (opcional) e só atualiza tabela
+      // sem filiais: setor fica opcional (vazio) e atualiza tabela
       fetchTable(null);
       return;
     }
