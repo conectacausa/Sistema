@@ -22,19 +22,20 @@ class HeadcountController extends Controller
             $filiais = collect();
             $setores = collect();
             $liberacoes = collect();
+            $ym = '';
             $groups = collect();
             $podeEditar = false;
             $podeCadastrar = false;
 
-            return view('cargos.headcount.index', compact(
-                'filiais','setores','liberacoes','groups',
-                'podeEditar','podeCadastrar'
+            return view('cargos.cargos.headcount.index', compact(
+                'filiais', 'setores', 'liberacoes', 'ym', 'groups',
+                'podeEditar', 'podeCadastrar'
             ));
         }
 
         $q = trim((string) $request->get('q', ''));
 
-        // Filial/Setor multi (tags)
+        // Multi-select: filial_id[] e setor_id[]
         $filialIds = collect($request->get('filial_id', []))
             ->flatten()
             ->map(fn ($v) => (int) $v)
@@ -49,7 +50,9 @@ class HeadcountController extends Controller
             ->values()
             ->all();
 
-        // Lista de filiais para filtro: somente onde usuário tem vínculo
+        /**
+         * FILIAIS do filtro: somente as filiais onde o usuário tem vínculo ativo
+         */
         $filiais = DB::table('vinculo_usuario_lotacao as vul')
             ->join('filiais as f', 'f.id', '=', 'vul.filial_id')
             ->select('f.id', 'f.nome_fantasia')
@@ -61,27 +64,30 @@ class HeadcountController extends Controller
             ->orderBy('f.nome_fantasia')
             ->get();
 
-        // Setores possíveis: dependem das filiais selecionadas (ou vazio)
-        $setores = collect();
-        if (!empty($filialIds)) {
-            $setores = DB::table('vinculo_usuario_lotacao as vul')
-                ->join('setores as s', 's.id', '=', 'vul.setor_id')
-                ->select('s.id', 's.nome', 'vul.filial_id')
-                ->where('vul.empresa_id', $empresaId)
-                ->where('vul.usuario_id', $usuarioId)
-                ->where('vul.ativo', true)
-                ->whereNull('vul.deleted_at')
-                ->whereIn('vul.filial_id', $filialIds)
-                ->distinct()
-                ->orderBy('s.nome')
-                ->get();
-        }
+        /**
+         * SETORES do filtro:
+         * - se filiais selecionadas: setores do usuário nessas filiais
+         * - se NÃO selecionadas: todos os setores do usuário (todas as filiais)
+         */
+        $setores = DB::table('vinculo_usuario_lotacao as vul')
+            ->join('setores as s', 's.id', '=', 'vul.setor_id')
+            ->select('s.id', 's.nome', 'vul.filial_id')
+            ->where('vul.empresa_id', $empresaId)
+            ->where('vul.usuario_id', $usuarioId)
+            ->where('vul.ativo', true)
+            ->whereNull('vul.deleted_at')
+            ->when(!empty($filialIds), fn ($qq) => $qq->whereIn('vul.filial_id', $filialIds))
+            ->distinct()
+            ->orderBy('s.nome')
+            ->get();
 
         /**
-         * Liberacoes (YYYY-MM): somente meses existentes na headcounts,
-         * mas respeitando as lotações do usuário.
+         * LIBERAÇÕES (YYYY-MM):
+         * - somente meses existentes na tabela headcounts
+         * - respeitando a lotação do usuário
+         * - (filial/setor opcionais filtram a lista quando selecionados)
          */
-        $liberacoesQuery = DB::table('headcounts as h')
+        $liberacoesBase = DB::table('headcounts as h')
             ->join('vinculo_usuario_lotacao as vul', function ($join) use ($empresaId, $usuarioId) {
                 $join->on('vul.empresa_id', '=', 'h.empresa_id')
                     ->on('vul.filial_id', '=', 'h.filial_id')
@@ -93,39 +99,65 @@ class HeadcountController extends Controller
             ->where('h.empresa_id', $empresaId)
             ->whereNull('h.deleted_at');
 
-        if (!empty($filialIds)) $liberacoesQuery->whereIn('h.filial_id', $filialIds);
-        if (!empty($setorIds))  $liberacoesQuery->whereIn('h.setor_id', $setorIds);
+        if (!empty($filialIds)) $liberacoesBase->whereIn('h.filial_id', $filialIds);
+        if (!empty($setorIds))  $liberacoesBase->whereIn('h.setor_id', $setorIds);
 
-        $liberacoes = $liberacoesQuery
+        // Asc para achar "próximo mês"
+        $liberacoesAsc = $liberacoesBase
             ->selectRaw("to_char(h.data_liberacao, 'YYYY-MM') as ym")
             ->distinct()
-            ->orderByDesc('ym')
+            ->orderBy('ym')
             ->get();
 
-        // liberação selecionada: YYYY-MM
+        // Para exibir no select (desc)
+        $liberacoes = $liberacoesAsc->sortByDesc('ym')->values();
+
+        // liberação selecionada (se veio do request)
         $ym = trim((string) $request->get('liberacao', ''));
-        // se não veio nada, usa a mais recente (se existir)
-        if ($ym === '' && $liberacoes->isNotEmpty()) {
-            $ym = (string) ($liberacoes->first()->ym ?? '');
+
+        // default: mês atual se existir; senão próximo; senão mais recente
+        if ($ym === '') {
+            $currentYm = now()->format('Y-m');
+            $all = $liberacoesAsc->pluck('ym')->map(fn ($v) => (string) $v)->values();
+
+            if ($all->contains($currentYm)) {
+                $ym = $currentYm;
+            } else {
+                $next = $all->first(fn ($v) => $v > $currentYm);
+                if (!empty($next)) {
+                    $ym = $next;
+                } else {
+                    $ym = (string) ($all->last() ?? '');
+                }
+            }
         }
 
-        // Define intervalo do mês selecionado (primeiro ao último dia)
+        /**
+         * Intervalo do mês selecionado
+         * (>= primeiro dia) e (< primeiro dia do próximo mês)
+         */
         $inicio = null;
-        $fim = null;
+        $fimExclusivo = null;
+
         if (preg_match('/^\d{4}\-\d{2}$/', $ym)) {
             $inicio = $ym . '-01';
-            // último dia do mês via SQL (Postgres)
-            // fim exclusivo: primeiro dia do próximo mês
-            $fim = DB::selectOne("select (date_trunc('month', ?::date) + interval '1 month')::date as dt", [$inicio])?->dt ?? null;
+            $fimExclusivo = DB::selectOne(
+                "select (date_trunc('month', ?::date) + interval '1 month')::date as dt",
+                [$inicio]
+            )?->dt ?? null;
         }
 
         /**
          * Query base dos headcounts (Quadro Ideal)
+         * - Somente mês é obrigatório
+         * - Filial/Setor/Cargo(CBO) são opcionais
+         * - Sempre respeita a lotação do usuário
          */
         $headcountsQuery = DB::table('headcounts as h')
             ->join('filiais as f', 'f.id', '=', 'h.filial_id')
             ->join('setores as s', 's.id', '=', 'h.setor_id')
             ->join('cargos as c', 'c.id', '=', 'h.cargo_id')
+            ->leftJoin('cbos as cbo', 'cbo.id', '=', 'c.cbo_id')
             ->join('vinculo_usuario_lotacao as vul', function ($join) use ($empresaId, $usuarioId) {
                 $join->on('vul.empresa_id', '=', 'h.empresa_id')
                     ->on('vul.filial_id', '=', 'h.filial_id')
@@ -137,31 +169,23 @@ class HeadcountController extends Controller
             ->where('h.empresa_id', $empresaId)
             ->whereNull('h.deleted_at');
 
+        // Filtros opcionais
         if (!empty($filialIds)) $headcountsQuery->whereIn('h.filial_id', $filialIds);
-
-        // setores só fazem sentido dentro das filiais selecionadas
-        if (!empty($setorIds)) $headcountsQuery->whereIn('h.setor_id', $setorIds);
+        if (!empty($setorIds))  $headcountsQuery->whereIn('h.setor_id', $setorIds);
 
         if ($q !== '') {
             $headcountsQuery->where(function ($w) use ($q) {
                 $w->where('c.titulo', 'ilike', "%{$q}%")
-                  ->orWhereExists(function ($sub) use ($q) {
-                      $sub->selectRaw('1')
-                          ->from('cbos as cbo')
-                          ->whereColumn('cbo.id', 'c.cbo_id')
-                          ->where(function ($x) use ($q) {
-                              $x->where('cbo.cbo', 'ilike', "%{$q}%")
-                                ->orWhere('cbo.titulo', 'ilike', "%{$q}%");
-                          });
-                  });
+                  ->orWhere('cbo.cbo', 'ilike', "%{$q}%")
+                  ->orWhere('cbo.titulo', 'ilike', "%{$q}%");
             });
         }
 
-        if ($inicio && $fim) {
+        // mês obrigatório: se não tiver mês válido/selecionado, retorna vazio
+        if ($inicio && $fimExclusivo) {
             $headcountsQuery->where('h.data_liberacao', '>=', $inicio)
-                           ->where('h.data_liberacao', '<',  $fim);
+                           ->where('h.data_liberacao', '<',  $fimExclusivo);
         } else {
-            // sem mês válido: retorna vazio
             $headcountsQuery->whereRaw('1=0');
         }
 
@@ -175,35 +199,38 @@ class HeadcountController extends Controller
                 'c.titulo as cargo',
             ])
             ->selectRaw('sum(h.quantidade) as quadro_ideal')
-            ->groupBy('h.filial_id', 'h.setor_id', 'h.cargo_id', 'f.nome_fantasia', 's.nome', 'c.titulo')
+            ->groupBy(
+                'h.filial_id',
+                'h.setor_id',
+                'h.cargo_id',
+                'f.nome_fantasia',
+                's.nome',
+                'c.titulo'
+            )
             ->orderBy('f.nome_fantasia')
             ->orderBy('s.nome')
             ->orderBy('c.titulo')
             ->get();
 
-        /**
-         * Agrupamento p/ render:
-         * Filial -> Setor -> Linhas
-         */
-        $groups = $rows->groupBy('filial')->map(function ($porFilial) {
-            return $porFilial->groupBy('setor');
-        });
+        // Agrupa: Filial -> Setor -> Linhas
+        $groups = $rows->groupBy('filial')->map(fn ($porFilial) => $porFilial->groupBy('setor'));
 
         $podeCadastrar = $this->temPermissaoFlag($user?->permissao_id, 'cadastro');
         $podeEditar    = $this->temPermissaoFlag($user?->permissao_id, 'editar');
 
         if ($request->boolean('ajax')) {
-            return view('cargos.headcount._table', compact('groups'))->render();
+            return view('cargos.cargos.headcount._table', compact('groups'))->render();
         }
 
-        return view('cargos.headcount.index', compact(
-            'filiais','setores','liberacoes','ym','groups',
-            'podeCadastrar','podeEditar'
+        return view('cargos.cargos.headcount.index', compact(
+            'filiais', 'setores', 'liberacoes', 'ym', 'groups',
+            'podeCadastrar', 'podeEditar'
         ));
     }
 
     /**
      * AJAX: setores conforme múltiplas filiais selecionadas
+     * Retorna união dos setores do usuário nas filiais selecionadas
      */
     public function setoresPorFiliais(Request $request)
     {
