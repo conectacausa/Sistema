@@ -50,5 +50,18 @@ Route::domain('{sub}.conecttarh.com.br')
             Route::get('/cargos/cbo/novo', [CboController::class, 'create'])
                 ->middleware('screen:6')
                 ->name('cargos.cbo.create');
+
+Route::get('/cargos/cbo/novo', [CboController::class, 'create'])
+    ->middleware('screen:6')
+    ->name('cargos.cbo.create');
+
+Route::post('/cargos/cbo', [CboController::class, 'store'])
+    ->middleware('screen:6')
+    ->name('cargos.cbo.store');
+
+Route::get('/cargos/cbo/check', [CboController::class, 'checkCodigo'])
+    ->middleware('screen:6')
+    ->name('cargos.cbo.check');
+
         });
     });
