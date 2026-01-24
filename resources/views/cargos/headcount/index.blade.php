@@ -12,42 +12,42 @@
   <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
 
-  {{-- BOOTSTRAP TAGSINPUT (EXISTE NO SEU ASSETS.ZIP) --}}
-  <link rel="stylesheet" href="{{ asset('assets/vendor_components/bootstrap-tagsinput/dist/bootstrap-tagsinput.css') }}">
-
-  {{-- Override: tags na cor primária do template --}}
+  {{-- Override: tags do Select2 na cor primária do template --}}
   <style>
-    /* container */
-    .bootstrap-tagsinput{
-      width: 100%;
+    /* container select2 */
+    .select2-container--default .select2-selection--multiple {
       min-height: 42px;
-      padding: 6px 8px;
       border-radius: 6px;
-      line-height: 1.8;
+      padding: 2px 6px;
     }
 
-    /* tag pill */
-    .bootstrap-tagsinput .tag{
-      background-color: var(--primary, var(--bs-primary, #0d6efd)) !important;
+    /* tag (choice) */
+    .select2-container--default .select2-selection--multiple .select2-selection__choice {
+      background: var(--primary, var(--bs-primary, #0d6efd)) !important;
+      border: 1px solid transparent !important;
       color: #fff !important;
-      padding: 5px 10px !important;
+      padding: 4px 10px !important;
+      margin-top: 6px !important;
       margin-right: 6px !important;
-      margin-bottom: 4px !important;
       border-radius: 4px !important;
-      font-size: 13px !important;
       display: inline-flex;
       align-items: center;
     }
 
-    /* remove "x" */
-    .bootstrap-tagsinput .tag [data-role="remove"]{
-      margin-left: 8px;
-      cursor: pointer;
+    /* X do remove */
+    .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
       color: #fff !important;
+      margin-right: 6px;
       opacity: .9;
     }
-    .bootstrap-tagsinput .tag [data-role="remove"]:hover{
+    .select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
       opacity: .75;
+    }
+
+    /* dropdown */
+    .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
+      background: var(--primary, var(--bs-primary, #0d6efd)) !important;
+      color: #fff !important;
     }
   </style>
 </head>
@@ -113,7 +113,8 @@
                 </div>
 
                 <div class="row">
-                  {{-- FILIAL (TAGS) --}}
+
+                  {{-- FILIAL (select2 multiple com busca) --}}
                   <div class="col-md-4">
                     <div class="form-group">
                       <label class="form-label">Filial</label>
@@ -129,7 +130,7 @@
                     </div>
                   </div>
 
-                  {{-- SETOR (TAGS) --}}
+                  {{-- SETOR (select2 multiple com busca, dependente das filiais selecionadas) --}}
                   <div class="col-md-4">
                     <div class="form-group">
                       <label class="form-label">Setor</label>
@@ -141,25 +142,28 @@
                           </option>
                         @endforeach
                       </select>
-                      <small class="text-muted">Ao selecionar filiais, mostra apenas setores dessas filiais.</small>
+                      <small class="text-muted">Ao selecionar filiais, lista apenas setores dessas filiais.</small>
                     </div>
                   </div>
 
-                  {{-- LIBERAÇÃO --}}
+                  {{-- LIBERAÇÃO (obrigatório, vem do controller com default) --}}
                   <div class="col-md-4">
                     <div class="form-group">
                       <label class="form-label">Liberação</label>
                       <select id="filtro-liberacao" class="form-control">
                         @foreach(($liberacoes ?? []) as $l)
-                          <option value="{{ $l->ym }}" @selected(($ym ?? '') === $l->ym)>{{ $l->ym }}</option>
+                          <option value="{{ $l->ym }}" @selected(($ym ?? '') === $l->ym)>
+                            {{ $l->ym }}
+                          </option>
                         @endforeach
                       </select>
-                      <small class="text-muted">Obrigatório (mês atual por padrão quando existir).</small>
+                      <small class="text-muted">Obrigatório.</small>
                     </div>
                   </div>
+
                 </div>
 
-              </div>{{-- box-body --}}
+              </div>
             </div>
           </div>
         </div>
@@ -181,7 +185,6 @@
         </div>
 
       </section>
-
     </div>
   </div>
 
@@ -190,19 +193,15 @@
   @includeIf('includes.footer')
 </div>
 
-{{-- JS --}}
+{{-- JS base --}}
 <script src="{{ asset('assets/js/vendors.min.js') }}"></script>
 <script src="{{ asset('assets/js/pages/chat-popup.js') }}"></script>
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
-{{-- (Pode manter advanced-form-element se quiser para o resto do sistema,
-     mas NÓS VAMOS DESTRUIR o select2 nos campos Filial/Setor) --}}
+{{-- Se o template já inicializa select2 aqui, ok manter --}}
 <script src="{{ asset('assets/js/pages/advanced-form-element.js') }}"></script>
-
-{{-- BOOTSTRAP TAGSINPUT (EXISTE NO SEU ASSETS.ZIP) --}}
-<script src="{{ asset('assets/vendor_components/bootstrap-tagsinput/dist/bootstrap-tagsinput.min.js') }}"></script>
 
 <script>
 (function () {
@@ -213,13 +212,6 @@
   const wrap      = document.getElementById('headcount-table-wrap');
 
   let timer = null;
-
-  function destroySelect2IfAny(el) {
-    if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
-      const $el = jQuery(el);
-      if ($el.data('select2')) $el.select2('destroy');
-    }
-  }
 
   function getMultiValues(selectEl) {
     return Array.from(selectEl.selectedOptions).map(o => o.value).filter(Boolean);
@@ -254,58 +246,41 @@
     }
   }
 
-  /**
-   * ✅ Inicializa TagsInput no SELECT:
-   * - Mostra o texto do option (nome) e não o ID
-   * - Garante eventos itemAdded/itemRemoved para atualizar tabela
-   */
-  function initTagsInput(selectEl, onChangeCb) {
-    if (!window.jQuery || !jQuery.fn || !jQuery.fn.tagsinput) return;
+  // init select2 + busca digitando
+  function initSelect2() {
+    if (!window.jQuery || !jQuery.fn || !jQuery.fn.select2) return;
 
-    const $el = jQuery(selectEl);
-
-    // se já tiver tagsinput, destrói e recria
-    if ($el.data('tagsinput')) {
-      $el.tagsinput('destroy');
-    }
-
-    // IMPORTANTE: para SELECT, forçamos itemText a buscar o texto do <option>
-    $el.tagsinput({
-      trimValue: true,
-      itemText: function(item) {
-        // item pode vir como string (value)
-        const val = (item && typeof item === 'object' && item.value !== undefined) ? item.value : item;
-        const opt = selectEl.querySelector('option[value="' + String(val).replace(/"/g, '\\"') + '"]');
-        return opt ? opt.textContent.trim() : String(val);
-      },
-      itemValue: function(item) {
-        // garante que o "valor" continue sendo o ID
-        return (item && typeof item === 'object' && item.value !== undefined) ? item.value : item;
-      }
+    // Filial
+    jQuery(selFilial).select2({
+      width: '100%',
+      placeholder: 'Selecione',
+      closeOnSelect: false
     });
 
-    // remove handlers antigos pra não duplicar
-    $el.off('itemAdded.tags itemRemoved.tags');
-
-    // tagsinput usa esses eventos (change nem sempre dispara)
-    $el.on('itemAdded.tags itemRemoved.tags', function () {
-      if (typeof onChangeCb === 'function') onChangeCb();
+    // Setor
+    jQuery(selSetor).select2({
+      width: '100%',
+      placeholder: 'Selecione',
+      closeOnSelect: false
     });
   }
 
+  // Recarregar setores conforme filiais selecionadas (AJAX)
   async function carregarSetoresPorFiliais() {
     const filiais = getMultiValues(selFilial);
 
-    // limpa setores (seleção + options) mantendo o componente
-    if (window.jQuery && jQuery.fn && jQuery.fn.tagsinput) {
-      const $setor = jQuery(selSetor);
-      if ($setor.data('tagsinput')) $setor.tagsinput('removeAll');
-    }
+    // guarda setores selecionados (para tentar manter os que ainda existirem)
+    const selectedBefore = new Set(getMultiValues(selSetor));
+
+    // limpa options
     selSetor.innerHTML = '';
 
-    // sem filiais -> setores vazios (opcional) e atualiza tabela
+    // se não tem filiais, pode deixar setor vazio (opcional) e atualizar tabela
     if (!filiais.length) {
-      initTagsInput(selSetor, () => fetchTable(null));
+      // reinit select2 porque mexemos no DOM
+      if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
+        jQuery(selSetor).trigger('change.select2');
+      }
       fetchTable(null);
       return;
     }
@@ -320,43 +295,54 @@
 
       const data = await res.json();
 
+      // recria options e restaura seleção se ainda existir
+      const stillSelected = [];
       for (const item of data) {
         const opt = document.createElement('option');
         opt.value = item.id;
-        opt.textContent = item.nome; // ✅ texto correto
+        opt.textContent = item.nome;
         selSetor.appendChild(opt);
+
+        if (selectedBefore.has(String(item.id))) {
+          stillSelected.push(String(item.id));
+        }
       }
 
-      // recria tagsinput (pra pegar os novos options)
-      initTagsInput(selSetor, () => fetchTable(null));
+      // atualiza select2 e seta valores
+      if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
+        jQuery(selSetor).val(stillSelected).trigger('change');
+      }
 
-      // atualiza tabela
       fetchTable(null);
     } catch (e) {
       console.error(e);
-      initTagsInput(selSetor, () => fetchTable(null));
       fetchTable(null);
     }
   }
 
-  // ===== INIT =====
-  destroySelect2IfAny(selFilial);
-  destroySelect2IfAny(selSetor);
-
-  // Filial: quando adiciona/remove tag -> recarrega setores + tabela
-  initTagsInput(selFilial, () => carregarSetoresPorFiliais());
-
-  // Setor: quando adiciona/remove tag -> atualiza tabela
-  initTagsInput(selSetor, () => fetchTable(null));
-
-  // input e liberação seguem normal
+  // Eventos: filtro texto
   inputQ.addEventListener('keyup', function () {
     clearTimeout(timer);
     timer = setTimeout(() => fetchTable(null), 250);
   });
 
+  // Select2 dispara change quando seleciona e quando remove tag (x)
+  if (window.jQuery) {
+    jQuery(selFilial).on('change', function () {
+      carregarSetoresPorFiliais();
+    });
+    jQuery(selSetor).on('change', function () {
+      fetchTable(null);
+    });
+  } else {
+    // fallback se algum dia não tiver jQuery
+    selFilial.addEventListener('change', carregarSetoresPorFiliais);
+    selSetor.addEventListener('change', () => fetchTable(null));
+  }
+
   selLib.addEventListener('change', () => fetchTable(null));
 
+  // Paginação AJAX (se você colocar paginação depois)
   document.addEventListener('click', function (e) {
     const a = e.target.closest('#headcount-table-wrap .pagination a');
     if (!a) return;
@@ -364,9 +350,10 @@
     fetchTable(a.getAttribute('href'));
   });
 
+  // init
+  initSelect2();
 })();
 </script>
-
 
 </body>
 </html>
