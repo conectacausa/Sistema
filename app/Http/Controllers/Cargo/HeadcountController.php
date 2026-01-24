@@ -27,7 +27,7 @@ class HeadcountController extends Controller
             $podeEditar = false;
             $podeCadastrar = false;
 
-            return view('cargos.cargos.headcount.index', compact(
+            return view('cargos.headcount.index', compact(
                 'filiais', 'setores', 'liberacoes', 'ym', 'groups',
                 'podeEditar', 'podeCadastrar'
             ));
@@ -219,7 +219,7 @@ class HeadcountController extends Controller
         $podeEditar    = $this->temPermissaoFlag($user?->permissao_id, 'editar');
 
         if ($request->boolean('ajax')) {
-            return view('cargos.cargos.headcount._table', compact('groups'))->render();
+            return view('cargos.headcount._table', compact('groups'))->render();
         }
 
         return view('cargos.cargos.headcount.index', compact(
