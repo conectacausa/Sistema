@@ -165,6 +165,7 @@
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
+<script src="{{ asset('assets/js/pages/advanced-form-element.js') }}"></script>
 
 {{-- Este arquivo do template normalmente inicializa select2 no estilo do tema --}}
 <script src="{{ asset('assets/js/pages/advanced-form-element.js') }}"></script>
