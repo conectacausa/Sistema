@@ -134,7 +134,7 @@
               </div>
               <div class="box-body">
                 <div id="headcount-table-wrap">
-                  @include('cargos.cargos.headcount._table', ['groups' => $groups])
+                  @include('cargos.headcount._table', ['groups' => $groups])
                 </div>
               </div>
             </div>
