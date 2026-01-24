@@ -16,6 +16,9 @@
     <!-- Style-->
     <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
+
+    <!-- ✅ SweetAlert v1 (do template) -->
+    <link rel="stylesheet" href="{{ asset('assets/vendor_components/sweetalert/sweetalert.css') }}">
 </head>
 
 <body class="hold-transition light-skin sidebar-mini theme-primary fixed">
@@ -195,6 +198,9 @@
 <!-- Template JS -->
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
+
+<!-- ✅ SweetAlert v1 (do template) -->
+<script src="{{ asset('assets/vendor_components/sweetalert/sweetalert.min.js') }}"></script>
 
 <!-- JS da tela -->
 <script src="{{ asset('assets/js/pages/config-filiais.js') }}?v={{ filemtime(public_path('assets/js/pages/config-filiais.js')) }}"></script>
