@@ -51,7 +51,7 @@ class HeadcountController extends Controller
             ->all();
 
         /**
-         * FILIAIS do filtro: somente as filiais onde o usuário tem vínculo ativo
+         * FILIAIS: somente as filiais onde o usuário tem vínculo ativo
          */
         $filiais = DB::table('vinculo_usuario_lotacao as vul')
             ->join('filiais as f', 'f.id', '=', 'vul.filial_id')
@@ -65,9 +65,9 @@ class HeadcountController extends Controller
             ->get();
 
         /**
-         * SETORES do filtro:
+         * SETORES:
          * - se filiais selecionadas: setores do usuário nessas filiais
-         * - se NÃO selecionadas: todos os setores do usuário (todas as filiais)
+         * - se NÃO selecionadas: todos os setores do usuário
          */
         $setores = DB::table('vinculo_usuario_lotacao as vul')
             ->join('setores as s', 's.id', '=', 'vul.setor_id')
@@ -82,10 +82,7 @@ class HeadcountController extends Controller
             ->get();
 
         /**
-         * LIBERAÇÕES (YYYY-MM):
-         * - somente meses existentes na tabela headcounts
-         * - respeitando a lotação do usuário
-         * - (filial/setor opcionais filtram a lista quando selecionados)
+         * LIBERAÇÕES (YYYY-MM): respeita lotação do usuário e filtros opcionais
          */
         $liberacoesBase = DB::table('headcounts as h')
             ->join('vinculo_usuario_lotacao as vul', function ($join) use ($empresaId, $usuarioId) {
@@ -102,17 +99,15 @@ class HeadcountController extends Controller
         if (!empty($filialIds)) $liberacoesBase->whereIn('h.filial_id', $filialIds);
         if (!empty($setorIds))  $liberacoesBase->whereIn('h.setor_id', $setorIds);
 
-        // Asc para achar "próximo mês"
         $liberacoesAsc = $liberacoesBase
             ->selectRaw("to_char(h.data_liberacao, 'YYYY-MM') as ym")
             ->distinct()
             ->orderBy('ym')
             ->get();
 
-        // Para exibir no select (desc)
         $liberacoes = $liberacoesAsc->sortByDesc('ym')->values();
 
-        // liberação selecionada (se veio do request)
+        // mês selecionado
         $ym = trim((string) $request->get('liberacao', ''));
 
         // default: mês atual se existir; senão próximo; senão mais recente
@@ -132,10 +127,7 @@ class HeadcountController extends Controller
             }
         }
 
-        /**
-         * Intervalo do mês selecionado
-         * (>= primeiro dia) e (< primeiro dia do próximo mês)
-         */
+        // intervalo do mês
         $inicio = null;
         $fimExclusivo = null;
 
@@ -148,10 +140,7 @@ class HeadcountController extends Controller
         }
 
         /**
-         * Query base dos headcounts (Quadro Ideal)
-         * - Somente mês é obrigatório
-         * - Filial/Setor/Cargo(CBO) são opcionais
-         * - Sempre respeita a lotação do usuário
+         * Base headcount: respeita lotação do usuário
          */
         $headcountsQuery = DB::table('headcounts as h')
             ->join('filiais as f', 'f.id', '=', 'h.filial_id')
@@ -169,7 +158,7 @@ class HeadcountController extends Controller
             ->where('h.empresa_id', $empresaId)
             ->whereNull('h.deleted_at');
 
-        // Filtros opcionais
+        // filtros opcionais
         if (!empty($filialIds)) $headcountsQuery->whereIn('h.filial_id', $filialIds);
         if (!empty($setorIds))  $headcountsQuery->whereIn('h.setor_id', $setorIds);
 
@@ -181,7 +170,7 @@ class HeadcountController extends Controller
             });
         }
 
-        // mês obrigatório: se não tiver mês válido/selecionado, retorna vazio
+        // mês obrigatório
         if ($inicio && $fimExclusivo) {
             $headcountsQuery->where('h.data_liberacao', '>=', $inicio)
                            ->where('h.data_liberacao', '<',  $fimExclusivo);
@@ -189,40 +178,42 @@ class HeadcountController extends Controller
             $headcountsQuery->whereRaw('1=0');
         }
 
-       $subQuadroAtual = DB::table('vinculo_colaborador_cargo_setor as vccs')
-    ->whereNull('vccs.deleted_at')
-    ->whereNull('vccs.data_fim') // SOMENTE ATIVOS
-    ->groupBy('vccs.cargo_id', 'vccs.setor_id')
-    ->selectRaw('vccs.cargo_id, vccs.setor_id, count(*)::int as quadro_atual');
+        /**
+         * Quadro atual: conta vínculos ativos (sem data_fim)
+         */
+        $subQuadroAtual = DB::table('vinculo_colaborador_cargo_setor as vccs')
+            ->whereNull('vccs.deleted_at')
+            ->whereNull('vccs.data_fim')
+            ->groupBy('vccs.cargo_id', 'vccs.setor_id')
+            ->selectRaw('vccs.cargo_id, vccs.setor_id, count(*)::int as quadro_atual');
 
-$rows = $headcountsQuery
-    ->leftJoinSub($subQuadroAtual, 'qa', function ($join) {
-        $join->on('qa.cargo_id', '=', 'h.cargo_id')
-             ->on('qa.setor_id', '=', 'h.setor_id');
-    })
-    ->select([
-        'h.filial_id',
-        'h.setor_id',
-        'h.cargo_id',
-        'f.nome_fantasia as filial',
-        's.nome as setor',
-        'c.titulo as cargo',
-    ])
-    ->selectRaw('sum(h.quantidade)::int as quadro_ideal')
-    ->selectRaw('coalesce(max(qa.quadro_atual), 0)::int as quadro_atual')
-    ->groupBy(
-        'h.filial_id',
-        'h.setor_id',
-        'h.cargo_id',
-        'f.nome_fantasia',
-        's.nome',
-        'c.titulo'
-    )
-    ->orderBy('f.nome_fantasia')
-    ->orderBy('s.nome')
-    ->orderBy('c.titulo')
-    ->get();
-
+        $rows = $headcountsQuery
+            ->leftJoinSub($subQuadroAtual, 'qa', function ($join) {
+                $join->on('qa.cargo_id', '=', 'h.cargo_id')
+                     ->on('qa.setor_id', '=', 'h.setor_id');
+            })
+            ->select([
+                'h.filial_id',
+                'h.setor_id',
+                'h.cargo_id',
+                'f.nome_fantasia as filial',
+                's.nome as setor',
+                'c.titulo as cargo',
+            ])
+            ->selectRaw('sum(h.quantidade)::int as quadro_ideal')
+            ->selectRaw('coalesce(max(qa.quadro_atual), 0)::int as quadro_atual')
+            ->groupBy(
+                'h.filial_id',
+                'h.setor_id',
+                'h.cargo_id',
+                'f.nome_fantasia',
+                's.nome',
+                'c.titulo'
+            )
+            ->orderBy('f.nome_fantasia')
+            ->orderBy('s.nome')
+            ->orderBy('c.titulo')
+            ->get();
 
         // Agrupa: Filial -> Setor -> Linhas
         $groups = $rows->groupBy('filial')->map(fn ($porFilial) => $porFilial->groupBy('setor'));
@@ -230,6 +221,7 @@ $rows = $headcountsQuery
         $podeCadastrar = $this->temPermissaoFlag($user?->permissao_id, 'cadastro');
         $podeEditar    = $this->temPermissaoFlag($user?->permissao_id, 'editar');
 
+        // ✅ AJAX deve retornar GRID (cards + tabela)
         if ($request->boolean('ajax')) {
             return view('cargos.headcount._grid', compact('groups'))->render();
         }
@@ -242,7 +234,6 @@ $rows = $headcountsQuery
 
     /**
      * AJAX: setores conforme múltiplas filiais selecionadas
-     * Retorna união dos setores do usuário nas filiais selecionadas
      */
     public function setoresPorFiliais(Request $request)
     {
