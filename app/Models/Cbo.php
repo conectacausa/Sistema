@@ -16,6 +16,7 @@ class Cbo extends Model
         'cbo',
         'titulo',
         'descricao',
+        'validacao',
     ];
 
     public function cargos(): HasMany
