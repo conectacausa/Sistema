@@ -17,8 +17,18 @@
             <strong>{{ $cargo->titulo }}</strong><br>
             <small>CBO: {{ $cargo->cbo?->cbo ?? '-' }}</small>
           </td>
-
-          <td>—</td>
+@php
+  $lotacoes = $lotacoesPorCargo[$cargo->id] ?? collect();
+@endphp
+          <td>
+              @if($lotacoes->isEmpty())
+  <span class="text-muted">—</span>
+@else
+  @foreach($lotacoes as $l)
+    <div>{{ $l->filial }} > {{ $l->setor }}</div>
+  @endforeach
+@endif
+              </td>
 
           @if(!empty($podeEditar) && $podeEditar)
             <td>
