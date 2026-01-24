@@ -12,8 +12,44 @@
   <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
 
-  {{-- CSS para TAGS no padrão do template (cor primária) --}}
-  <link rel="stylesheet" href="{{ asset('assets/css/custom-tagsinput.css') }}">
+  {{-- BOOTSTRAP TAGSINPUT (EXISTE NO SEU ASSETS.ZIP) --}}
+  <link rel="stylesheet" href="{{ asset('assets/vendor_components/bootstrap-tagsinput/dist/bootstrap-tagsinput.css') }}">
+
+  {{-- Override: tags na cor primária do template --}}
+  <style>
+    /* container */
+    .bootstrap-tagsinput{
+      width: 100%;
+      min-height: 42px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      line-height: 1.8;
+    }
+
+    /* tag pill */
+    .bootstrap-tagsinput .tag{
+      background-color: var(--primary, var(--bs-primary, #0d6efd)) !important;
+      color: #fff !important;
+      padding: 5px 10px !important;
+      margin-right: 6px !important;
+      margin-bottom: 4px !important;
+      border-radius: 4px !important;
+      font-size: 13px !important;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    /* remove "x" */
+    .bootstrap-tagsinput .tag [data-role="remove"]{
+      margin-left: 8px;
+      cursor: pointer;
+      color: #fff !important;
+      opacity: .9;
+    }
+    .bootstrap-tagsinput .tag [data-role="remove"]:hover{
+      opacity: .75;
+    }
+  </style>
 </head>
 
 <body class="hold-transition light-skin sidebar-mini theme-primary fixed">
@@ -31,7 +67,6 @@
   <div class="content-wrapper">
     <div class="container-full">
 
-      {{-- HEADER --}}
       <div class="content-header">
         <div class="d-flex align-items-center">
           <div class="me-auto">
@@ -61,7 +96,6 @@
 
               <div class="box-body">
 
-                {{-- Cargo / CBO --}}
                 <div class="row">
                   <div class="col-md-12">
                     <div class="form-group">
@@ -78,52 +112,36 @@
                   </div>
                 </div>
 
-                {{-- Filial / Setor / Liberação --}}
                 <div class="row">
-
-                  {{-- FILIAL --}}
+                  {{-- FILIAL (TAGS) --}}
                   <div class="col-md-4">
                     <div class="form-group">
                       <label class="form-label">Filial</label>
-                      <select
-                        id="filtro-filial"
-                        class="form-control"
-                        multiple
-                        data-role="tagsinput"
-                      >
-                        @foreach($filiais as $filial)
-                          <option
-                            value="{{ $filial->id }}"
-                            @selected(in_array((int)$filial->id, (array)request('filial_id', [])))
-                          >
+                      <select id="filtro-filial" class="form-control" multiple>
+                        @foreach(($filiais ?? []) as $filial)
+                          <option value="{{ $filial->id }}"
+                            @selected(in_array((int)$filial->id, (array)request('filial_id', [])))>
                             {{ $filial->nome_fantasia }}
                           </option>
                         @endforeach
                       </select>
-                      <small class="text-muted">Opcional. Se vazio, mostra todas.</small>
+                      <small class="text-muted">Opcional. Se vazio, mostra todas as filiais da sua lotação.</small>
                     </div>
                   </div>
 
-                  {{-- SETOR --}}
+                  {{-- SETOR (TAGS) --}}
                   <div class="col-md-4">
                     <div class="form-group">
                       <label class="form-label">Setor</label>
-                      <select
-                        id="filtro-setor"
-                        class="form-control"
-                        multiple
-                        data-role="tagsinput"
-                      >
-                        @foreach($setores as $setor)
-                          <option
-                            value="{{ $setor->id }}"
-                            @selected(in_array((int)$setor->id, (array)request('setor_id', [])))
-                          >
+                      <select id="filtro-setor" class="form-control" multiple>
+                        @foreach(($setores ?? []) as $setor)
+                          <option value="{{ $setor->id }}"
+                            @selected(in_array((int)$setor->id, (array)request('setor_id', [])))>
                             {{ $setor->nome }}
                           </option>
                         @endforeach
                       </select>
-                      <small class="text-muted">Dependente das filiais selecionadas.</small>
+                      <small class="text-muted">Ao selecionar filiais, mostra apenas setores dessas filiais.</small>
                     </div>
                   </div>
 
@@ -132,18 +150,16 @@
                     <div class="form-group">
                       <label class="form-label">Liberação</label>
                       <select id="filtro-liberacao" class="form-control">
-                        @foreach($liberacoes as $l)
-                          <option value="{{ $l->ym }}" @selected($ym === $l->ym)>
-                            {{ $l->ym }}
-                          </option>
+                        @foreach(($liberacoes ?? []) as $l)
+                          <option value="{{ $l->ym }}" @selected(($ym ?? '') === $l->ym)>{{ $l->ym }}</option>
                         @endforeach
                       </select>
-                      <small class="text-muted">Obrigatório.</small>
+                      <small class="text-muted">Obrigatório (mês atual por padrão quando existir).</small>
                     </div>
                   </div>
-
                 </div>
-              </div>
+
+              </div>{{-- box-body --}}
             </div>
           </div>
         </div>
@@ -165,6 +181,7 @@
         </div>
 
       </section>
+
     </div>
   </div>
 
@@ -180,8 +197,12 @@
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
-{{-- ATIVA O TAGSINPUT DO TEMPLATE --}}
+{{-- (Pode manter advanced-form-element se quiser para o resto do sistema,
+     mas NÓS VAMOS DESTRUIR o select2 nos campos Filial/Setor) --}}
 <script src="{{ asset('assets/js/pages/advanced-form-element.js') }}"></script>
+
+{{-- BOOTSTRAP TAGSINPUT (EXISTE NO SEU ASSETS.ZIP) --}}
+<script src="{{ asset('assets/vendor_components/bootstrap-tagsinput/dist/bootstrap-tagsinput.min.js') }}"></script>
 
 <script>
 (function () {
@@ -193,43 +214,135 @@
 
   let timer = null;
 
+  function destroySelect2IfAny(el) {
+    if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
+      const $el = jQuery(el);
+      if ($el.data('select2')) {
+        $el.select2('destroy');
+      }
+    }
+  }
+
+  function initTagsInput(el) {
+    if (!window.jQuery || !jQuery.fn || !jQuery.fn.tagsinput) return;
+
+    const $el = jQuery(el);
+
+    // Se já estiver inicializado, destrói e recria (útil quando repopula options)
+    if ($el.data('tagsinput')) {
+      $el.tagsinput('destroy');
+    }
+
+    $el.tagsinput({
+      trimValue: true
+    });
+  }
+
   function getMultiValues(selectEl) {
     return Array.from(selectEl.selectedOptions).map(o => o.value).filter(Boolean);
   }
 
-  function buildUrl() {
-    const url = new URL("{{ route('cargos.headcount.index') }}", window.location.origin);
+  function buildUrl(pageUrl) {
+    const base = pageUrl || "{{ route('cargos.headcount.index') }}";
+    const url  = new URL(base, window.location.origin);
 
-    const q = inputQ.value.trim();
+    const q = (inputQ.value || '').trim();
     const filiais = getMultiValues(selFilial);
     const setores = getMultiValues(selSetor);
-    const lib = selLib.value;
+    const lib = selLib.value || '';
 
-    if (q) url.searchParams.set('q', q);
-    filiais.forEach(f => url.searchParams.append('filial_id[]', f));
-    setores.forEach(s => url.searchParams.append('setor_id[]', s));
+    if (q.length) url.searchParams.set('q', q);
+    for (const f of filiais) url.searchParams.append('filial_id[]', f);
+    for (const s of setores) url.searchParams.append('setor_id[]', s);
     if (lib) url.searchParams.set('liberacao', lib);
 
     url.searchParams.set('ajax', '1');
     return url.toString();
   }
 
-  async function fetchTable() {
-    const res = await fetch(buildUrl(), {
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    wrap.innerHTML = await res.text();
+  async function fetchTable(pageUrl) {
+    try {
+      const res = await fetch(buildUrl(pageUrl), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      wrap.innerHTML = await res.text();
+    } catch (e) {
+      console.error(e);
+    }
   }
 
-  inputQ.addEventListener('keyup', () => {
+  async function carregarSetoresPorFiliais() {
+    const filiais = getMultiValues(selFilial);
+
+    // Remove todos os setores selecionados e options
+    if (window.jQuery && jQuery.fn && jQuery.fn.tagsinput) {
+      const $setor = jQuery(selSetor);
+      if ($setor.data('tagsinput')) {
+        $setor.tagsinput('removeAll');
+      }
+    }
+    selSetor.innerHTML = '';
+
+    // Sem filial -> setor fica vazio (opcional) e atualiza tabela
+    if (!filiais.length) {
+      initTagsInput(selSetor);
+      fetchTable(null);
+      return;
+    }
+
+    try {
+      const url = new URL("{{ route('cargos.headcount.setores_por_filiais') }}", window.location.origin);
+      for (const f of filiais) url.searchParams.append('filial_id[]', f);
+
+      const res = await fetch(url.toString(), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+
+      const data = await res.json();
+
+      for (const item of data) {
+        const opt = document.createElement('option');
+        opt.value = item.id;
+        opt.textContent = item.nome;
+        selSetor.appendChild(opt);
+      }
+
+      // Recria tagsinput já com as novas options
+      initTagsInput(selSetor);
+
+      fetchTable(null);
+    } catch (e) {
+      console.error(e);
+      initTagsInput(selSetor);
+      fetchTable(null);
+    }
+  }
+
+  // ====== INIT ======
+  // Se algum script do template aplicou select2, removemos
+  destroySelect2IfAny(selFilial);
+  destroySelect2IfAny(selSetor);
+
+  // Ativa tagsinput
+  initTagsInput(selFilial);
+  initTagsInput(selSetor);
+
+  // ====== EVENTS ======
+  inputQ.addEventListener('keyup', function () {
     clearTimeout(timer);
-    timer = setTimeout(fetchTable, 300);
+    timer = setTimeout(() => fetchTable(null), 250);
   });
 
-  selFilial.addEventListener('change', fetchTable);
-  selSetor.addEventListener('change', fetchTable);
-  selLib.addEventListener('change', fetchTable);
+  selFilial.addEventListener('change', carregarSetoresPorFiliais);
+  selSetor.addEventListener('change', () => fetchTable(null));
+  selLib.addEventListener('change', () => fetchTable(null));
 
+  document.addEventListener('click', function (e) {
+    const a = e.target.closest('#headcount-table-wrap .pagination a');
+    if (!a) return;
+    e.preventDefault();
+    fetchTable(a.getAttribute('href'));
+  });
 })();
 </script>
 
