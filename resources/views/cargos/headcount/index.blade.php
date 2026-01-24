@@ -77,30 +77,30 @@
                   <div class="col-md-4">
                     <div class="form-group">
                       <label class="form-label">Filial</label>
-                      <select id="filtro-filial" class="form-control" multiple>
+                      <select id="filtro-filial" class="form-control select2" multiple>
                         @foreach(($filiais ?? []) as $filial)
                           <option value="{{ $filial->id }}"
-                            @selected(in_array((int)$filial->id, (array)request('filial_id', []), true))>
+                            @selected(in_array((int)$filial->id, (array)request('filial_id', [])))>
                             {{ $filial->nome_fantasia }}
                           </option>
                         @endforeach
                       </select>
-                      <small class="text-muted">Você pode selecionar mais de uma filial.</small>
+                      <small class="text-muted">Selecione uma ou mais filiais (opcional).</small>
                     </div>
                   </div>
 
                   <div class="col-md-4">
                     <div class="form-group">
                       <label class="form-label">Setor</label>
-                      <select id="filtro-setor" class="form-control" multiple>
+                      <select id="filtro-setor" class="form-control select2" multiple>
                         @foreach(($setores ?? []) as $setor)
                           <option value="{{ $setor->id }}"
-                            @selected(in_array((int)$setor->id, (array)request('setor_id', []), true))>
+                            @selected(in_array((int)$setor->id, (array)request('setor_id', [])))>
                             {{ $setor->nome }}
                           </option>
                         @endforeach
                       </select>
-                      <small class="text-muted">Setores disponíveis dependem das filiais selecionadas.</small>
+                      <small class="text-muted">Opções variam conforme filiais (opcional).</small>
                     </div>
                   </div>
 
@@ -115,7 +115,7 @@
                           </option>
                         @endforeach
                       </select>
-                      <small class="text-muted">Mostra apenas meses que possuem liberação.</small>
+                      <small class="text-muted">Obrigatório. Mostra apenas meses que possuem liberação.</small>
                     </div>
                   </div>
                 </div>
@@ -134,7 +134,7 @@
               </div>
               <div class="box-body">
                 <div id="headcount-table-wrap">
-                  @include('cargos.headcount._table', ['groups' => $groups])
+                  @include('cargos.cargos.headcount._table', ['groups' => $groups])
                 </div>
               </div>
             </div>
@@ -156,6 +156,9 @@
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
+{{-- IMPORTANTE: este arquivo do template normalmente inicializa select2 e deixa no estilo "tags" igual ao tema --}}
+<script src="{{ asset('assets/js/pages/advanced-form-element.js') }}"></script>
+
 <script>
 (function () {
   const inputQ    = document.getElementById('filtro-q');
@@ -165,22 +168,6 @@
   const wrap      = document.getElementById('headcount-table-wrap');
 
   let timer = null;
-
-  // Se o template já tem select2 (muito comum nesses vendors), ativa para virar "tags"
-  function tryInitSelect2(el) {
-    if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
-      jQuery(el).select2({
-        width: '100%',
-        placeholder: 'Selecione',
-        closeOnSelect: false
-      });
-      return true;
-    }
-    return false;
-  }
-
-  tryInitSelect2(selFilial);
-  tryInitSelect2(selSetor);
 
   function getMultiValues(selectEl) {
     return Array.from(selectEl.selectedOptions).map(o => o.value).filter(Boolean);
@@ -197,10 +184,7 @@
 
     if (q.length) url.searchParams.set('q', q);
 
-    // multi params: filial_id[]=1&filial_id[]=2
-    url.searchParams.delete('filial_id[]');
-    url.searchParams.delete('setor_id[]');
-
+    // multi params
     for (const f of filiais) url.searchParams.append('filial_id[]', f);
     for (const s of setores) url.searchParams.append('setor_id[]', s);
 
@@ -219,10 +203,8 @@
     const lib = selLib.value || '';
 
     if (q.length) clean.searchParams.set('q', q);
-
     for (const f of filiais) clean.searchParams.append('filial_id[]', f);
     for (const s of setores) clean.searchParams.append('setor_id[]', s);
-
     if (lib) clean.searchParams.set('liberacao', lib);
 
     window.history.replaceState({}, '', clean.toString());
@@ -242,19 +224,16 @@
   }
 
   async function carregarSetoresPorFiliais() {
-    // limpa setor quando muda filiais
     const filiais = getMultiValues(selFilial);
 
-    // reset select
-    selSetor.innerHTML = '';
-
-    // se tiver select2, precisa limpar via jQuery também
+    // limpa setor
     if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
       jQuery(selSetor).val(null).trigger('change');
     }
+    selSetor.innerHTML = '';
 
     if (!filiais.length) {
-      // sem filiais, setores vazios e atualiza tabela
+      // sem filiais: deixa setor vazio (opcional) e só atualiza tabela
       fetchTable(null);
       return;
     }
@@ -269,8 +248,6 @@
 
       const data = await res.json();
 
-      // popula setores (união das filiais selecionadas)
-      // (se quiser, dá pra agrupar por filial depois)
       for (const item of data) {
         const opt = document.createElement('option');
         opt.value = item.id;
@@ -278,10 +255,11 @@
         selSetor.appendChild(opt);
       }
 
-      // reativa select2 se existir
-      tryInitSelect2(selSetor);
+      // reinit select2 (porque recriou options)
+      if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
+        jQuery(selSetor).select2({ width: '100%' });
+      }
 
-      // filtra tabela
       fetchTable(null);
     } catch (e) {
       console.error(e);
