@@ -41,13 +41,10 @@
               @php
                 $ideal = (int) ($r->quadro_ideal ?? 0);
                 $atual = (int) ($r->quadro_atual ?? 0);
-
                 $saldo = $ideal - $atual;
 
                 $saldoClass = '';
-                if ($atual > $ideal) {
-                  $saldoClass = 'text-danger fw-bold';
-                }
+                if ($atual > $ideal) $saldoClass = 'text-danger fw-bold';
 
                 $totalSetorAtual += $atual;
                 $totalSetorIdeal += $ideal;
@@ -88,7 +85,7 @@
 
           @endforeach
 
-          {{-- Total da filial (texto PRETO e NEGRITO como solicitado) --}}
+          {{-- Total da filial (texto PRETO e NEGRITO) --}}
           @php
             $saldoFilial = $totalFilialIdeal - $totalFilialAtual;
             $saldoFilialClass = $totalFilialAtual > $totalFilialIdeal ? 'text-danger fw-bold' : 'fw-bold';
