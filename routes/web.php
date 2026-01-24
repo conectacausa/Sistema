@@ -46,10 +46,9 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->middleware('screen:6')
                 ->name('cargos.cbo.index');
 
-            // ✅ Novo CBO (mesma tela_id = 6, valida permissão de cadastro no controller)
+            // ✅ Novo CBO (placeholder por enquanto)
             Route::get('/cargos/cbo/novo', [CboController::class, 'create'])
                 ->middleware('screen:6')
                 ->name('cargos.cbo.create');
-
         });
     });
