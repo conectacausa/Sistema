@@ -15,6 +15,7 @@ class CargoController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
+
         $empresaId = (int) ($user->empresa_id ?? 0);
         $usuarioId = (int) ($user->id ?? 0);
 
@@ -24,7 +25,16 @@ class CargoController extends Controller
             $podeEditar = false;
             $filiais = collect();
             $setores = collect();
-            return view('cargos.cargos.index', compact('cargos', 'podeCadastrar', 'podeEditar', 'filiais', 'setores'));
+            $lotacoesPorCargo = collect();
+
+            return view('cargos.cargos.index', compact(
+                'cargos',
+                'podeCadastrar',
+                'podeEditar',
+                'filiais',
+                'setores',
+                'lotacoesPorCargo'
+            ));
         }
 
         $q = trim((string) $request->get('q', ''));
@@ -77,20 +87,19 @@ class CargoController extends Controller
             ->whereExists(function ($sub) use ($empresaId, $usuarioId, $filialId, $setorId) {
                 $sub->selectRaw('1')
                     ->from('vinculo_cargo_lotacao as vcl')
-                    ->join('vinculo_usuario_lotacao as vul', function ($join) use ($empresaId, $usuarioId) {
+                    ->join('vinculo_usuario_lotacao as vul', function ($join) use ($usuarioId) {
                         $join->on('vul.empresa_id', '=', 'vcl.empresa_id')
-                             ->on('vul.filial_id', '=', 'vcl.filial_id')
-                             ->on('vul.setor_id', '=', 'vcl.setor_id')
-                             ->where('vul.usuario_id', '=', $usuarioId)
-                             ->where('vul.ativo', '=', true)
-                             ->whereNull('vul.deleted_at');
+                            ->on('vul.filial_id', '=', 'vcl.filial_id')
+                            ->on('vul.setor_id', '=', 'vcl.setor_id')
+                            ->where('vul.usuario_id', '=', $usuarioId)
+                            ->where('vul.ativo', '=', true)
+                            ->whereNull('vul.deleted_at');
                     })
                     ->whereColumn('vcl.cargo_id', 'cargos.id')
                     ->where('vcl.empresa_id', $empresaId)
                     ->where('vcl.ativo', true)
                     ->whereNull('vcl.deleted_at');
 
-                // filtros opcionais (se o usuário escolheu)
                 if ($filialId > 0) $sub->where('vcl.filial_id', $filialId);
                 if ($setorId > 0)  $sub->where('vcl.setor_id', $setorId);
             })
@@ -107,20 +116,67 @@ class CargoController extends Controller
             ->paginate(50)
             ->withQueryString();
 
+        /**
+         * LOTAÇÕES (Filial > Setor) por cargo:
+         * - somente vínculos ativos do cargo
+         * - somente vínculos que o usuário também possui
+         * - para exibir múltiplas linhas na coluna Lotação
+         */
+        $cargoIds = $cargos->getCollection()->pluck('id')->map(fn ($v) => (int) $v)->values()->all();
+        $lotacoesPorCargo = collect();
+
+        if (!empty($cargoIds)) {
+            $rows = DB::table('vinculo_cargo_lotacao as vcl')
+                ->join('filiais as f', 'f.id', '=', 'vcl.filial_id')
+                ->join('setores as s', 's.id', '=', 'vcl.setor_id')
+                ->join('vinculo_usuario_lotacao as vul', function ($join) use ($empresaId, $usuarioId) {
+                    $join->on('vul.empresa_id', '=', 'vcl.empresa_id')
+                        ->on('vul.filial_id', '=', 'vcl.filial_id')
+                        ->on('vul.setor_id', '=', 'vcl.setor_id')
+                        ->where('vul.usuario_id', '=', $usuarioId)
+                        ->where('vul.ativo', '=', true)
+                        ->whereNull('vul.deleted_at');
+                })
+                ->where('vcl.empresa_id', $empresaId)
+                ->whereIn('vcl.cargo_id', $cargoIds)
+                ->where('vcl.ativo', true)
+                ->whereNull('vcl.deleted_at')
+                ->select([
+                    'vcl.cargo_id',
+                    'f.nome_fantasia as filial',
+                    's.nome as setor',
+                ])
+                ->orderBy('f.nome_fantasia')
+                ->orderBy('s.nome')
+                ->get();
+
+            $lotacoesPorCargo = $rows->groupBy('cargo_id');
+        }
+
         $podeCadastrar = $this->temPermissaoFlag($user?->permissao_id, 'cadastro');
         $podeEditar    = $this->temPermissaoFlag($user?->permissao_id, 'editar');
 
         if ($request->boolean('ajax')) {
-            return view('cargos.cargos._table', compact('cargos', 'podeEditar'))->render();
+            return view('cargos.cargos._table', compact('cargos', 'podeEditar', 'lotacoesPorCargo'))->render();
         }
 
-        return view('cargos.cargos.index', compact('cargos', 'podeCadastrar', 'podeEditar', 'filiais', 'setores'));
+        return view('cargos.cargos.index', compact(
+            'cargos',
+            'podeCadastrar',
+            'podeEditar',
+            'filiais',
+            'setores',
+            'lotacoesPorCargo'
+        ));
     }
 
-    // Endpoint AJAX: setores conforme filial, mas somente os que o usuário tem vínculo
+    /**
+     * Endpoint AJAX: setores conforme filial, mas somente os que o usuário tem vínculo.
+     */
     public function setoresPorFilial(Request $request)
     {
         $user = Auth::user();
+
         $empresaId = (int) ($user->empresa_id ?? 0);
         $usuarioId = (int) ($user->id ?? 0);
         $filialId  = (int) $request->query('filial_id', 0);
