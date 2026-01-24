@@ -190,8 +190,9 @@
               </div>
               <div class="box-body">
                 <div id="headcount-table-wrap">
-                  @include('cargos.headcount._table', ['groups' => $groups])
-                </div>
+  @include('cargos.headcount._grid', ['groups' => $groups])
+</div>
+
               </div>
             </div>
           </div>
