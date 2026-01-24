@@ -12,14 +12,15 @@ class Cargo extends Model
 
     protected $table = 'cargos';
 
-    protected $fillable = [
-        'titulo',
-        'cbo_id',
-        'status',
-        'jovem_aprendiz',
-        'descricao_cargo',
-        'revisao',
-    ];
+   protected $fillable = [
+    'empresa_id',
+    'titulo',
+    'cbo_id',
+    'status',
+    'jovem_aprendiz',
+    'descricao_cargo',
+    'revisao',
+];
 
     protected $casts = [
         'status' => 'boolean',
