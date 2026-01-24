@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Cargo;
 use App\Http\Controllers\Controller;
 use App\Models\Cbo;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class CboController extends Controller
 {
