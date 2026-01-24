@@ -87,27 +87,29 @@
 
         const res = await fetch(`${url}?screen_id=${SCREEN_ID}`, {
             method: 'DELETE',
+            credentials: 'include',
             headers: {
-                ...(token ? { 'X-CSRF-TOKEN': token } : {}),
-                'Accept': 'application/json'
-            },
-            credentials: 'include'
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                ...(token ? { 'X-CSRF-TOKEN': token } : {})
+            }
         });
 
+        const raw = await res.text().catch(() => '');
+        let json = null;
+        try { json = raw ? JSON.parse(raw) : null; } catch (_) {}
+
         if (!res.ok) {
-            let body = '';
-            try { body = await res.text(); } catch (_) {}
-            throw new Error(`DELETE ${url} -> ${res.status}: ${body}`);
+            const msg = (json && (json.message || json.error)) ? (json.message || json.error) : (raw || 'Erro desconhecido');
+            throw new Error(`${res.status} - ${msg}`);
         }
 
-        return res.json().catch(() => ({}));
+        return json || {};
     };
 
     const renderTabela = (rows) => {
         if (!rows || !rows.length) {
-            elTBody.innerHTML = `
-                <tr><td colspan="6" class="text-center text-muted">Nenhuma filial encontrada</td></tr>
-            `;
+            elTBody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">Nenhuma filial encontrada</td></tr>`;
             return;
         }
 
@@ -152,18 +154,14 @@
             });
 
             const json = await res.json();
-
             renderTabela(json.data || []);
             state.total = Number(json.meta?.total || 0);
             state.lastPage = Number(json.meta?.last_page || 1);
             state.page = Number(json.meta?.current_page || 1);
-
             renderPaginacao();
         } catch (e) {
             console.error(e);
-            elTBody.innerHTML = `
-                <tr><td colspan="6" class="text-center text-danger">Erro ao carregar filiais</td></tr>
-            `;
+            elTBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Erro ao carregar filiais</td></tr>`;
         }
     };
 
@@ -238,6 +236,7 @@
         if (state.page < state.lastPage) { state.page++; carregarFiliais(); }
     });
 
+    // Ações Editar / Excluir
     elTBody?.addEventListener('click', async (e) => {
         const btnEdit = e.target.closest('.btnEditar');
         const btnDel = e.target.closest('.btnExcluir');
@@ -248,48 +247,18 @@
         }
 
         if (btnDel) {
-            if (typeof window.Swal === 'undefined') {
-                console.error('SweetAlert2 (Swal) não carregado.');
-                return;
-            }
-
             const id = btnDel.dataset.id;
 
-            const result = await Swal.fire({
-                title: 'Excluir filial?',
-                text: 'Tem certeza que deseja excluir esta filial?',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Sim',
-                cancelButtonText: 'Cancelar',
-                buttonsStyling: false,
-                customClass: {
-                    confirmButton: 'btn btn-danger',
-                    cancelButton: 'btn btn-primary me-2'
-                }
-            });
-
-            if (!result.isConfirmed) return;
+            const ok = confirm('Tem certeza que deseja excluir esta filial?');
+            if (!ok) return;
 
             try {
                 await apiDelete(API.deleteFilial(id));
-
-                await Swal.fire({
-                    title: 'Excluída',
-                    text: 'Filial excluída com sucesso.',
-                    icon: 'success',
-                    timer: 1500,
-                    showConfirmButton: false
-                });
-
+                alert('Filial excluída com sucesso.');
                 carregarFiliais();
             } catch (err) {
                 console.error(err);
-                Swal.fire({
-                    title: 'Erro',
-                    text: 'Não foi possível excluir a filial.',
-                    icon: 'error'
-                });
+                alert(`Erro ao excluir: ${String(err.message || err)}`);
             }
         }
     });
