@@ -35,11 +35,11 @@ class CargoController extends Controller
 
         // Filiais ativas da empresa do usuário
         $filiais = DB::table('filiais')
-            ->select('id', 'nome')
-            ->where('empresa_id', $empresaId)
-            ->where('status', true) // ajuste se o campo for diferente
-            ->orderBy('nome')
-            ->get();
+    ->select('id', 'nome_fantasia')
+    ->where('empresa_id', $empresaId)
+    ->orderBy('nome_fantasia')
+    ->get();
+
 
         // Setores da empresa (e da filial se selecionada)
         $setoresQuery = DB::table('setores')
