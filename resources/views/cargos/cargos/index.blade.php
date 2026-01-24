@@ -53,12 +53,15 @@
       </div>
 
       <section class="content">
+
+        {{-- Filtros --}}
         <div class="row">
           <div class="col-12">
             <div class="box">
               <div class="box-header with-border">
                 <h4 class="box-title">Filtros</h4>
               </div>
+
               <div class="box-body">
                 <div class="row">
                   <div class="col-md-12">
@@ -75,11 +78,43 @@
                     </div>
                   </div>
                 </div>
-              </div>
+
+                <div class="row">
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label class="form-label">Filial</label>
+                      <select id="filtro-filial" class="form-control">
+                        <option value="">Selecione</option>
+                        @foreach(($filiais ?? []) as $filial)
+                          <option value="{{ $filial->id }}" @selected((int)request('filial_id') === (int)$filial->id)>
+                            {{ $filial->nome }}
+                          </option>
+                        @endforeach
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label class="form-label">Setor</label>
+                      <select id="filtro-setor" class="form-control">
+                        <option value="">Selecione</option>
+                        @foreach(($setores ?? []) as $setor)
+                          <option value="{{ $setor->id }}" @selected((int)request('setor_id') === (int)$setor->id)>
+                            {{ $setor->nome }}
+                          </option>
+                        @endforeach
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+              </div>{{-- box-body --}}
             </div>
           </div>
         </div>
 
+        {{-- Tabela --}}
         <div class="row">
           <div class="col-12">
             <div class="box">
@@ -112,18 +147,41 @@
 
 <script>
 (function () {
-  const input = document.getElementById('filtro-q');
-  const wrap  = document.getElementById('cargos-table-wrap');
+  const inputQ   = document.getElementById('filtro-q');
+  const selFilial= document.getElementById('filtro-filial');
+  const selSetor = document.getElementById('filtro-setor');
+  const wrap     = document.getElementById('cargos-table-wrap');
+
   let timer = null;
 
   function buildUrl(pageUrl) {
     const base = pageUrl || "{{ route('cargos.cargos.index') }}";
     const url  = new URL(base, window.location.origin);
-    const q    = (input.value || '').trim();
+
+    const q = (inputQ.value || '').trim();
+    const filial = selFilial.value || '';
+    const setor  = selSetor.value || '';
 
     if (q.length) url.searchParams.set('q', q);
+    if (filial)   url.searchParams.set('filial_id', filial);
+    if (setor)    url.searchParams.set('setor_id', setor);
+
     url.searchParams.set('ajax', '1');
     return url.toString();
+  }
+
+  function updateBrowserUrl() {
+    const clean = new URL("{{ route('cargos.cargos.index') }}", window.location.origin);
+
+    const q = (inputQ.value || '').trim();
+    const filial = selFilial.value || '';
+    const setor  = selSetor.value || '';
+
+    if (q.length) clean.searchParams.set('q', q);
+    if (filial)   clean.searchParams.set('filial_id', filial);
+    if (setor)    clean.searchParams.set('setor_id', setor);
+
+    window.history.replaceState({}, '', clean.toString());
   }
 
   async function fetchTable(pageUrl) {
@@ -133,20 +191,54 @@
       });
       const html = await res.text();
       wrap.innerHTML = html;
-
-      const clean = new URL("{{ route('cargos.cargos.index') }}", window.location.origin);
-      const q = (input.value || '').trim();
-      if (q.length) clean.searchParams.set('q', q);
-      window.history.replaceState({}, '', clean.toString());
+      updateBrowserUrl();
     } catch (e) {
       console.error(e);
     }
   }
 
-  input.addEventListener('keyup', function () {
+  async function carregarSetoresPorFilial() {
+    const filial = selFilial.value || '';
+    selSetor.innerHTML = '<option value="">Selecione</option>';
+
+    if (!filial) {
+      fetchTable(null);
+      return;
+    }
+
+    try {
+      const url = new URL("{{ route('cargos.setores_por_filial') }}", window.location.origin);
+      url.searchParams.set('filial_id', filial);
+
+      const res = await fetch(url.toString(), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+
+      const data = await res.json();
+
+      for (const item of data) {
+        const opt = document.createElement('option');
+        opt.value = item.id;
+        opt.textContent = item.nome;
+        selSetor.appendChild(opt);
+      }
+
+      // ao trocar filial, limpa setor e filtra
+      selSetor.value = '';
+      fetchTable(null);
+    } catch (e) {
+      console.error(e);
+      fetchTable(null);
+    }
+  }
+
+  inputQ.addEventListener('keyup', function () {
     clearTimeout(timer);
     timer = setTimeout(() => fetchTable(null), 250);
   });
+
+  selFilial.addEventListener('change', carregarSetoresPorFilial);
+  selSetor.addEventListener('change', () => fetchTable(null));
 
   document.addEventListener('click', function (e) {
     const a = e.target.closest('#cargos-table-wrap .pagination a');
