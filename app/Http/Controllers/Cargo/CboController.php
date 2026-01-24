@@ -46,8 +46,25 @@ class CboController extends Controller
 
 
     public function create()
-    {
-        // placeholder - vamos implementar depois
+{
+    $user = Auth::user();
+
+    // Só entra se tiver cadastro=1
+    $podeCadastrar = false;
+    if ($user && $user->permissao_id) {
+        $podeCadastrar = DB::table('permissao_modulo_tela')
+            ->where('permissao_id', $user->permissao_id)
+            ->where('tela_id', 6)
+            ->where('ativo', true)
+            ->where('cadastro', true)
+            ->exists();
+    }
+
+    if (!$podeCadastrar) {
         return redirect()->route('cargos.cbo.index');
     }
+
+    return view('cargos.cbo.create');
+}
+
 }
