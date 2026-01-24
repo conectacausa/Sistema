@@ -5,7 +5,7 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="{{ asset('assets/images/favicon.ico') }}">
-  <title>Conectta RH | Cargos</title>
+  <title>Conectta RH | Headcount</title>
 
   <link rel="stylesheet" href="{{ asset('assets/css/vendors_css.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
@@ -30,25 +30,19 @@
       <div class="content-header">
         <div class="d-flex align-items-center">
           <div class="me-auto">
-            <h4 class="page-title">Cargos</h4>
+            <h4 class="page-title">Headcount</h4>
             <div class="d-inline-block align-items-center">
               <nav>
                 <ol class="breadcrumb">
                   <li class="breadcrumb-item">
                     <a href="{{ route('dashboard') }}"><i class="mdi mdi-home-outline"></i></a>
                   </li>
-                  <li class="breadcrumb-item">Cadastro</li>
-                  <li class="breadcrumb-item active" aria-current="page">Cargos</li>
+                  <li class="breadcrumb-item">Cargos</li>
+                  <li class="breadcrumb-item active" aria-current="page">QLP</li>
                 </ol>
               </nav>
             </div>
           </div>
-
-          @if(!empty($podeCadastrar) && $podeCadastrar)
-            <a href="{{ route('cargos.cargos.create') }}" class="waves-effect waves-light btn mb-5 bg-gradient-success">
-              Novo Cargo
-            </a>
-          @endif
         </div>
       </div>
 
@@ -80,31 +74,48 @@
                 </div>
 
                 <div class="row">
-                  <div class="col-md-6">
+                  <div class="col-md-4">
                     <div class="form-group">
                       <label class="form-label">Filial</label>
-                      <select id="filtro-filial" class="form-control">
-                        <option value="">Selecione</option>
+                      <select id="filtro-filial" class="form-control select2" multiple>
                         @foreach(($filiais ?? []) as $filial)
-                          <option value="{{ $filial->id }}">
+                          <option value="{{ $filial->id }}"
+                            @selected(in_array((int)$filial->id, (array)request('filial_id', [])))>
                             {{ $filial->nome_fantasia }}
                           </option>
                         @endforeach
-                         </select>
+                      </select>
+                      <small class="text-muted">Selecione uma ou mais filiais (opcional).</small>
                     </div>
                   </div>
 
-                  <div class="col-md-6">
+                  <div class="col-md-4">
                     <div class="form-group">
                       <label class="form-label">Setor</label>
-                      <select id="filtro-setor" class="form-control">
-                        <option value="">Selecione</option>
+                      <select id="filtro-setor" class="form-control select2" multiple>
                         @foreach(($setores ?? []) as $setor)
-                          <option value="{{ $setor->id }}" @selected((int)request('setor_id') === (int)$setor->id)>
+                          <option value="{{ $setor->id }}"
+                            @selected(in_array((int)$setor->id, (array)request('setor_id', [])))>
                             {{ $setor->nome }}
                           </option>
                         @endforeach
                       </select>
+                      <small class="text-muted">Opções variam conforme filiais (opcional).</small>
+                    </div>
+                  </div>
+
+                  <div class="col-md-4">
+                    <div class="form-group">
+                      <label class="form-label">Liberação</label>
+                      <select id="filtro-liberacao" class="form-control">
+                        <option value="">Selecione</option>
+                        @foreach(($liberacoes ?? []) as $l)
+                          <option value="{{ $l->ym }}" @selected((string)request('liberacao', $ym ?? '') === (string)$l->ym)>
+                            {{ $l->ym }}
+                          </option>
+                        @endforeach
+                      </select>
+                      <small class="text-muted">Obrigatório. Mostra apenas meses que possuem liberação.</small>
                     </div>
                   </div>
                 </div>
@@ -119,11 +130,11 @@
           <div class="col-12">
             <div class="box">
               <div class="box-header with-border">
-                <h4 class="box-title">Cargos</h4>
+                <h4 class="box-title">QLP</h4>
               </div>
               <div class="box-body">
-                <div id="cargos-table-wrap">
-                  @include('cargos.cargos._table', ['cargos' => $cargos, 'podeEditar' => $podeEditar])
+                <div id="headcount-table-wrap">
+                  @include('cargos.cargos.headcount._table', ['groups' => $groups])
                 </div>
               </div>
             </div>
@@ -145,41 +156,56 @@
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
+{{-- IMPORTANTE: este arquivo do template normalmente inicializa select2 e deixa no estilo "tags" igual ao tema --}}
+<script src="{{ asset('assets/js/pages/advanced-form-element.js') }}"></script>
+
 <script>
 (function () {
-  const inputQ   = document.getElementById('filtro-q');
-  const selFilial= document.getElementById('filtro-filial');
-  const selSetor = document.getElementById('filtro-setor');
-  const wrap     = document.getElementById('cargos-table-wrap');
+  const inputQ    = document.getElementById('filtro-q');
+  const selFilial = document.getElementById('filtro-filial');
+  const selSetor  = document.getElementById('filtro-setor');
+  const selLib    = document.getElementById('filtro-liberacao');
+  const wrap      = document.getElementById('headcount-table-wrap');
 
   let timer = null;
 
+  function getMultiValues(selectEl) {
+    return Array.from(selectEl.selectedOptions).map(o => o.value).filter(Boolean);
+  }
+
   function buildUrl(pageUrl) {
-    const base = pageUrl || "{{ route('cargos.cargos.index') }}";
+    const base = pageUrl || "{{ route('cargos.headcount.index') }}";
     const url  = new URL(base, window.location.origin);
 
     const q = (inputQ.value || '').trim();
-    const filial = selFilial.value || '';
-    const setor  = selSetor.value || '';
+    const filiais = getMultiValues(selFilial);
+    const setores = getMultiValues(selSetor);
+    const lib = selLib.value || '';
 
     if (q.length) url.searchParams.set('q', q);
-    if (filial)   url.searchParams.set('filial_id', filial);
-    if (setor)    url.searchParams.set('setor_id', setor);
+
+    // multi params
+    for (const f of filiais) url.searchParams.append('filial_id[]', f);
+    for (const s of setores) url.searchParams.append('setor_id[]', s);
+
+    if (lib) url.searchParams.set('liberacao', lib);
 
     url.searchParams.set('ajax', '1');
     return url.toString();
   }
 
   function updateBrowserUrl() {
-    const clean = new URL("{{ route('cargos.cargos.index') }}", window.location.origin);
+    const clean = new URL("{{ route('cargos.headcount.index') }}", window.location.origin);
 
     const q = (inputQ.value || '').trim();
-    const filial = selFilial.value || '';
-    const setor  = selSetor.value || '';
+    const filiais = getMultiValues(selFilial);
+    const setores = getMultiValues(selSetor);
+    const lib = selLib.value || '';
 
     if (q.length) clean.searchParams.set('q', q);
-    if (filial)   clean.searchParams.set('filial_id', filial);
-    if (setor)    clean.searchParams.set('setor_id', setor);
+    for (const f of filiais) clean.searchParams.append('filial_id[]', f);
+    for (const s of setores) clean.searchParams.append('setor_id[]', s);
+    if (lib) clean.searchParams.set('liberacao', lib);
 
     window.history.replaceState({}, '', clean.toString());
   }
@@ -197,18 +223,24 @@
     }
   }
 
-  async function carregarSetoresPorFilial() {
-    const filial = selFilial.value || '';
-    selSetor.innerHTML = '<option value="">Selecione</option>';
+  async function carregarSetoresPorFiliais() {
+    const filiais = getMultiValues(selFilial);
 
-    if (!filial) {
+    // limpa setor
+    if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
+      jQuery(selSetor).val(null).trigger('change');
+    }
+    selSetor.innerHTML = '';
+
+    if (!filiais.length) {
+      // sem filiais: deixa setor vazio (opcional) e só atualiza tabela
       fetchTable(null);
       return;
     }
 
     try {
-      const url = new URL("{{ route('cargos.setores_por_filial') }}", window.location.origin);
-      url.searchParams.set('filial_id', filial);
+      const url = new URL("{{ route('cargos.headcount.setores_por_filiais') }}", window.location.origin);
+      for (const f of filiais) url.searchParams.append('filial_id[]', f);
 
       const res = await fetch(url.toString(), {
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -223,8 +255,11 @@
         selSetor.appendChild(opt);
       }
 
-      // ao trocar filial, limpa setor e filtra
-      selSetor.value = '';
+      // reinit select2 (porque recriou options)
+      if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
+        jQuery(selSetor).select2({ width: '100%' });
+      }
+
       fetchTable(null);
     } catch (e) {
       console.error(e);
@@ -237,11 +272,12 @@
     timer = setTimeout(() => fetchTable(null), 250);
   });
 
-  selFilial.addEventListener('change', carregarSetoresPorFilial);
+  selFilial.addEventListener('change', carregarSetoresPorFiliais);
   selSetor.addEventListener('change', () => fetchTable(null));
+  selLib.addEventListener('change', () => fetchTable(null));
 
   document.addEventListener('click', function (e) {
-    const a = e.target.closest('#cargos-table-wrap .pagination a');
+    const a = e.target.closest('#headcount-table-wrap .pagination a');
     if (!a) return;
     e.preventDefault();
     fetchTable(a.getAttribute('href'));
