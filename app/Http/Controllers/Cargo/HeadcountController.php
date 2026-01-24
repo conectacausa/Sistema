@@ -189,28 +189,40 @@ class HeadcountController extends Controller
             $headcountsQuery->whereRaw('1=0');
         }
 
-        $rows = $headcountsQuery
-            ->select([
-                'h.filial_id',
-                'h.setor_id',
-                'h.cargo_id',
-                'f.nome_fantasia as filial',
-                's.nome as setor',
-                'c.titulo as cargo',
-            ])
-            ->selectRaw('sum(h.quantidade) as quadro_ideal')
-            ->groupBy(
-                'h.filial_id',
-                'h.setor_id',
-                'h.cargo_id',
-                'f.nome_fantasia',
-                's.nome',
-                'c.titulo'
-            )
-            ->orderBy('f.nome_fantasia')
-            ->orderBy('s.nome')
-            ->orderBy('c.titulo')
-            ->get();
+       $subQuadroAtual = DB::table('vinculo_colaborador_cargo_setor as vccs')
+    ->whereNull('vccs.deleted_at')
+    ->whereNull('vccs.data_fim') // SOMENTE ATIVOS
+    ->groupBy('vccs.cargo_id', 'vccs.setor_id')
+    ->selectRaw('vccs.cargo_id, vccs.setor_id, count(*)::int as quadro_atual');
+
+$rows = $headcountsQuery
+    ->leftJoinSub($subQuadroAtual, 'qa', function ($join) {
+        $join->on('qa.cargo_id', '=', 'h.cargo_id')
+             ->on('qa.setor_id', '=', 'h.setor_id');
+    })
+    ->select([
+        'h.filial_id',
+        'h.setor_id',
+        'h.cargo_id',
+        'f.nome_fantasia as filial',
+        's.nome as setor',
+        'c.titulo as cargo',
+    ])
+    ->selectRaw('sum(h.quantidade)::int as quadro_ideal')
+    ->selectRaw('coalesce(max(qa.quadro_atual), 0)::int as quadro_atual')
+    ->groupBy(
+        'h.filial_id',
+        'h.setor_id',
+        'h.cargo_id',
+        'f.nome_fantasia',
+        's.nome',
+        'c.titulo'
+    )
+    ->orderBy('f.nome_fantasia')
+    ->orderBy('s.nome')
+    ->orderBy('c.titulo')
+    ->get();
+
 
         // Agrupa: Filial -> Setor -> Linhas
         $groups = $rows->groupBy('filial')->map(fn ($porFilial) => $porFilial->groupBy('setor'));
