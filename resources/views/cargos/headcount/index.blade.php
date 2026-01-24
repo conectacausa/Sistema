@@ -76,32 +76,42 @@
                 <div class="row">
                   <div class="col-md-4">
                     <div class="form-group">
-                      <label class="form-label">Filial</label>
-                      <select id="filtro-filial" class="form-control select2" multiple>
-                        @foreach(($filiais ?? []) as $filial)
-                          <option value="{{ $filial->id }}"
-                            @selected(in_array((int)$filial->id, (array)request('filial_id', [])))>
-                            {{ $filial->nome_fantasia }}
-                          </option>
-                        @endforeach
-                      </select>
-                      <small class="text-muted">Opcional. Se vazio, mostra todas as filiais da sua lotação.</small>
-                    </div>
+  <label class="form-label">Filial</label>
+  <select
+    id="filtro-filial"
+    class="form-control"
+    multiple
+    data-role="tagsinput"
+  >
+    @foreach($filiais as $filial)
+      <option value="{{ $filial->id }}"
+        @selected(in_array((int)$filial->id, (array)request('filial_id', [])))>
+        {{ $filial->nome_fantasia }}
+      </option>
+    @endforeach
+  </select>
+</div>
+
                   </div>
 
                   <div class="col-md-4">
                     <div class="form-group">
-                      <label class="form-label">Setor</label>
-                      <select id="filtro-setor" class="form-control select2" multiple>
-                        @foreach(($setores ?? []) as $setor)
-                          <option value="{{ $setor->id }}"
-                            @selected(in_array((int)$setor->id, (array)request('setor_id', [])))>
-                            {{ $setor->nome }}
-                          </option>
-                        @endforeach
-                      </select>
-                      <small class="text-muted">Opcional. Ao escolher filiais, lista apenas setores dessas filiais.</small>
-                    </div>
+  <label class="form-label">Setor</label>
+  <select
+    id="filtro-setor"
+    class="form-control"
+    multiple
+    data-role="tagsinput"
+  >
+    @foreach($setores as $setor)
+      <option value="{{ $setor->id }}"
+        @selected(in_array((int)$setor->id, (array)request('setor_id', [])))>
+        {{ $setor->nome }}
+      </option>
+    @endforeach
+  </select>
+</div>
+
                   </div>
 
                   <div class="col-md-4">
