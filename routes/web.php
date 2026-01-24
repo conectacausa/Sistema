@@ -79,5 +79,12 @@ Route::get('/cargos/setores-por-filial', [CargoController::class, 'setoresPorFil
     ->middleware('screen:7')
     ->name('cargos.setores_por_filial');
 
+            Route::get('/cargos/qlp', [\App\Http\Controllers\Cargo\HeadcountController::class, 'index'])
+    ->name('cargos.headcount.index');
+
+Route::get('/cargos/qlp/setores-por-filiais', [\App\Http\Controllers\Cargo\HeadcountController::class, 'setoresPorFiliais'])
+    ->name('cargos.headcount.setores_por_filiais');
+
+
         });
     });
