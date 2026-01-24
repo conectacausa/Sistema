@@ -4,14 +4,16 @@
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
   <link rel="icon" href="{{ asset('assets/images/favicon.ico') }}">
   <title>Conectta RH | Headcount</title>
 
   <link rel="stylesheet" href="{{ asset('assets/css/vendors_css.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
-    <link rel="stylesheet" href="{{ asset('assets/css/custom-tagsinput.css') }}">
 
+  {{-- CSS para TAGS no padrão do template (cor primária) --}}
+  <link rel="stylesheet" href="{{ asset('assets/css/custom-tagsinput.css') }}">
 </head>
 
 <body class="hold-transition light-skin sidebar-mini theme-primary fixed">
@@ -29,28 +31,27 @@
   <div class="content-wrapper">
     <div class="container-full">
 
+      {{-- HEADER --}}
       <div class="content-header">
         <div class="d-flex align-items-center">
           <div class="me-auto">
             <h4 class="page-title">Headcount</h4>
-            <div class="d-inline-block align-items-center">
-              <nav>
-                <ol class="breadcrumb">
-                  <li class="breadcrumb-item">
-                    <a href="{{ route('dashboard') }}"><i class="mdi mdi-home-outline"></i></a>
-                  </li>
-                  <li class="breadcrumb-item">Cargos</li>
-                  <li class="breadcrumb-item active" aria-current="page">QLP</li>
-                </ol>
-              </nav>
-            </div>
+            <nav>
+              <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                  <a href="{{ route('dashboard') }}"><i class="mdi mdi-home-outline"></i></a>
+                </li>
+                <li class="breadcrumb-item">Cargos</li>
+                <li class="breadcrumb-item active">QLP</li>
+              </ol>
+            </nav>
           </div>
         </div>
       </div>
 
       <section class="content">
 
-        {{-- Filtros --}}
+        {{-- FILTROS --}}
         <div class="row">
           <div class="col-12">
             <div class="box">
@@ -59,6 +60,8 @@
               </div>
 
               <div class="box-body">
+
+                {{-- Cargo / CBO --}}
                 <div class="row">
                   <div class="col-md-12">
                     <div class="form-group">
@@ -75,74 +78,82 @@
                   </div>
                 </div>
 
+                {{-- Filial / Setor / Liberação --}}
                 <div class="row">
+
+                  {{-- FILIAL --}}
                   <div class="col-md-4">
                     <div class="form-group">
-  <label class="form-label">Filial</label>
-  <select
-    id="filtro-filial"
-    class="form-control"
-    multiple
-    data-role="tagsinput"
-  >
-    @foreach($filiais as $filial)
-      <option value="{{ $filial->id }}"
-        @selected(in_array((int)$filial->id, (array)request('filial_id', [])))>
-        {{ $filial->nome_fantasia }}
-      </option>
-    @endforeach
-  </select>
-</div>
-
+                      <label class="form-label">Filial</label>
+                      <select
+                        id="filtro-filial"
+                        class="form-control"
+                        multiple
+                        data-role="tagsinput"
+                      >
+                        @foreach($filiais as $filial)
+                          <option
+                            value="{{ $filial->id }}"
+                            @selected(in_array((int)$filial->id, (array)request('filial_id', [])))
+                          >
+                            {{ $filial->nome_fantasia }}
+                          </option>
+                        @endforeach
+                      </select>
+                      <small class="text-muted">Opcional. Se vazio, mostra todas.</small>
+                    </div>
                   </div>
 
+                  {{-- SETOR --}}
                   <div class="col-md-4">
                     <div class="form-group">
-  <label class="form-label">Setor</label>
-  <select
-    id="filtro-setor"
-    class="form-control"
-    multiple
-    data-role="tagsinput"
-  >
-    @foreach($setores as $setor)
-      <option value="{{ $setor->id }}"
-        @selected(in_array((int)$setor->id, (array)request('setor_id', [])))>
-        {{ $setor->nome }}
-      </option>
-    @endforeach
-  </select>
-</div>
-
+                      <label class="form-label">Setor</label>
+                      <select
+                        id="filtro-setor"
+                        class="form-control"
+                        multiple
+                        data-role="tagsinput"
+                      >
+                        @foreach($setores as $setor)
+                          <option
+                            value="{{ $setor->id }}"
+                            @selected(in_array((int)$setor->id, (array)request('setor_id', [])))
+                          >
+                            {{ $setor->nome }}
+                          </option>
+                        @endforeach
+                      </select>
+                      <small class="text-muted">Dependente das filiais selecionadas.</small>
+                    </div>
                   </div>
 
+                  {{-- LIBERAÇÃO --}}
                   <div class="col-md-4">
                     <div class="form-group">
                       <label class="form-label">Liberação</label>
                       <select id="filtro-liberacao" class="form-control">
-                        <option value="">Selecione</option>
-                        @foreach(($liberacoes ?? []) as $l)
-                          <option value="{{ $l->ym }}" @selected((string)request('liberacao', $ym ?? '') === (string)$l->ym)>
+                        @foreach($liberacoes as $l)
+                          <option value="{{ $l->ym }}" @selected($ym === $l->ym)>
                             {{ $l->ym }}
                           </option>
                         @endforeach
                       </select>
-                      <small class="text-muted">Obrigatório (mês atual por padrão quando existir).</small>
+                      <small class="text-muted">Obrigatório.</small>
                     </div>
                   </div>
-                </div>
 
-              </div>{{-- box-body --}}
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {{-- Tabela --}}
+        {{-- TABELA --}}
         <div class="row">
           <div class="col-12">
             <div class="box">
               <div class="box-header with-border">
-                <h4 class="box-title">QLP</h4>
+                <h4 class="box-title">Quadro de Lotação Previsto</h4>
               </div>
               <div class="box-body">
                 <div id="headcount-table-wrap">
@@ -162,14 +173,14 @@
   @includeIf('includes.footer')
 </div>
 
+{{-- JS --}}
 <script src="{{ asset('assets/js/vendors.min.js') }}"></script>
 <script src="{{ asset('assets/js/pages/chat-popup.js') }}"></script>
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
-<script src="{{ asset('assets/js/pages/advanced-form-element.js') }}"></script>
 
-{{-- Este arquivo do template normalmente inicializa select2 no estilo do tema --}}
+{{-- ATIVA O TAGSINPUT DO TEMPLATE --}}
 <script src="{{ asset('assets/js/pages/advanced-form-element.js') }}"></script>
 
 <script>
@@ -186,112 +197,39 @@
     return Array.from(selectEl.selectedOptions).map(o => o.value).filter(Boolean);
   }
 
-  function buildUrl(pageUrl) {
-    const base = pageUrl || "{{ route('cargos.headcount.index') }}";
-    const url  = new URL(base, window.location.origin);
+  function buildUrl() {
+    const url = new URL("{{ route('cargos.headcount.index') }}", window.location.origin);
 
-    const q = (inputQ.value || '').trim();
+    const q = inputQ.value.trim();
     const filiais = getMultiValues(selFilial);
     const setores = getMultiValues(selSetor);
-    const lib = selLib.value || '';
+    const lib = selLib.value;
 
-    if (q.length) url.searchParams.set('q', q);
-    for (const f of filiais) url.searchParams.append('filial_id[]', f);
-    for (const s of setores) url.searchParams.append('setor_id[]', s);
+    if (q) url.searchParams.set('q', q);
+    filiais.forEach(f => url.searchParams.append('filial_id[]', f));
+    setores.forEach(s => url.searchParams.append('setor_id[]', s));
     if (lib) url.searchParams.set('liberacao', lib);
 
     url.searchParams.set('ajax', '1');
     return url.toString();
   }
 
-  function updateBrowserUrl() {
-    const clean = new URL("{{ route('cargos.headcount.index') }}", window.location.origin);
-
-    const q = (inputQ.value || '').trim();
-    const filiais = getMultiValues(selFilial);
-    const setores = getMultiValues(selSetor);
-    const lib = selLib.value || '';
-
-    if (q.length) clean.searchParams.set('q', q);
-    for (const f of filiais) clean.searchParams.append('filial_id[]', f);
-    for (const s of setores) clean.searchParams.append('setor_id[]', s);
-    if (lib) clean.searchParams.set('liberacao', lib);
-
-    window.history.replaceState({}, '', clean.toString());
+  async function fetchTable() {
+    const res = await fetch(buildUrl(), {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    wrap.innerHTML = await res.text();
   }
 
-  async function fetchTable(pageUrl) {
-    try {
-      const res = await fetch(buildUrl(pageUrl), {
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-      });
-      const html = await res.text();
-      wrap.innerHTML = html;
-      updateBrowserUrl();
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
-  async function carregarSetoresPorFiliais() {
-    const filiais = getMultiValues(selFilial);
-
-    // limpa setor
-    if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
-      jQuery(selSetor).val(null).trigger('change');
-    }
-    selSetor.innerHTML = '';
-
-    if (!filiais.length) {
-      // sem filiais: setor fica opcional (vazio) e atualiza tabela
-      fetchTable(null);
-      return;
-    }
-
-    try {
-      const url = new URL("{{ route('cargos.headcount.setores_por_filiais') }}", window.location.origin);
-      for (const f of filiais) url.searchParams.append('filial_id[]', f);
-
-      const res = await fetch(url.toString(), {
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-      });
-
-      const data = await res.json();
-
-      for (const item of data) {
-        const opt = document.createElement('option');
-        opt.value = item.id;
-        opt.textContent = item.nome;
-        selSetor.appendChild(opt);
-      }
-
-      // reinit select2 (porque recriou options)
-      if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
-        jQuery(selSetor).select2({ width: '100%' });
-      }
-
-      fetchTable(null);
-    } catch (e) {
-      console.error(e);
-      fetchTable(null);
-    }
-  }
-
-  inputQ.addEventListener('keyup', function () {
+  inputQ.addEventListener('keyup', () => {
     clearTimeout(timer);
-    timer = setTimeout(() => fetchTable(null), 250);
+    timer = setTimeout(fetchTable, 300);
   });
 
-  selFilial.addEventListener('change', carregarSetoresPorFiliais);
-  selSetor.addEventListener('change', () => fetchTable(null));
-  selLib.addEventListener('change', () => fetchTable(null));
+  selFilial.addEventListener('change', fetchTable);
+  selSetor.addEventListener('change', fetchTable);
+  selLib.addEventListener('change', fetchTable);
 
-  document.addEventListener('click', function (e) {
-    const a = e.target.closest('#headcount-table-wrap .pagination a');
-    if (!a) return;
-    e.preventDefault();
-    fetchTable(a.getAttribute('href'));
-  });
 })();
 </script>
 
