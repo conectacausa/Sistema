@@ -222,7 +222,7 @@ class HeadcountController extends Controller
             return view('cargos.headcount._table', compact('groups'))->render();
         }
 
-        return view('cargos.cargos.headcount.index', compact(
+        return view('cargos.headcount.index', compact(
             'filiais', 'setores', 'liberacoes', 'ym', 'groups',
             'podeCadastrar', 'podeEditar'
         ));
