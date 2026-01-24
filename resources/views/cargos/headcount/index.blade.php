@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="{{ asset('assets/css/vendors_css.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/css/custom-tagsinput.css') }}">
+
 </head>
 
 <body class="hold-transition light-skin sidebar-mini theme-primary fixed">
