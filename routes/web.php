@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Cargo\CboController;
+use App\Http\Controllers\Cargo\CargoController;
 
 Route::domain('{sub}.conecttarh.com.br')
     ->middleware(['web', 'tenant'])
@@ -58,6 +59,20 @@ Route::post('/cargos/cbo', [CboController::class, 'store'])
 Route::get('/cargos/cbo/check', [CboController::class, 'checkCodigo'])
     ->middleware('screen:6')
     ->name('cargos.cbo.check');
+
+            // ✅ Tela Cargos (tela_id = 7 | slug = cargos/cargos)
+Route::get('/cargos/cargos', [CargoController::class, 'index'])
+    ->middleware('screen:7')
+    ->name('cargos.cargos.index');
+
+// placeholders (vamos implementar depois)
+Route::get('/cargos/cargos/novo', [CargoController::class, 'create'])
+    ->middleware('screen:7')
+    ->name('cargos.cargos.create');
+
+Route::get('/cargos/cargos/{id}/editar', [CargoController::class, 'edit'])
+    ->middleware('screen:7')
+    ->name('cargos.cargos.edit');
 
         });
     });
