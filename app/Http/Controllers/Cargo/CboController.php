@@ -21,7 +21,8 @@ class CboController extends Controller
             ->paginate(50)
             ->withQueryString();
 
-        // por enquanto deixa true (no próximo passo a gente liga permissão real)
+        // Por enquanto deixamos true.
+        // No próximo passo vamos ligar a permissão de cadastro para esconder o botão.
         $podeCadastrar = true;
 
         // AJAX do filtro/paginação: retorna só a tabela
@@ -32,9 +33,9 @@ class CboController extends Controller
         return view('cargos.cbo.index', compact('cbos', 'podeCadastrar'));
     }
 
-    // placeholder do "Novo CBO" (vamos implementar depois)
     public function create()
     {
+        // placeholder - vamos implementar depois
         return redirect()->route('cargos.cbo.index');
     }
 }
