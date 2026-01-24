@@ -186,7 +186,6 @@
         elCidade.disabled = false;
     };
 
-    // Eventos
     elNova?.addEventListener('click', () => (window.location.href = ROUTES.nova));
 
     elQ?.addEventListener('input', debounce(() => {
@@ -203,6 +202,7 @@
 
         elEstado.disabled = true;
         elCidade.disabled = true;
+
         setOptions(elEstado, [], 'Lista de Estado');
         setOptions(elCidade, [], 'Lista de Cidade');
 
@@ -236,8 +236,8 @@
         if (state.page < state.lastPage) { state.page++; carregarFiliais(); }
     });
 
-    // Ações Editar / Excluir
-    elTBody?.addEventListener('click', async (e) => {
+    // ✅ Editar / Excluir com SweetAlert v1 (do template)
+    elTBody?.addEventListener('click', (e) => {
         const btnEdit = e.target.closest('.btnEditar');
         const btnDel = e.target.closest('.btnExcluir');
 
@@ -247,23 +247,51 @@
         }
 
         if (btnDel) {
+            if (typeof window.swal !== 'function') {
+                console.error('SweetAlert não carregado (window.swal undefined).');
+                return;
+            }
+
             const id = btnDel.dataset.id;
 
-            const ok = confirm('Tem certeza que deseja excluir esta filial?');
-            if (!ok) return;
+            swal({
+                title: "Excluir filial?",
+                text: "Tem certeza que deseja excluir esta filial?",
+                type: "warning",
+                showCancelButton: true,
+                confirmButtonColor: "#dc3545",
+                confirmButtonText: "Sim",
+                cancelButtonText: "Cancelar",
+                closeOnConfirm: false,
+                closeOnCancel: true
+            }, async function(isConfirm) {
+                if (!isConfirm) return;
 
-            try {
-                await apiDelete(API.deleteFilial(id));
-                alert('Filial excluída com sucesso.');
-                carregarFiliais();
-            } catch (err) {
-                console.error(err);
-                alert(`Erro ao excluir: ${String(err.message || err)}`);
-            }
+                try {
+                    await apiDelete(API.deleteFilial(id));
+
+                    swal({
+                        title: "Excluída!",
+                        text: "Filial excluída com sucesso.",
+                        type: "success",
+                        timer: 1400,
+                        showConfirmButton: false
+                    });
+
+                    carregarFiliais();
+                } catch (err) {
+                    console.error(err);
+
+                    swal({
+                        title: "Erro",
+                        text: String(err.message || "Não foi possível excluir a filial."),
+                        type: "error"
+                    });
+                }
+            });
         }
     });
 
-    // Init
     (async function init() {
         elEstado && (elEstado.disabled = true);
         elCidade && (elCidade.disabled = true);
