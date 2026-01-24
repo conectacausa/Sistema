@@ -231,7 +231,7 @@ $rows = $headcountsQuery
         $podeEditar    = $this->temPermissaoFlag($user?->permissao_id, 'editar');
 
         if ($request->boolean('ajax')) {
-            return view('cargos.headcount._table', compact('groups'))->render();
+            return view('cargos.headcount._grid', compact('groups'))->render();
         }
 
         return view('cargos.headcount.index', compact(
