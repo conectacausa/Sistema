@@ -217,25 +217,8 @@
   function destroySelect2IfAny(el) {
     if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
       const $el = jQuery(el);
-      if ($el.data('select2')) {
-        $el.select2('destroy');
-      }
+      if ($el.data('select2')) $el.select2('destroy');
     }
-  }
-
-  function initTagsInput(el) {
-    if (!window.jQuery || !jQuery.fn || !jQuery.fn.tagsinput) return;
-
-    const $el = jQuery(el);
-
-    // Se já estiver inicializado, destrói e recria (útil quando repopula options)
-    if ($el.data('tagsinput')) {
-      $el.tagsinput('destroy');
-    }
-
-    $el.tagsinput({
-      trimValue: true
-    });
   }
 
   function getMultiValues(selectEl) {
@@ -271,21 +254,58 @@
     }
   }
 
+  /**
+   * ✅ Inicializa TagsInput no SELECT:
+   * - Mostra o texto do option (nome) e não o ID
+   * - Garante eventos itemAdded/itemRemoved para atualizar tabela
+   */
+  function initTagsInput(selectEl, onChangeCb) {
+    if (!window.jQuery || !jQuery.fn || !jQuery.fn.tagsinput) return;
+
+    const $el = jQuery(selectEl);
+
+    // se já tiver tagsinput, destrói e recria
+    if ($el.data('tagsinput')) {
+      $el.tagsinput('destroy');
+    }
+
+    // IMPORTANTE: para SELECT, forçamos itemText a buscar o texto do <option>
+    $el.tagsinput({
+      trimValue: true,
+      itemText: function(item) {
+        // item pode vir como string (value)
+        const val = (item && typeof item === 'object' && item.value !== undefined) ? item.value : item;
+        const opt = selectEl.querySelector('option[value="' + String(val).replace(/"/g, '\\"') + '"]');
+        return opt ? opt.textContent.trim() : String(val);
+      },
+      itemValue: function(item) {
+        // garante que o "valor" continue sendo o ID
+        return (item && typeof item === 'object' && item.value !== undefined) ? item.value : item;
+      }
+    });
+
+    // remove handlers antigos pra não duplicar
+    $el.off('itemAdded.tags itemRemoved.tags');
+
+    // tagsinput usa esses eventos (change nem sempre dispara)
+    $el.on('itemAdded.tags itemRemoved.tags', function () {
+      if (typeof onChangeCb === 'function') onChangeCb();
+    });
+  }
+
   async function carregarSetoresPorFiliais() {
     const filiais = getMultiValues(selFilial);
 
-    // Remove todos os setores selecionados e options
+    // limpa setores (seleção + options) mantendo o componente
     if (window.jQuery && jQuery.fn && jQuery.fn.tagsinput) {
       const $setor = jQuery(selSetor);
-      if ($setor.data('tagsinput')) {
-        $setor.tagsinput('removeAll');
-      }
+      if ($setor.data('tagsinput')) $setor.tagsinput('removeAll');
     }
     selSetor.innerHTML = '';
 
-    // Sem filial -> setor fica vazio (opcional) e atualiza tabela
+    // sem filiais -> setores vazios (opcional) e atualiza tabela
     if (!filiais.length) {
-      initTagsInput(selSetor);
+      initTagsInput(selSetor, () => fetchTable(null));
       fetchTable(null);
       return;
     }
@@ -303,38 +323,38 @@
       for (const item of data) {
         const opt = document.createElement('option');
         opt.value = item.id;
-        opt.textContent = item.nome;
+        opt.textContent = item.nome; // ✅ texto correto
         selSetor.appendChild(opt);
       }
 
-      // Recria tagsinput já com as novas options
-      initTagsInput(selSetor);
+      // recria tagsinput (pra pegar os novos options)
+      initTagsInput(selSetor, () => fetchTable(null));
 
+      // atualiza tabela
       fetchTable(null);
     } catch (e) {
       console.error(e);
-      initTagsInput(selSetor);
+      initTagsInput(selSetor, () => fetchTable(null));
       fetchTable(null);
     }
   }
 
-  // ====== INIT ======
-  // Se algum script do template aplicou select2, removemos
+  // ===== INIT =====
   destroySelect2IfAny(selFilial);
   destroySelect2IfAny(selSetor);
 
-  // Ativa tagsinput
-  initTagsInput(selFilial);
-  initTagsInput(selSetor);
+  // Filial: quando adiciona/remove tag -> recarrega setores + tabela
+  initTagsInput(selFilial, () => carregarSetoresPorFiliais());
 
-  // ====== EVENTS ======
+  // Setor: quando adiciona/remove tag -> atualiza tabela
+  initTagsInput(selSetor, () => fetchTable(null));
+
+  // input e liberação seguem normal
   inputQ.addEventListener('keyup', function () {
     clearTimeout(timer);
     timer = setTimeout(() => fetchTable(null), 250);
   });
 
-  selFilial.addEventListener('change', carregarSetoresPorFiliais);
-  selSetor.addEventListener('change', () => fetchTable(null));
   selLib.addEventListener('change', () => fetchTable(null));
 
   document.addEventListener('click', function (e) {
@@ -343,8 +363,10 @@
     e.preventDefault();
     fetchTable(a.getAttribute('href'));
   });
+
 })();
 </script>
+
 
 </body>
 </html>
