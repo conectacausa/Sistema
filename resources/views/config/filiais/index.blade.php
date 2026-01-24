@@ -16,26 +16,6 @@
     <!-- Style-->
     <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
-
-    {{-- Ajuste fino do SweetAlert2 para combinar com o template --}}
-    <style>
-        .swal2-actions{
-            width: 100%;
-            justify-content: flex-end !important; /* botão vermelho à direita */
-            gap: .5rem;
-        }
-        .swal2-actions .btn{
-            min-width: 110px;
-            height: 38px;
-            line-height: 1.2;
-            padding: .45rem .9rem;
-            font-size: 0.95rem;
-            border-radius: .375rem;
-        }
-        .swal2-popup{
-            border-radius: 12px;
-        }
-    </style>
 </head>
 
 <body class="hold-transition light-skin sidebar-mini theme-primary fixed">
@@ -215,9 +195,6 @@
 <!-- Template JS -->
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
-
-<!-- SweetAlert2 via CDN -->
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <!-- JS da tela -->
 <script src="{{ asset('assets/js/pages/config-filiais.js') }}?v={{ filemtime(public_path('assets/js/pages/config-filiais.js')) }}"></script>
