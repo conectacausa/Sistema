@@ -57,8 +57,9 @@
 
           @if(!empty($podeCadastrar) && $podeCadastrar)
             <a href="{{ route('cargos.cbo.create') }}" class="waves-effect waves-light btn mb-5 bg-gradient-success">
-              Novo CBO
-            </a>
+  Novo CBO
+</a>
+
           @endif
         </div>
       </div>
