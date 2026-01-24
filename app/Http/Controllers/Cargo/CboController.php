@@ -9,29 +9,39 @@ use Illuminate\Http\Request;
 class CboController extends Controller
 {
     public function index(Request $request)
-    {
-        $q = trim((string) $request->get('q', ''));
+{
+    $q = trim((string) $request->get('q', ''));
 
-        $cbos = Cbo::query()
-            ->when($q !== '', function ($query) use ($q) {
-                $query->where('cbo', 'ilike', "%{$q}%")
-                      ->orWhere('titulo', 'ilike', "%{$q}%");
-            })
-            ->orderBy('titulo')
-            ->paginate(50)
-            ->withQueryString();
+    $cbos = Cbo::query()
+        ->when($q !== '', function ($query) use ($q) {
+            $query->where('cbo', 'ilike', "%{$q}%")
+                  ->orWhere('titulo', 'ilike', "%{$q}%");
+        })
+        ->orderBy('titulo')
+        ->paginate(50)
+        ->withQueryString();
 
-        // Por enquanto deixamos true.
-        // No próximo passo vamos ligar a permissão de cadastro para esconder o botão.
-        $podeCadastrar = true;
+    $user = Auth::user();
 
-        // AJAX do filtro/paginação: retorna só a tabela
-        if ($request->boolean('ajax')) {
-            return view('cargos.cbo._table', compact('cbos'))->render();
-        }
+    $podeCadastrar = false;
 
-        return view('cargos.cbo.index', compact('cbos', 'podeCadastrar'));
+    if ($user && $user->permissao_id) {
+        $podeCadastrar = DB::table('permissao_modulo_tela')
+            ->where('permissao_id', $user->permissao_id)
+            ->where('tela_id', 6)
+            ->where('ativo', true)
+            ->where('cadastro', true)
+            ->exists();
     }
+
+    // AJAX do filtro/paginação
+    if ($request->boolean('ajax')) {
+        return view('cargos.cbo._table', compact('cbos'))->render();
+    }
+
+    return view('cargos.cbo.index', compact('cbos', 'podeCadastrar'));
+}
+
 
     public function create()
     {
