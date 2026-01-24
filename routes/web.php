@@ -2,7 +2,6 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\Config\FiliaisController;
 
 Route::domain('{sub}.conecttarh.com.br')
     ->middleware(['web', 'tenant'])
@@ -23,15 +22,10 @@ Route::domain('{sub}.conecttarh.com.br')
 
             Route::get('/dashboard', fn () => view('dashboard.index'))->name('dashboard');
 
-            /**
-             * CONFIG / FILIAIS
-             * slug: config/filiais
-             * screen_id: 5 (autorização)
-             */
-            Route::middleware(['screen:5'])->group(function () {
-                Route::get('/config/filiais', [FiliaisController::class, 'index'])->name('config.filiais.index');
-                Route::get('/config/filiais/nova', [FiliaisController::class, 'create'])->name('config.filiais.create');
-                Route::get('/config/filiais/{filial}/editar', [FiliaisController::class, 'edit'])->name('config.filiais.edit');
-            });
+            // ✅ Tela Filiais (tela_id = 5)
+            Route::get('/config/filiais', fn () => view('config.filiais.index'))
+                ->middleware('screen:5')
+                ->name('config.filiais.index');
+
         });
     });
