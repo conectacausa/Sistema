@@ -86,11 +86,11 @@
                       <select id="filtro-filial" class="form-control">
                         <option value="">Selecione</option>
                         @foreach(($filiais ?? []) as $filial)
-                          <option value="{{ $filial->id }}" @selected((int)request('filial_id') === (int)$filial->id)>
-                            {{ $filial->nome }}
+                          <option value="{{ $filial->id }}">
+                            {{ $filial->nome_fantasia }}
                           </option>
                         @endforeach
-                      </select>
+                         </select>
                     </div>
                   </div>
 
