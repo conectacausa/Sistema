@@ -74,5 +74,10 @@ Route::get('/cargos/cargos/{id}/editar', [CargoController::class, 'edit'])
     ->middleware('screen:7')
     ->name('cargos.cargos.edit');
 
+            // ✅ Carregar setores pela filial (AJAX)
+Route::get('/cargos/setores-por-filial', [CargoController::class, 'setoresPorFilial'])
+    ->middleware('screen:7')
+    ->name('cargos.setores_por_filial');
+
         });
     });
