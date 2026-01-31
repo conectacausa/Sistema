@@ -181,53 +181,12 @@ class UsuariosController extends Controller
     |--------------------------------------------------------------------------
     */
     public function update(Request $request, $id)
-    {
-        $empresaId = auth()->user()->empresa_id;
+{
+    $empresaId = auth()->user()->empresa_id;
+    $id = (int) $id;
 
-        $request->validate([
-            'nome_completo' => 'required|string|max:255',
-            'cpf' => 'required',
-            'permissao_id' => 'required|integer',
-            'status' => 'required|in:ativo,inativo',
-        ]);
-
-        $cpf = preg_replace('/\D/', '', $request->cpf);
-        $telefone = preg_replace('/\D/', '', (string) $request->telefone);
-
-        $usuario = DB::table('usuarios')
-            ->where('empresa_id', $empresaId)
-            ->whereNull('deleted_at')
-            ->where('id', (int) $id)
-            ->first();
-
-        if (!$usuario) {
-            return redirect()->route('config.usuarios.index')->with('error', 'Usuário não encontrado.');
-        }
-
-        $fotoPath = $usuario->foto;
-        if ($request->hasFile('foto')) {
-            $fotoPath = $request->file('foto')->store('usuarios', 'public');
-        }
-
-        DB::table('usuarios')
-            ->where('id', $id)
-            ->where('empresa_id', $empresaId)
-            ->update([
-                'nome_completo' => $request->nome_completo,
-                'cpf' => $cpf,
-                'permissao_id' => $request->permissao_id,
-                'email' => $request->email,
-                'telefone' => $telefone,
-                'data_expiracao' => $request->data_expiracao ?: null,
-                'status' => $request->status,
-                'foto' => $fotoPath,
-                'updated_at' => now(),
-            ]);
-
-        return redirect()
-            ->route('config.usuarios.edit', ['id' => $id])
-            ->with('success', 'Usuário atualizado com sucesso.');
-    }
+    // ...
+}
 
     /*
     |--------------------------------------------------------------------------
