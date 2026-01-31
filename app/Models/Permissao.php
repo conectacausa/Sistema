@@ -27,6 +27,6 @@ class Permissao extends Model
     public function usuarios()
     {
         // usuarios.permissao_id -> permissoes.id
-        return $this->hasMany(Usuario::class, 'permissao_id');
+        return $this->hasMany(Usuario::class, 'permissao_id', 'id');
     }
 }
