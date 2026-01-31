@@ -3,34 +3,37 @@
 namespace App\Http\Controllers\Config;
 
 use App\Http\Controllers\Controller;
+use App\Models\Empresa;
 use App\Models\Permissao;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class GrupoPermissaoController extends Controller
 {
-    private function empresaId(): int
+    private function empresaIdFromSub(): int
     {
-        // Seu middleware tenant já deve setar app('tenant')
-        $tenant = app()->bound('tenant') ? app('tenant') : null;
+        $sub = (string) request()->route('sub');
 
-        // Prioriza tenant (mais confiável)
-        if ($tenant && isset($tenant->id) && $tenant->id) {
-            return (int) $tenant->id;
+        if ($sub === '') {
+            abort(403, 'Subdomínio (tenant) não identificado.');
         }
 
-        // Fallback (se existir no usuário)
-        if (auth()->check() && isset(auth()->user()->empresa_id) && auth()->user()->empresa_id) {
-            return (int) auth()->user()->empresa_id;
+        // Ajuste o campo do subdomínio conforme seu banco:
+        // exemplos comuns: subdominio, slug, dominio, tenant, sub
+        $empresa = Empresa::query()
+            ->where('subdominio', $sub)
+            ->first();
+
+        if (!$empresa) {
+            abort(403, 'Empresa não encontrada para este subdomínio.');
         }
 
-        // Se cair aqui, é problema de contexto tenant/user
-        abort(403, 'Empresa não definida no contexto do tenant.');
+        return (int) $empresa->id;
     }
 
     public function index(Request $request)
     {
-        $empresaId = $this->empresaId();
+        $empresaId = $this->empresaIdFromSub();
 
         $query = Permissao::query()
             ->where('empresa_id', $empresaId)
@@ -58,7 +61,7 @@ class GrupoPermissaoController extends Controller
 
     public function store(Request $request)
     {
-        $empresaId = $this->empresaId();
+        $empresaId = $this->empresaIdFromSub();
 
         $validated = $request->validate([
             'nome_grupo' => [
@@ -84,16 +87,15 @@ class GrupoPermissaoController extends Controller
         ]);
 
         return redirect()
-            ->route('config.grupos.edit', ['id' => $grupo->id])
+            ->route('config.grupos.edit', ['sub' => request()->route('sub'), 'id' => $grupo->id])
             ->with('success', 'Grupo criado com sucesso!');
     }
 
     public function edit($id)
     {
-        $empresaId = $this->empresaId();
+        $empresaId = $this->empresaIdFromSub();
         $id = (int) $id;
 
-        // ✅ IMPORTANTÍSSIMO: filtra por empresa_id + id na mesma query
         $grupo = Permissao::query()
             ->where('empresa_id', $empresaId)
             ->where('id', $id)
@@ -104,7 +106,7 @@ class GrupoPermissaoController extends Controller
 
     public function update(Request $request, $id)
     {
-        $empresaId = $this->empresaId();
+        $empresaId = $this->empresaIdFromSub();
         $id = (int) $id;
 
         $grupo = Permissao::query()
@@ -134,7 +136,7 @@ class GrupoPermissaoController extends Controller
         ]);
 
         return redirect()
-            ->route('config.grupos.edit', ['id' => $grupo->id])
+            ->route('config.grupos.edit', ['sub' => request()->route('sub'), 'id' => $grupo->id])
             ->with('success', 'Grupo atualizado com sucesso!');
     }
 }
