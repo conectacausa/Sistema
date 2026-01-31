@@ -151,9 +151,11 @@
                         
                             {{-- Editar --}}
                             <a href="{{ route('config.usuarios.edit', ['id' => $u->id]) }}"
-                               class="btn btn-sm btn-outline-primary"
+                               class="btn btn-sm btn-outline-primary js-action-link"
                                title="Editar">
-                              <i data-feather="edit"></i>
+                              <span class="d-inline-flex align-items-center">
+                                <i data-feather="edit"></i>
+                              </span>
                             </a>
                         
                             {{-- Inativar: só aparece se estiver ATIVO --}}
@@ -164,9 +166,11 @@
                                     onsubmit="return confirm('Confirma inativar este usuário?');">
                                 @csrf
                                 <button type="submit"
-                                        class="btn btn-sm btn-outline-danger"
+                                        class="btn btn-sm btn-outline-danger js-action-link"
                                         title="Inativar">
-                                  <i data-feather="user-x"></i>
+                                  <span class="d-inline-flex align-items-center">
+                                    <i data-feather="user-x"></i>
+                                  </span>
                                 </button>
                               </form>
                             @endif
@@ -228,6 +232,24 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 </script>
+    <style>
+  /* Garantir que clique chegue no link/botão (templates às vezes bloqueiam) */
+  .js-action-link,
+  .js-action-link * {
+    pointer-events: auto !important;
+  }
+
+  /* Feather (svg) não deve capturar clique */
+  .js-action-link svg {
+    pointer-events: none !important;
+  }
+
+  /* waves-ripple não deve capturar clique */
+  .js-action-link .waves-ripple {
+    display: none !important;
+  }
+</style>
+
 
 </body>
 </html>
