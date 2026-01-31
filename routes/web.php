@@ -7,6 +7,7 @@ use App\Http\Controllers\Cargo\CargoController;
 use App\Http\Controllers\Recrutamento\FluxoAprovacaoController;
 use App\Http\Controllers\Cargo\HeadcountController;
 use App\Http\Controllers\Config\UsuariosController;
+use App\Http\Controllers\Config\GrupoPermissaoController;
 
 Route::domain('{sub}.conecttarh.com.br')
     ->middleware(['web', 'tenant'])
