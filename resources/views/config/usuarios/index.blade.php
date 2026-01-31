@@ -24,10 +24,10 @@
   <div id="loader"></div>
 
   {{-- HEADER (padrão projeto) --}}
-  @include('layouts.header')
+  @include('partials.header')
 
   {{-- MENU (padrão projeto) --}}
-  @include('layouts.menu')
+  @include('partials.menu')
 
   <!-- Content Wrapper. Contains page content -->
   <div class="content-wrapper">
@@ -209,7 +209,7 @@
   <!-- /.content-wrapper -->
 
   {{-- FOOTER (padrão projeto) --}}
-  @include('layouts.footer')
+  @include('partials.footer')
 </div>
 <!-- ./wrapper -->
 
