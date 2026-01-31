@@ -44,6 +44,7 @@ class UsuariosController extends Controller
         }
 
         $usuarios = $query
+            ->orderByRaw("CASE WHEN LOWER(u.status) = 'ativo' THEN 0 ELSE 1 END")
             ->orderBy('u.nome_completo')
             ->paginate(10)
             ->appends($request->query());
