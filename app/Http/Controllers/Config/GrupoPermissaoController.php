@@ -10,6 +10,9 @@ use Illuminate\Validation\Rule;
 
 class GrupoPermissaoController extends Controller
 {
+    /**
+     * Resolve a empresa pelo subdomínio da rota: {sub}.conecttarh.com.br
+     */
     private function empresaIdFromSub(): int
     {
         $sub = (string) request()->route('sub');
@@ -18,8 +21,6 @@ class GrupoPermissaoController extends Controller
             abort(403, 'Subdomínio (tenant) não identificado.');
         }
 
-        // Ajuste o campo do subdomínio conforme seu banco:
-        // exemplos comuns: subdominio, slug, dominio, tenant, sub
         $empresa = Empresa::query()
             ->where('subdominio', $sub)
             ->first();
@@ -47,6 +48,7 @@ class GrupoPermissaoController extends Controller
 
         $grupos = $query->paginate(10)->withQueryString();
 
+        // AJAX retorna só a tabela
         if ($request->ajax() || $request->boolean('ajax')) {
             return view('config.grupos.partials.tabela', compact('grupos'));
         }
@@ -86,8 +88,12 @@ class GrupoPermissaoController extends Controller
             'salarios'    => false,
         ]);
 
+        // ✅ Redireciona para editar com o {sub} correto
         return redirect()
-            ->route('config.grupos.edit', ['sub' => request()->route('sub'), 'id' => $grupo->id])
+            ->route('config.grupos.edit', [
+                'sub' => request()->route('sub'),
+                'id'  => $grupo->id,
+            ])
             ->with('success', 'Grupo criado com sucesso!');
     }
 
@@ -136,7 +142,10 @@ class GrupoPermissaoController extends Controller
         ]);
 
         return redirect()
-            ->route('config.grupos.edit', ['sub' => request()->route('sub'), 'id' => $grupo->id])
+            ->route('config.grupos.edit', [
+                'sub' => request()->route('sub'),
+                'id'  => $grupo->id,
+            ])
             ->with('success', 'Grupo atualizado com sucesso!');
     }
 }
