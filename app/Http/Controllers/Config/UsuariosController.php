@@ -164,74 +164,16 @@ class UsuariosController extends Controller
     | EDIT
     |--------------------------------------------------------------------------
     */
-    public function edit(Request $request, $id)
-    {
-        $empresaId = (int) ($request->user()->empresa_id ?? 0);
-        $id = (int) $id;
-    
-        $usuario = DB::table('usuarios')
-            ->whereNull('deleted_at')
-            ->where('empresa_id', $empresaId)
-            ->where('id', $id)
-            ->first();
-    
-        if (!$usuario) {
-            \Log::error('USUARIOS_EDIT_NAO_ENCONTRADO', [
-                'auth_user_id' => $request->user()->id ?? null,
-                'auth_empresa_id' => $empresaId,
-                'usuario_id' => $id,
-                'path' => $request->path(),
-                'host' => $request->getHost(),
-                'sub' => (string) $request->route('sub'),
-            ]);
-        
-            return redirect()
-                ->route('config.usuarios.index')
-                ->with('error', 'Usuário não encontrado para esta empresa (verifique tenant/empresa).');
-        }
-    
-        $filiais = DB::table('filiais')
-            ->select('id', DB::raw("COALESCE(nome_fantasia, razao_social) as nome"))
-            ->where('empresa_id', $empresaId)
-            ->whereNull('deleted_at')
-            ->orderByRaw("COALESCE(nome_fantasia, razao_social)")
-            ->get();
-    
-        $permissoes = DB::table('permissoes')
-            ->select('id', 'nome_grupo')
-            ->where('empresa_id', $empresaId)
-            ->whereNull('deleted_at')
-            ->orderBy('nome_grupo')
-            ->get();
-    
-        // tenta inferir filial/setor inicial (se existir tabela)
-        $filialId = null;
-        $setorId = null;
-    
-        try {
-            $v = DB::table('vinculo_usuario_lotacao')
-                ->whereNull('deleted_at')
-                ->where('empresa_id', $empresaId)
-                ->where('usuario_id', $usuario->id)
-                ->where('ativo', true)
-                ->first();
-    
-            if ($v) {
-                $filialId = $v->filial_id ?? null;
-                $setorId  = $v->setor_id ?? null;
-            }
-        } catch (\Throwable $e) {
-            // não faz nada
-        }
-    
-        return view('config.usuarios.edit', [
-            'usuario' => $usuario,
-            'filiais' => $filiais,
-            'permissoes' => $permissoes,
-            'filialId' => $filialId,
-            'setorId' => $setorId,
-        ]);
-    }
+    public function edit($id)
+{
+    $empresaId = auth()->user()->empresa_id;
+    $id = (int) $id;
+
+    \Log::info('DEBUG_EDIT_ID', ['raw_id' => $id]);
+
+    // ... resto
+}
+
 
     /*
     |--------------------------------------------------------------------------
