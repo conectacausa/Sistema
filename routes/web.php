@@ -37,12 +37,16 @@ Route::domain('{sub}.conecttarh.com.br')
             Route::get('/config/filiais', fn () => view('config.filiais.index'))
                 ->middleware('screen:5')
                 ->name('config.filiais.index');
-
+            
             Route::get('/config/usuarios', [UsuariosController::class, 'index'])
                 ->middleware('screen:10')
                 ->name('config.usuarios.index');
             
-           Route::get('/config/usuarios/{id}/editar', [UsuariosController::class, 'edit'])
+             Route::get('/config/usuarios/novo', [UsuariosController::class, 'create'])
+                ->middleware('screen:10')
+                ->name('config.usuarios.create');
+
+            Route::get('/config/usuarios/{id}/editar', [UsuariosController::class, 'edit'])
                 ->whereNumber('id')
                 ->middleware('screen:10')
                 ->name('config.usuarios.edit');
@@ -56,20 +60,12 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->whereNumber('id')
                 ->middleware('screen:10')
                 ->name('config.usuarios.destroy');
-
-            Route::get('/config/usuarios/novo', [UsuariosController::class, 'create'])
-                ->middleware('screen:10')
-                ->name('config.usuarios.create');
-
-            Route::post('/config/usuarios', [UsuariosController::class, 'store'])
-                ->middleware('screen:10')
-                ->name('config.usuarios.store');
             
             Route::post('/config/usuarios/{id}/inativar', [UsuariosController::class, 'inativar'])
                 ->whereNumber('id')
                 ->middleware('screen:10')
                 ->name('config.usuarios.inativar');
-
+                    
             /*
             |--------------------------------------------------------------------------
             | CADASTROS → CARGOS
