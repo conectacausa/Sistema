@@ -96,7 +96,7 @@ class UsuariosController extends Controller
         $acoes = $this->getAcoesTela10();
         if (!$acoes['podeCadastrar']) {
             return redirect()
-                ->route('config.usuarios.index')
+                ->to('/config/usuarios')
                 ->with('error', 'Você não tem permissão para cadastrar usuários.');
         }
 
@@ -120,7 +120,7 @@ class UsuariosController extends Controller
         $acoes = $this->getAcoesTela10();
         if (!$acoes['podeCadastrar']) {
             return redirect()
-                ->route('config.usuarios.index')
+                ->to('/config/usuarios')
                 ->with('error', 'Você não tem permissão para cadastrar usuários.');
         }
 
@@ -177,7 +177,7 @@ class UsuariosController extends Controller
         ]);
 
         return redirect()
-            ->route('config.usuarios.index')
+            ->to('/config/usuarios')
             ->with('success', 'Usuário cadastrado com sucesso.');
     }
 
@@ -188,18 +188,25 @@ class UsuariosController extends Controller
         $acoes = $this->getAcoesTela10();
         if (!$acoes['podeEditar']) {
             return redirect()
-                ->route('config.usuarios.index')
+                ->to('/config/usuarios')
                 ->with('error', 'Você não tem permissão para editar usuários.');
+        }
+
+        // Proteção: garante id numérico (evita "cristalcopo")
+        if (!ctype_digit((string) $id)) {
+            return redirect()
+                ->to('/config/usuarios')
+                ->with('error', 'Parâmetro inválido.');
         }
 
         $usuario = DB::table('usuarios')
             ->whereNull('deleted_at')
             ->where('empresa_id', $empresaId)
-            ->where('id', $id)
+            ->where('id', (int) $id)
             ->first();
 
         if (!$usuario) {
-            return redirect()->route('config.usuarios.index')->with('error', 'Usuário não encontrado.');
+            return redirect()->to('/config/usuarios')->with('error', 'Usuário não encontrado.');
         }
 
         $permissoes = DB::table('permissoes')
@@ -223,18 +230,24 @@ class UsuariosController extends Controller
         $acoes = $this->getAcoesTela10();
         if (!$acoes['podeEditar']) {
             return redirect()
-                ->route('config.usuarios.index')
+                ->to('/config/usuarios')
                 ->with('error', 'Você não tem permissão para editar usuários.');
+        }
+
+        if (!ctype_digit((string) $id)) {
+            return redirect()
+                ->to('/config/usuarios')
+                ->with('error', 'Parâmetro inválido.');
         }
 
         $usuario = DB::table('usuarios')
             ->whereNull('deleted_at')
             ->where('empresa_id', $empresaId)
-            ->where('id', $id)
+            ->where('id', (int) $id)
             ->first();
 
         if (!$usuario) {
-            return redirect()->route('config.usuarios.index')->with('error', 'Usuário não encontrado.');
+            return redirect()->to('/config/usuarios')->with('error', 'Usuário não encontrado.');
         }
 
         $cpf = preg_replace('/\D+/', '', (string) $request->input('cpf', ''));
@@ -257,7 +270,7 @@ class UsuariosController extends Controller
             ->whereNull('deleted_at')
             ->where('empresa_id', $empresaId)
             ->where('cpf', $cpf)
-            ->where('id', '<>', $id)
+            ->where('id', '<>', (int) $id)
             ->exists();
 
         if ($cpfExiste) {
@@ -291,44 +304,60 @@ class UsuariosController extends Controller
 
         DB::table('usuarios')
             ->where('empresa_id', $empresaId)
-            ->where('id', $id)
+            ->where('id', (int) $id)
             ->whereNull('deleted_at')
             ->update($updateData);
 
         return redirect()
-            ->route('config.usuarios.index')
+            ->to('/config/usuarios')
             ->with('success', 'Usuário atualizado com sucesso.');
     }
 
-    public function destroy($id)
+    /**
+     * "Deletar" = inativar (conforme regra do projeto).
+     */
+    public function inativar($id)
     {
         $empresaId = auth()->user()->empresa_id;
 
-        // Sugestão: se quiser amarrar exclusão à permissão "editar"
         $acoes = $this->getAcoesTela10();
         if (!$acoes['podeEditar']) {
             return redirect()
-                ->route('config.usuarios.index')
-                ->with('error', 'Você não tem permissão para excluir usuários.');
+                ->to('/config/usuarios')
+                ->with('error', 'Você não tem permissão para inativar usuários.');
         }
 
-        $updated = DB::table('usuarios')
-            ->where('id', $id)
+        if (!ctype_digit((string) $id)) {
+            return redirect()
+                ->to('/config/usuarios')
+                ->with('error', 'Parâmetro inválido.');
+        }
+
+        $usuario = DB::table('usuarios')
+            ->whereNull('deleted_at')
             ->where('empresa_id', $empresaId)
+            ->where('id', (int) $id)
+            ->first();
+
+        if (!$usuario) {
+            return redirect()->to('/config/usuarios')->with('error', 'Usuário não encontrado.');
+        }
+
+        if (strtolower((string) $usuario->status) !== 'ativo') {
+            return redirect()->to('/config/usuarios')->with('warning', 'Usuário já está inativo.');
+        }
+
+        DB::table('usuarios')
+            ->where('empresa_id', $empresaId)
+            ->where('id', (int) $id)
             ->whereNull('deleted_at')
             ->update([
-                'deleted_at' => now(),
+                'status' => 'inativo',
                 'updated_at' => now(),
             ]);
 
-        if (!$updated) {
-            return redirect()
-                ->route('config.usuarios.index')
-                ->with('error', 'Não foi possível excluir o usuário (registro não encontrado).');
-        }
-
         return redirect()
-            ->route('config.usuarios.index')
-            ->with('success', 'Usuário excluído com sucesso.');
+            ->to('/config/usuarios')
+            ->with('success', 'Usuário inativado com sucesso.');
     }
 }
