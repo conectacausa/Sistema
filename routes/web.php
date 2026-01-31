@@ -39,15 +39,15 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->name('config.filiais.index');
 
             Route::get('/config/usuarios', [UsuariosController::class, 'index'])
-                ->middleware('screen:8')
+                ->middleware('screen:10')
                 ->name('config.usuarios.index');
             
             Route::get('/config/usuarios/{id}/editar', [UsuariosController::class, 'edit'])
-                ->middleware('screen:8')
+                ->middleware('screen:10')
                 ->name('config.usuarios.edit');
             
             Route::delete('/config/usuarios/{id}', [UsuariosController::class, 'destroy'])
-                ->middleware('screen:8')
+                ->middleware('screen:10')
                 ->name('config.usuarios.destroy');
 
             /*
