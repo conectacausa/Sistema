@@ -1,128 +1,103 @@
-<!DOCTYPE html>
-<html lang="{{ app()->getLocale() }}">
-<head>
-    <meta charset="utf-8">
-    <title>{{ config('app.name') }} | Usuários</title>
+<?php
 
-    <link rel="stylesheet" href="{{ asset('assets/css/vendors_css.css') }}">
-    <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
-    <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
+namespace App\Http\Controllers\Config;
 
-    <style>
-        /* Remove hover do botão Novo */
-        .btn-nohover,
-        .btn-nohover:hover,
-        .btn-nohover:focus {
-            background: linear-gradient(45deg,#28a745,#20c997)!important;
-            color:#fff!important;
-            box-shadow:none!important;
-            transform:none!important;
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class UsuariosController extends Controller
+{
+    private function getAcoesTela10(): array
+    {
+        $acao = DB::table('permissao_modulo_tela')
+            ->select('cadastro', 'editar')
+            ->where('permissao_id', auth()->user()->permissao_id)
+            ->where('tela_id', 10)
+            ->where('ativo', true)
+            ->first();
+
+        return [
+            'podeCadastrar' => (bool)($acao->cadastro ?? false),
+            'podeEditar'    => (bool)($acao->editar ?? false),
+        ];
+    }
+
+    public function index(Request $request)
+    {
+        $empresaId = auth()->user()->empresa_id;
+
+        $busca    = trim((string)$request->q);
+        $situacao = trim((string)$request->status);
+
+        $usuarios = DB::table('usuarios as u')
+            ->leftJoin('permissoes as p', 'p.id', '=', 'u.permissao_id')
+            ->selectRaw("
+                u.id,
+                u.nome_completo,
+                CASE 
+                    WHEN length(u.cpf) = 11 THEN
+                        substring(u.cpf from 1 for 3) || '.' ||
+                        substring(u.cpf from 4 for 3) || '.' ||
+                        substring(u.cpf from 7 for 3) || '-' ||
+                        substring(u.cpf from 10 for 2)
+                    ELSE u.cpf
+                END as cpf_formatado,
+                u.status,
+                p.nome_grupo as grupo_permissao
+            ")
+            ->whereNull('u.deleted_at')
+            ->where('u.empresa_id', $empresaId)
+            ->when($busca, function ($q) use ($busca) {
+                $cpf = preg_replace('/\D/', '', $busca);
+                $q->where(function ($qq) use ($busca, $cpf) {
+                    $qq->whereRaw('LOWER(u.nome_completo) LIKE ?', ['%' . mb_strtolower($busca) . '%']);
+                    if ($cpf) {
+                        $qq->orWhere('u.cpf', $cpf);
+                    }
+                });
+            })
+            ->when($situacao, fn($q) => $q->where('u.status', $situacao))
+            ->orderByRaw("CASE WHEN u.status = 'ativo' THEN 0 ELSE 1 END")
+            ->orderBy('u.nome_completo')
+            ->paginate(10)
+            ->appends($request->query());
+
+        $situacoes = DB::table('usuarios')
+            ->where('empresa_id', $empresaId)
+            ->whereNull('deleted_at')
+            ->groupBy('status')
+            ->pluck('status');
+
+        $acoes = $this->getAcoesTela10();
+
+        return view('config.usuarios.index', [
+            'usuarios' => $usuarios,
+            'situacoes' => $situacoes,
+            'busca' => $busca,
+            'situacaoSelecionada' => $situacao,
+            'podeCadastrar' => $acoes['podeCadastrar'],
+            'podeEditar' => $acoes['podeEditar'],
+        ]);
+    }
+
+    public function inativar($id)
+    {
+        $id = (int)$id;
+        if ($id <= 0) {
+            return redirect()->route('config.usuarios.index')
+                ->with('error', 'Parâmetro inválido.');
         }
-    </style>
-</head>
 
-<body class="hold-transition light-skin sidebar-mini theme-primary fixed">
-<div class="wrapper">
+        DB::table('usuarios')
+            ->where('id', $id)
+            ->where('empresa_id', auth()->user()->empresa_id)
+            ->update([
+                'status' => 'inativo',
+                'updated_at' => now(),
+            ]);
 
-@include('partials.header')
-@include('partials.menu')
-
-<div class="content-wrapper">
-<div class="container-full">
-
-<div class="content-header d-flex justify-content-between">
-    <h4>Usuários</h4>
-
-    @if($podeCadastrar)
-        <a href="{{ route('config.usuarios.create') }}"
-           class="btn bg-gradient-success btn-nohover">
-            Novo Usuário
-        </a>
-    @endif
-</div>
-
-<section class="content">
-
-<form id="filtersForm" method="GET">
-<div class="row mb-3">
-    <div class="col-md-10">
-        <input type="text" name="q" class="form-control"
-               placeholder="Nome ou CPF" value="{{ $busca }}">
-    </div>
-    <div class="col-md-2">
-        <select name="status" class="form-select" onchange="this.form.submit()">
-            <option value="">Todas</option>
-            @foreach($situacoes as $st)
-                <option value="{{ $st }}" {{ $situacaoSelecionada===$st?'selected':'' }}>
-                    {{ ucfirst($st) }}
-                </option>
-            @endforeach
-        </select>
-    </div>
-</div>
-</form>
-
-<div class="box">
-<div class="box-body">
-<table class="table">
-<thead class="bg-primary">
-<tr>
-    <th>Nome</th>
-    <th>CPF</th>
-    <th>Grupo</th>
-    <th>Situação</th>
-    <th width="150">Ações</th>
-</tr>
-</thead>
-<tbody>
-@foreach($usuarios as $u)
-<tr>
-    <td>{{ $u->nome_completo }}</td>
-    <td>{{ $u->cpf_formatado }}</td>
-    <td>{{ $u->grupo_permissao }}</td>
-    <td>
-        <span class="badge {{ $u->status==='ativo'?'badge-success':'badge-danger' }}">
-            {{ ucfirst($u->status) }}
-        </span>
-    </td>
-    <td>
-        @if($podeEditar)
-            <a href="{{ route('config.usuarios.edit',$u->id) }}"
-               class="btn btn-sm btn-outline-primary">
-                <i data-feather="edit"></i>
-            </a>
-
-            @if($u->status==='ativo')
-            <form method="POST"
-                  action="{{ route('config.usuarios.inativar',$u->id) }}"
-                  style="display:inline"
-                  onsubmit="return confirm('Inativar este usuário?')">
-                @csrf
-                <button class="btn btn-sm btn-outline-danger">
-                    <i data-feather="user-x"></i>
-                </button>
-            </form>
-            @endif
-        @endif
-    </td>
-</tr>
-@endforeach
-</tbody>
-</table>
-
-{{ $usuarios->links() }}
-</div>
-</div>
-
-</section>
-</div>
-</div>
-
-@include('partials.footer')
-</div>
-
-<script src="{{ asset('assets/js/vendors.min.js') }}"></script>
-<script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
-<script>feather.replace()</script>
-</body>
-</html>
+        return redirect()->route('config.usuarios.index')
+            ->with('success', 'Usuário inativado com sucesso.');
+    }
+}
