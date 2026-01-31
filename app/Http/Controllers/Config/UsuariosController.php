@@ -177,7 +177,8 @@ class UsuariosController extends Controller
     
         if (!$usuario) {
             // MOSTRA o motivo em vez de redirecionar "mudo"
-            abort(404, "Usuário não encontrado. Debug: user_empresa_id={$empresaId}, usuario_id={$id}");
+            abort(404, "Usuário não encontrado. Debug: auth_user_id=" . ($request->user()->id ?? 'null') .
+    ", auth_empresa_id=" . ($empresaId ?: '0') . ", usuario_id=" . $id);
         }
     
         $filiais = DB::table('filiais')
