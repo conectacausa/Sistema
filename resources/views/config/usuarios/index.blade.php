@@ -16,6 +16,20 @@
   <!-- Style-->
   <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
+
+  <style>
+    /* Remove completamente o hover do botão Novo Usuário */
+    .btn-no-hover:hover,
+    .btn-no-hover:focus,
+    .btn-no-hover:active {
+      background: inherit !important;
+      color: inherit !important;
+      box-shadow: none !important;
+      transform: none !important;
+      filter: none !important;
+    }
+    .btn-no-hover.waves-effect .waves-ripple { display: none !important; }
+  </style>
 </head>
 
 <body class="hold-transition light-skin sidebar-mini theme-primary fixed">
@@ -23,17 +37,12 @@
 <div class="wrapper">
   <div id="loader"></div>
 
-  {{-- HEADER --}}
   @include('partials.header')
-
-  {{-- MENU --}}
   @include('partials.menu')
 
-  <!-- Content Wrapper -->
   <div class="content-wrapper">
     <div class="container-full">
 
-      <!-- Content Header -->
       <div class="content-header">
         <div class="d-flex align-items-center">
           <div class="me-auto">
@@ -41,11 +50,7 @@
             <div class="d-inline-block align-items-center">
               <nav>
                 <ol class="breadcrumb">
-                  <li class="breadcrumb-item">
-                    <a href="{{ route('dashboard') }}">
-                      <i class="mdi mdi-home-outline"></i>
-                    </a>
-                  </li>
+                  <li class="breadcrumb-item"><a href="{{ route('dashboard') }}"><i class="mdi mdi-home-outline"></i></a></li>
                   <li class="breadcrumb-item">Configuração</li>
                   <li class="breadcrumb-item" aria-current="page">Usuários</li>
                 </ol>
@@ -53,17 +58,15 @@
             </div>
           </div>
 
-          {{-- Botão Novo Usuário --}}
           @if(!empty($podeCadastrar) && $podeCadastrar)
             <a href="{{ route('config.usuarios.create') }}"
-               class="waves-effect waves-light btn mb-5 bg-gradient-primary">
+               class="waves-effect waves-light btn mb-5 bg-gradient-success btn-no-hover">
               Novo Usuário
             </a>
           @endif
         </div>
       </div>
 
-      <!-- Main content -->
       <section class="content">
 
         <!-- Filtros -->
@@ -90,15 +93,11 @@
                         >
                       </div>
                     </div>
-                
+
                     <div class="col-md-2">
                       <div class="form-group">
                         <label class="form-label">Situação</label>
-                        <select
-                          name="status"
-                          id="filter-status"
-                          class="form-select"
-                        >
+                        <select name="status" id="filter-status" class="form-select">
                           <option value="">Todas</option>
                           @foreach($situacoes as $st)
                             <option value="{{ $st }}" {{ $situacaoSelecionada === $st ? 'selected' : '' }}>
@@ -108,6 +107,7 @@
                         </select>
                       </div>
                     </div>
+
                   </div>
                 </form>
               </div>
@@ -135,74 +135,74 @@
                       </tr>
                     </thead>
                     <tbody>
-                      @forelse($usuarios ?? [] as $u)
+                      @forelse($usuarios as $u)
+                        @php $st = strtolower(trim((string)$u->status)); @endphp
                         <tr>
                           <td>{{ $u->nome_completo }}</td>
-                          <td>{{ $u->cpf ?? '-' }}</td>
+                          <td>{{ $u->cpf_formatado }}</td>
                           <td>{{ $u->grupo_permissao ?? '-' }}</td>
-                          <td>{{ ucfirst($u->status) }}</td>
                           <td>
-                            {{-- ações serão reativadas depois --}}
+                            <span class="badge {{ $st === 'ativo' ? 'badge-success' : 'badge-danger' }}">
+                              {{ ucfirst($u->status) }}
+                            </span>
+                          </td>
+                          <td>
+                            {{-- ações (vamos recolocar depois, com calma) --}}
                           </td>
                         </tr>
                       @empty
                         <tr>
-                          <td colspan="5" class="text-center">
-                            Nenhum usuário encontrado
-                          </td>
+                          <td colspan="5" class="text-center">Nenhum usuário encontrado</td>
                         </tr>
                       @endforelse
                     </tbody>
                   </table>
                 </div>
+
+                <div class="mt-3">
+                  {{ $usuarios->links() }}
+                </div>
+
               </div>
             </div>
           </div>
         </div>
 
       </section>
-      <!-- /.content -->
 
     </div>
   </div>
-  <!-- /.content-wrapper -->
 
-  {{-- FOOTER --}}
   @include('partials.footer')
-
 </div>
-<!-- ./wrapper -->
 
-<!-- Vendor JS -->
 <script src="{{ asset('assets/js/vendors.min.js') }}"></script>
 <script src="{{ asset('assets/js/pages/chat-popup.js') }}"></script>
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
-
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const form = document.getElementById('filtersForm');
-            const inputQ = document.getElementById('filter-q');
-            const selectStatus = document.getElementById('filter-status');
-        
-            let typingTimer = null;
-            const debounceTime = 400; // ms
-        
-            // Digitação no campo Nome/CPF
-            inputQ.addEventListener('input', function () {
-                clearTimeout(typingTimer);
-                typingTimer = setTimeout(function () {
-                    form.submit();
-                }, debounceTime);
-            });
-        
-            // Mudança no select Situação
-            selectStatus.addEventListener('change', function () {
-                form.submit();
-            });
-        });
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // filtros automáticos
+    const form = document.getElementById('filtersForm');
+    const inputQ = document.getElementById('filter-q');
+    const selectStatus = document.getElementById('filter-status');
+
+    let typingTimer = null;
+    const debounceTime = 400;
+
+    inputQ.addEventListener('input', function () {
+        clearTimeout(typingTimer);
+        typingTimer = setTimeout(function () {
+            form.submit();
+        }, debounceTime);
+    });
+
+    selectStatus.addEventListener('change', function () {
+        form.submit();
+    });
+});
 </script>
 
 </body>
