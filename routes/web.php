@@ -6,6 +6,7 @@ use App\Http\Controllers\Cargo\CboController;
 use App\Http\Controllers\Cargo\CargoController;
 use App\Http\Controllers\Recrutamento\FluxoAprovacaoController;
 use App\Http\Controllers\Cargo\HeadcountController;
+use App\Http\Controllers\Configuracao\UsuariosController;
 
 Route::domain('{sub}.conecttarh.com.br')
     ->middleware(['web', 'tenant'])
@@ -36,6 +37,18 @@ Route::domain('{sub}.conecttarh.com.br')
             Route::get('/config/filiais', fn () => view('config.filiais.index'))
                 ->middleware('screen:5')
                 ->name('config.filiais.index');
+
+            Route::get('/config/usuarios', [UsuariosController::class, 'index'])
+                ->middleware('screen:8')
+                ->name('config.usuarios.index');
+            
+            Route::get('/config/usuarios/{id}/editar', [UsuariosController::class, 'edit'])
+                ->middleware('screen:8')
+                ->name('config.usuarios.edit');
+            
+            Route::delete('/config/usuarios/{id}', [UsuariosController::class, 'destroy'])
+                ->middleware('screen:8')
+                ->name('config.usuarios.destroy');
 
             /*
             |--------------------------------------------------------------------------
