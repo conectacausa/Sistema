@@ -10,20 +10,15 @@
 
   <title>{{ config('app.name', 'ConecttaRH') }} | Usuários</title>
 
-  <!-- Vendors Style-->
   <link rel="stylesheet" href="{{ asset('assets/css/vendors_css.css') }}">
-
-  <!-- Style-->
   <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
 </head>
 
 <body class="hold-transition light-skin sidebar-mini theme-primary fixed">
-
 <div class="wrapper">
   <div id="loader"></div>
 
-  {{-- HEADER / MENU (pasta partials) --}}
   @include('partials.header')
   @include('partials.menu')
 
@@ -47,8 +42,9 @@
             </div>
           </div>
 
+          {{-- Evita quebrar por name(): usa URL direta do slug --}}
           @if(!empty($podeCadastrar) && $podeCadastrar)
-            <a href="{{ route('config.usuarios.create') }}"
+            <a href="{{ url('/config/usuarios/novo') }}"
                class="waves-effect waves-light btn mb-5 bg-gradient-success">
               Novo Usuário
             </a>
@@ -57,7 +53,6 @@
       </div>
 
       <section class="content">
-
         @if(session('success'))
           <div class="alert alert-success">{{ session('success') }}</div>
         @endif
@@ -77,7 +72,7 @@
               </div>
 
               <div class="box-body">
-                <form id="filtersForm" method="GET" action="{{ route('config.usuarios.index') }}">
+                <form id="filtersForm" method="GET" action="{{ url('/config/usuarios') }}">
                   <div class="row">
                     <div class="col-md-10">
                       <div class="form-group">
@@ -133,7 +128,7 @@
                         <th>CPF</th>
                         <th>Grupo de Permissão</th>
                         <th>Situação</th>
-                        <th style="width: 140px;">Ações</th>
+                        <th style="width: 160px;">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -146,40 +141,43 @@
                       @endphp
 
                       @forelse($usuarios as $u)
+                        @php $st = strtolower((string) $u->status); @endphp
+
                         <tr>
                           <td>{{ $u->nome_completo }}</td>
                           <td>{{ $maskCpf($u->cpf) }}</td>
                           <td>{{ $u->grupo_permissao ?? '-' }}</td>
                           <td>
-                            @php $st = strtolower((string) $u->status); @endphp
                             <span class="badge {{ $st === 'ativo' ? 'badge-success' : 'badge-danger' }}">
                               {{ ucfirst($u->status) }}
                             </span>
                           </td>
-                          <td class="d-flex gap-2">
 
+                          <td class="d-flex gap-2">
                             @if(!empty($podeEditar) && $podeEditar)
-                              <a href="{{ route('config.usuarios.edit', $u->id) }}"
+                              {{-- Editar --}}
+                              <a href="{{ url('/config/usuarios/' . $u->id . '/editar') }}"
                                  class="btn btn-sm btn-outline-primary"
                                  title="Editar">
                                 <i data-feather="edit"></i>
                               </a>
 
-                              <form method="POST"
-                                    action="{{ route('config.usuarios.destroy', $u->id) }}"
-                                    class="d-inline form-delete-usuario">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit"
-                                        class="btn btn-sm btn-outline-danger"
-                                        title="Excluir">
-                                  <i data-feather="trash-2"></i>
-                                </button>
-                              </form>
+                              {{-- Inativar (somente se estiver ativo) --}}
+                              @if($st === 'ativo')
+                                <form method="POST"
+                                      action="{{ url('/config/usuarios/' . $u->id . '/inativar') }}"
+                                      class="d-inline form-inativar-usuario">
+                                  @csrf
+                                  <button type="submit"
+                                          class="btn btn-sm btn-outline-danger"
+                                          title="Inativar">
+                                    <i data-feather="user-x"></i>
+                                  </button>
+                                </form>
+                              @endif
                             @else
                               <span class="text-muted">—</span>
                             @endif
-
                           </td>
                         </tr>
                       @empty
@@ -204,14 +202,12 @@
     </div>
   </div>
 
-  {{-- FOOTER (pasta partials) --}}
   @include('partials.footer')
 </div>
 
 <script src="{{ asset('assets/js/vendors.min.js') }}"></script>
 <script src="{{ asset('assets/js/pages/chat-popup.js') }}"></script>
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
-
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
@@ -219,15 +215,14 @@
   document.addEventListener('DOMContentLoaded', function () {
     if (window.feather) feather.replace();
 
-    document.querySelectorAll('.form-delete-usuario').forEach(function (form) {
+    document.querySelectorAll('.form-inativar-usuario').forEach(function (form) {
       form.addEventListener('submit', function (e) {
-        if (!confirm('Confirma a exclusão deste usuário?')) {
+        if (!confirm('Confirma inativar este usuário?')) {
           e.preventDefault();
         }
       });
     });
 
-    // Filtro automático (sem botões)
     const form = document.getElementById('filtersForm');
     const qInput = document.getElementById('qInput');
     const statusSelect = document.getElementById('statusSelect');
