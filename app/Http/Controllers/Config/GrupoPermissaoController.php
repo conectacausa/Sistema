@@ -6,17 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Empresa;
 use App\Models\Permissao;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class GrupoPermissaoController extends Controller
 {
-    private function empresaFromSub(): Empresa
+    private function empresaFromSub(string $sub): Empresa
     {
-        $sub = (string) request()->route('sub');
-
         if ($sub === '') {
-            abort(403, 'Subdomínio não identificado na rota.');
+            abort(403, 'Subdomínio não identificado.');
         }
 
         $empresa = Empresa::query()
@@ -30,9 +27,9 @@ class GrupoPermissaoController extends Controller
         return $empresa;
     }
 
-    public function index(Request $request)
+    public function index(Request $request, $sub)
     {
-        $empresa = $this->empresaFromSub();
+        $empresa = $this->empresaFromSub((string) $sub);
 
         $query = Permissao::query()
             ->where('empresa_id', $empresa->id)
@@ -53,14 +50,15 @@ class GrupoPermissaoController extends Controller
         return view('config.grupos.index', compact('grupos'));
     }
 
-    public function create()
+    public function create(Request $request, $sub)
     {
+        // só precisa do layout
         return view('config.grupos.create');
     }
 
-    public function store(Request $request)
+    public function store(Request $request, $sub)
     {
-        $empresa = $this->empresaFromSub();
+        $empresa = $this->empresaFromSub((string) $sub);
 
         $validated = $request->validate([
             'nome_grupo' => [
@@ -86,65 +84,30 @@ class GrupoPermissaoController extends Controller
         ]);
 
         return redirect()->route('config.grupos.edit', [
-            'sub' => request()->route('sub'),
+            'sub' => (string) $sub,
             'id'  => $grupo->id,
-        ]);
+        ])->with('success', 'Grupo criado com sucesso!');
     }
 
-  public function edit(Request $request, $id)
-{
-    // ✅ DIAGNÓSTICO VISÍVEL
-    if ($request->query('diag') == '1') {
-        $sub = (string) request()->route('sub');
-        $empresa = \App\Models\Empresa::query()->where('subdominio', $sub)->first();
-
-        $params = request()->route() ? request()->route()->parameters() : [];
-
-        $conn = \Illuminate\Support\Facades\DB::connection();
-        $dbName = method_exists($conn, 'getDatabaseName') ? $conn->getDatabaseName() : null;
-
-        $rawId = $id;
-        $idInt = (int) $id;
-
-        $grupo = \App\Models\Permissao::query()->find($idInt);
-
-        return response()->json([
-            'reached' => true,
-            'url' => $request->fullUrl(),
-            'route_uri' => request()->route()?->uri(),
-            'route_name' => request()->route()?->getName(),
-            'route_params' => $params,
-
-            'route_sub' => $sub,
-            'empresa_found' => (bool) $empresa,
-            'empresa_id' => $empresa?->id,
-
-            'db_name' => $dbName,
-
-            'raw_id' => $rawId,
-            'grupo_id_int' => $idInt,
-            'grupo_found' => (bool) $grupo,
-            'grupo_empresa_id' => $grupo?->empresa_id,
-        ], 200);
-    }
-
-    // fluxo normal
-    $empresa = $this->empresaFromSub();
-    $id = (int) $id;
-
-    $grupo = \App\Models\Permissao::query()->findOrFail($id);
-
-    if ((int)$grupo->empresa_id !== (int)$empresa->id) {
-        abort(403);
-    }
-
-    return view('config.grupos.edit', compact('grupo'));
-}
-
-
-    public function update(Request $request, $id)
+    // ✅ AQUI está a correção principal: recebe $sub e $id
+    public function edit(Request $request, $sub, $id)
     {
-        $empresa = $this->empresaFromSub();
+        $empresa = $this->empresaFromSub((string) $sub);
+        $id = (int) $id;
+
+        $grupo = Permissao::query()->findOrFail($id);
+
+        if ((int) $grupo->empresa_id !== (int) $empresa->id) {
+            abort(403);
+        }
+
+        return view('config.grupos.edit', compact('grupo'));
+    }
+
+    // ✅ idem
+    public function update(Request $request, $sub, $id)
+    {
+        $empresa = $this->empresaFromSub((string) $sub);
         $id = (int) $id;
 
         $grupo = Permissao::query()->findOrFail($id);
@@ -175,8 +138,26 @@ class GrupoPermissaoController extends Controller
         ]);
 
         return redirect()->route('config.grupos.edit', [
-            'sub' => request()->route('sub'),
+            'sub' => (string) $sub,
             'id'  => $grupo->id,
         ])->with('success', 'Grupo atualizado com sucesso!');
+    }
+
+    // ✅ se você tem destroy na rota listada, precisa também receber $sub
+    public function destroy(Request $request, $sub, $id)
+    {
+        $empresa = $this->empresaFromSub((string) $sub);
+        $id = (int) $id;
+
+        $grupo = Permissao::query()->findOrFail($id);
+
+        if ((int) $grupo->empresa_id !== (int) $empresa->id) {
+            abort(403);
+        }
+
+        $grupo->delete();
+
+        return redirect()->route('config.grupos.index', ['sub' => (string) $sub])
+            ->with('success', 'Grupo removido com sucesso!');
     }
 }
