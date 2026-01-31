@@ -150,7 +150,15 @@
                           @if(!empty($podeEditar) && $podeEditar)
                         
                             {{-- Editar --}}
-                            <a href="{{ route('config.usuarios.edit', ['id' => $u->id]) }}">EDITAR TESTE</a>
+                            @php $editUrl = route('config.usuarios.edit', ['id' => $u->id]); @endphp
+
+<a href="{{ $editUrl }}"
+   class="btn btn-sm btn-outline-primary"
+   title="Editar"
+   onclick="window.location.href='{{ $editUrl }}'; return false;">
+  <i data-feather="edit"></i>
+</a>
+
 
                         
                             {{-- Inativar: só aparece se estiver ATIVO --}}
