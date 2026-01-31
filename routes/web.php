@@ -52,7 +52,6 @@ Route::domain('{sub}.conecttarh.com.br')
 
             Route::get('/config/usuarios/{id}/editar', [UsuariosController::class, 'edit'])
                 ->whereNumber('id')
-                ->middleware('screen:10')
                 ->name('config.usuarios.edit');
 
             Route::put('/config/usuarios/{id}', [UsuariosController::class, 'update'])
