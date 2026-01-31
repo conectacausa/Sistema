@@ -164,43 +164,60 @@ class UsuariosController extends Controller
     | EDIT
     |--------------------------------------------------------------------------
     */
-    public function edit($id)
-{
-    $empresaId = auth()->user()->empresa_id;
-    $id = (int) $id;
-
-    $usuario = DB::table('usuarios')
-        ->whereNull('deleted_at')
-        ->where('empresa_id', $empresaId)
-        ->where('id', $id)
-        ->first();
-
-    if (!$usuario) {
-        return redirect()
-            ->route('config.usuarios.index')
-            ->with('error', 'Usuário não encontrado para esta empresa (empresa_id=' . $empresaId . ', id=' . $id . ').');
-    }
-
-        // tenta inferir filial/setor inicial
+    public function edit(Request $request, $id)
+    {
+        $empresaId = (int) ($request->user()->empresa_id ?? 0);
+        $id = (int) $id;
+    
+        $usuario = DB::table('usuarios')
+            ->whereNull('deleted_at')
+            ->where('empresa_id', $empresaId)
+            ->where('id', $id)
+            ->first();
+    
+        if (!$usuario) {
+            // MOSTRA o motivo em vez de redirecionar "mudo"
+            abort(404, "Usuário não encontrado. Debug: user_empresa_id={$empresaId}, usuario_id={$id}");
+        }
+    
+        $filiais = DB::table('filiais')
+            ->select('id', DB::raw("COALESCE(nome_fantasia, razao_social) as nome"))
+            ->where('empresa_id', $empresaId)
+            ->whereNull('deleted_at')
+            ->orderByRaw("COALESCE(nome_fantasia, razao_social)")
+            ->get();
+    
+        $permissoes = DB::table('permissoes')
+            ->select('id', 'nome_grupo')
+            ->where('empresa_id', $empresaId)
+            ->whereNull('deleted_at')
+            ->orderBy('nome_grupo')
+            ->get();
+    
+        // tenta inferir filial/setor inicial (se existir tabela)
         $filialId = null;
         $setorId = null;
+    
         try {
             $v = DB::table('vinculo_usuario_lotacao')
+                ->whereNull('deleted_at')
                 ->where('empresa_id', $empresaId)
                 ->where('usuario_id', $usuario->id)
                 ->where('ativo', true)
-                ->whereNull('deleted_at')
                 ->first();
+    
             if ($v) {
-                $filialId = $v->filial_id;
-                $setorId = $v->setor_id;
+                $filialId = $v->filial_id ?? null;
+                $setorId  = $v->setor_id ?? null;
             }
-        } catch (\Throwable $e) {}
-
+        } catch (\Throwable $e) {
+            // não faz nada
+        }
+    
         return view('config.usuarios.edit', [
             'usuario' => $usuario,
-            'filiais' => $this->getFiliais($empresaId),
-            'permissoes' => $this->getPermissoes($empresaId),
+            'filiais' => $filiais,
+            'permissoes' => $permissoes,
             'filialId' => $filialId,
             'setorId' => $setorId,
         ]);
