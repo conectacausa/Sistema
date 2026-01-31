@@ -5,13 +5,14 @@ namespace App\Http\Controllers\Config;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 class UsuariosController extends Controller
 {
-    /**
-     * Lista de usuários
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | LISTAGEM
+    |--------------------------------------------------------------------------
+    */
     public function index(Request $request)
     {
         $empresaId = auth()->user()->empresa_id;
@@ -33,9 +34,8 @@ class UsuariosController extends Controller
 
         if ($busca !== '') {
             $cpf = preg_replace('/\D/', '', $busca);
-
             $query->where(function ($q) use ($busca, $cpf) {
-                $q->where('u.nome_completo', 'ILIKE', '%' . $busca . '%');
+                $q->where('u.nome_completo', 'ILIKE', "%{$busca}%");
                 if ($cpf !== '') {
                     $q->orWhere('u.cpf', $cpf);
                 }
@@ -52,9 +52,9 @@ class UsuariosController extends Controller
             ->paginate(10)
             ->appends($request->query());
 
-        // CPF formatado para a view
+        // CPF formatado
         $usuarios->getCollection()->transform(function ($u) {
-            $cpf = preg_replace('/\D+/', '', (string)($u->cpf ?? ''));
+            $cpf = preg_replace('/\D/', '', (string) $u->cpf);
             if (strlen($cpf) === 11) {
                 $u->cpf_formatado =
                     substr($cpf, 0, 3) . '.' .
@@ -62,7 +62,7 @@ class UsuariosController extends Controller
                     substr($cpf, 6, 3) . '-' .
                     substr($cpf, 9, 2);
             } else {
-                $u->cpf_formatado = $u->cpf ?? '';
+                $u->cpf_formatado = $u->cpf;
             }
             return $u;
         });
@@ -73,269 +73,248 @@ class UsuariosController extends Controller
             ->groupBy('status')
             ->pluck('status');
 
-        $podeCadastrar = false;
-        $podeEditar = false;
-
+        // permissões da tela
         $permissaoTela = DB::table('permissao_modulo_tela')
             ->where('permissao_id', auth()->user()->permissao_id)
             ->where('tela_id', 10)
             ->where('ativo', true)
             ->first();
 
-        if ($permissaoTela) {
-            $podeCadastrar = (bool) $permissaoTela->cadastro;
-            $podeEditar    = (bool) $permissaoTela->editar;
-        }
-
         return view('config.usuarios.index', [
             'usuarios' => $usuarios,
             'situacoes' => $situacoes,
             'busca' => $busca,
             'situacaoSelecionada' => $situacao,
-            'podeCadastrar' => $podeCadastrar,
-            'podeEditar' => $podeEditar,
+            'podeCadastrar' => (bool) ($permissaoTela->cadastro ?? false),
+            'podeEditar' => (bool) ($permissaoTela->editar ?? false),
         ]);
     }
 
-    /**
-     * Tela de novo usuário (com suporte a ?id= para habilitar lotação após salvar)
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | CREATE
+    |--------------------------------------------------------------------------
+    */
     public function create(Request $request)
     {
         $empresaId = auth()->user()->empresa_id;
-        $usuarioId = $request->query('id'); // ?id=xx após salvar
+        $usuarioId = $request->query('id');
         $usuario = null;
 
         if ($usuarioId) {
             $usuario = DB::table('usuarios')
-                ->whereNull('deleted_at')
                 ->where('empresa_id', $empresaId)
-                ->where('id', (int)$usuarioId)
+                ->whereNull('deleted_at')
+                ->where('id', (int) $usuarioId)
                 ->first();
         }
 
-        $filiais = DB::table('filiais')
-            ->select('id', DB::raw("COALESCE(nome_fantasia, razao_social) as nome"))
-            ->where('empresa_id', $empresaId)
-            ->whereNull('deleted_at')
-            ->orderByRaw("COALESCE(nome_fantasia, razao_social)")
-            ->get();
-
-        $permissoes = DB::table('permissoes')
-            ->select('id', 'nome_grupo')
-            ->where('empresa_id', $empresaId)
-            ->whereNull('deleted_at')
-            ->orderBy('nome_grupo')
-            ->get();
-
         return view('config.usuarios.create', [
             'usuario' => $usuario,
-            'filiais' => $filiais,
-            'permissoes' => $permissoes,
+            'filiais' => $this->getFiliais($empresaId),
+            'permissoes' => $this->getPermissoes($empresaId),
         ]);
     }
 
-    /**
-     * Salvar novo usuário
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | STORE
+    |--------------------------------------------------------------------------
+    */
     public function store(Request $request)
     {
         $empresaId = auth()->user()->empresa_id;
 
         $request->validate([
-            'nome_completo' => ['required', 'string', 'max:255'],
-            'cpf'           => ['required', 'string', 'max:20'],
-            'permissao_id'  => ['required', 'integer'],
-            'filial_id'     => ['nullable', 'integer'],
-            'setor_id'      => ['nullable', 'integer'],
-            'email'         => ['nullable', 'string', 'max:190'],
-            'telefone'      => ['nullable', 'string', 'max:30'],
-            'data_expiracao'=> ['nullable', 'date'],
-            'status'        => ['required', 'in:ativo,inativo'],
-            'foto'          => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'nome_completo' => 'required|string|max:255',
+            'cpf' => 'required',
+            'permissao_id' => 'required|integer',
+            'status' => 'required|in:ativo,inativo',
         ]);
 
-        $cpf = preg_replace('/\D+/', '', (string)$request->cpf);
-        $telefone = preg_replace('/\D+/', '', (string)$request->telefone);
+        $cpf = preg_replace('/\D/', '', $request->cpf);
+        $telefone = preg_replace('/\D/', '', (string) $request->telefone);
 
         $fotoPath = null;
         if ($request->hasFile('foto')) {
             $fotoPath = $request->file('foto')->store('usuarios', 'public');
         }
 
-        $novoId = DB::table('usuarios')->insertGetId([
+        $id = DB::table('usuarios')->insertGetId([
             'empresa_id' => $empresaId,
             'nome_completo' => $request->nome_completo,
             'cpf' => $cpf,
-            'permissao_id' => (int)$request->permissao_id,
+            'permissao_id' => $request->permissao_id,
             'email' => $request->email,
             'telefone' => $telefone,
-            'data_expiracao' => $request->data_expiracao,
+            'data_expiracao' => $request->data_expiracao ?: null,
             'status' => $request->status,
             'foto' => $fotoPath,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
-        // Se quiser, dá para já criar um vínculo inicial (filial/setor) aqui.
-        // Mas como a regra final vai ficar na aba Lotação, eu só deixo o usuário salvo.
-
         return redirect()
-            ->route('config.usuarios.create', ['id' => $novoId])
-            ->with('success', 'Usuário cadastrado com sucesso. Agora vincule as lotações.');
+            ->route('config.usuarios.create', ['id' => $id])
+            ->with('success', 'Usuário cadastrado com sucesso.');
     }
 
-    /**
-     * AJAX: carrega setores pela filial
-     */
-    public function setoresPorFilial(Request $request)
+    /*
+    |--------------------------------------------------------------------------
+    | EDIT
+    |--------------------------------------------------------------------------
+    */
+    public function edit($id)
     {
         $empresaId = auth()->user()->empresa_id;
-        $filialId = (int) $request->query('filial_id', 0);
 
-        $setores = DB::table('setores')
-            ->select('id', 'nome')
+        $usuario = DB::table('usuarios')
             ->where('empresa_id', $empresaId)
-            ->where('filial_id', $filialId)
             ->whereNull('deleted_at')
-            ->orderBy('nome')
-            ->get();
+            ->where('id', (int) $id)
+            ->first();
 
-        return response()->json($setores);
-    }
-
-    /**
-     * AJAX: grid de lotações (filtra filial/setor e marca se está vinculado)
-     */
-    public function lotacoesGrid(Request $request)
-    {
-        $empresaId = auth()->user()->empresa_id;
-
-        $usuarioId = (int) $request->query('usuario_id', 0);
-        $filialId  = (int) $request->query('filial_id', 0);
-        $setorId   = (int) $request->query('setor_id', 0);
-
-        if ($usuarioId <= 0) {
-            return response()->json(['error' => 'usuario_id inválido'], 422);
+        if (!$usuario) {
+            return redirect()->route('config.usuarios.index')->with('error', 'Usuário não encontrado.');
         }
 
-        // Combinações disponíveis (vinculo_cargo_lotacao)
-        $q = DB::table('vinculo_cargo_lotacao as vcl')
-            ->leftJoin('filiais as f', 'f.id', '=', 'vcl.filial_id')
-            ->leftJoin('setores as s', 's.id', '=', 'vcl.setor_id')
-            ->leftJoin('cargos as c', 'c.id', '=', 'vcl.cargo_id')
-            ->where('vcl.empresa_id', $empresaId)
-            ->where('vcl.ativo', true)
-            ->whereNull('vcl.deleted_at')
-            ->select(
-                'vcl.id as vcl_id',
-                'vcl.filial_id',
-                'vcl.setor_id',
-                'vcl.cargo_id',
-                DB::raw("COALESCE(f.nome_fantasia, f.razao_social) as filial_nome"),
-                's.nome as setor_nome',
-                'c.titulo as cargo_titulo',
-                DB::raw("
-                    CASE WHEN EXISTS (
-                        SELECT 1
-                        FROM vinculo_usuario_lotacao vul
-                        WHERE vul.deleted_at IS NULL
-                          AND vul.empresa_id = vcl.empresa_id
-                          AND vul.usuario_id = {$usuarioId}
-                          AND vul.filial_id = vcl.filial_id
-                          AND vul.setor_id = vcl.setor_id
-                          AND vul.cargo_id = vcl.cargo_id
-                          AND vul.ativo = true
-                    ) THEN true ELSE false END
-                as vinculado")
-            );
+        // tenta inferir filial/setor inicial
+        $filialId = null;
+        $setorId = null;
+        try {
+            $v = DB::table('vinculo_usuario_lotacao')
+                ->where('empresa_id', $empresaId)
+                ->where('usuario_id', $usuario->id)
+                ->where('ativo', true)
+                ->whereNull('deleted_at')
+                ->first();
+            if ($v) {
+                $filialId = $v->filial_id;
+                $setorId = $v->setor_id;
+            }
+        } catch (\Throwable $e) {}
 
-        if ($filialId > 0) $q->where('vcl.filial_id', $filialId);
-        if ($setorId > 0)  $q->where('vcl.setor_id', $setorId);
-
-        // Ordenação: vinculados primeiro, depois filial, setor, cargo
-        $rows = $q
-            ->orderByRaw("CASE WHEN (CASE WHEN EXISTS (
-                        SELECT 1
-                        FROM vinculo_usuario_lotacao vul
-                        WHERE vul.deleted_at IS NULL
-                          AND vul.empresa_id = vcl.empresa_id
-                          AND vul.usuario_id = {$usuarioId}
-                          AND vul.filial_id = vcl.filial_id
-                          AND vul.setor_id = vcl.setor_id
-                          AND vul.cargo_id = vcl.cargo_id
-                          AND vul.ativo = true
-                    ) THEN 1 ELSE 0 END) = 1 THEN 0 ELSE 1 END")
-            ->orderByRaw("COALESCE(f.nome_fantasia, f.razao_social)")
-            ->orderBy('s.nome')
-            ->orderBy('c.titulo')
-            ->get();
-
-        return response()->json($rows);
+        return view('config.usuarios.edit', [
+            'usuario' => $usuario,
+            'filiais' => $this->getFiliais($empresaId),
+            'permissoes' => $this->getPermissoes($empresaId),
+            'filialId' => $filialId,
+            'setorId' => $setorId,
+        ]);
     }
 
-    /**
-     * AJAX: toggle do vínculo (checkbox)
-     */
-    public function toggleLotacao(Request $request)
+    /*
+    |--------------------------------------------------------------------------
+    | UPDATE
+    |--------------------------------------------------------------------------
+    */
+    public function update(Request $request, $id)
     {
         $empresaId = auth()->user()->empresa_id;
 
         $request->validate([
-            'usuario_id' => ['required', 'integer'],
-            'filial_id'  => ['required', 'integer'],
-            'setor_id'   => ['required', 'integer'],
-            'cargo_id'   => ['required', 'integer'],
-            'checked'    => ['required'],
+            'nome_completo' => 'required|string|max:255',
+            'cpf' => 'required',
+            'permissao_id' => 'required|integer',
+            'status' => 'required|in:ativo,inativo',
         ]);
 
-        $usuarioId = (int)$request->usuario_id;
-        $filialId  = (int)$request->filial_id;
-        $setorId   = (int)$request->setor_id;
-        $cargoId   = (int)$request->cargo_id;
-        $checked   = filter_var($request->checked, FILTER_VALIDATE_BOOLEAN);
+        $cpf = preg_replace('/\D/', '', $request->cpf);
+        $telefone = preg_replace('/\D/', '', (string) $request->telefone);
 
-        // procura vínculo existente
-        $v = DB::table('vinculo_usuario_lotacao')
-            ->whereNull('deleted_at')
+        $usuario = DB::table('usuarios')
             ->where('empresa_id', $empresaId)
-            ->where('usuario_id', $usuarioId)
-            ->where('filial_id', $filialId)
-            ->where('setor_id', $setorId)
-            ->where('cargo_id', $cargoId)
+            ->whereNull('deleted_at')
+            ->where('id', (int) $id)
             ->first();
 
-        if ($checked) {
-            if ($v) {
-                DB::table('vinculo_usuario_lotacao')
-                    ->where('id', $v->id)
-                    ->update([
-                        'ativo' => true,
-                        'updated_at' => now(),
-                    ]);
-            } else {
-                DB::table('vinculo_usuario_lotacao')->insert([
-                    'empresa_id' => $empresaId,
-                    'usuario_id' => $usuarioId,
-                    'filial_id'  => $filialId,
-                    'setor_id'   => $setorId,
-                    'cargo_id'   => $cargoId,
-                    'ativo'      => true,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-            }
-        } else {
-            if ($v) {
-                DB::table('vinculo_usuario_lotacao')
-                    ->where('id', $v->id)
-                    ->update([
-                        'ativo' => false,
-                        'updated_at' => now(),
-                    ]);
-            }
+        if (!$usuario) {
+            return redirect()->route('config.usuarios.index')->with('error', 'Usuário não encontrado.');
         }
 
-        return response()->json(['ok' => true]);
+        $fotoPath = $usuario->foto;
+        if ($request->hasFile('foto')) {
+            $fotoPath = $request->file('foto')->store('usuarios', 'public');
+        }
+
+        DB::table('usuarios')
+            ->where('id', $id)
+            ->where('empresa_id', $empresaId)
+            ->update([
+                'nome_completo' => $request->nome_completo,
+                'cpf' => $cpf,
+                'permissao_id' => $request->permissao_id,
+                'email' => $request->email,
+                'telefone' => $telefone,
+                'data_expiracao' => $request->data_expiracao ?: null,
+                'status' => $request->status,
+                'foto' => $fotoPath,
+                'updated_at' => now(),
+            ]);
+
+        return redirect()
+            ->route('config.usuarios.edit', ['id' => $id])
+            ->with('success', 'Usuário atualizado com sucesso.');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | INATIVAR
+    |--------------------------------------------------------------------------
+    */
+    public function inativar($id)
+    {
+        $empresaId = auth()->user()->empresa_id;
+
+        DB::table('usuarios')
+            ->where('empresa_id', $empresaId)
+            ->where('id', (int) $id)
+            ->update([
+                'status' => 'inativo',
+                'updated_at' => now(),
+            ]);
+
+        return redirect()->route('config.usuarios.index')->with('success', 'Usuário inativado.');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | AJAX
+    |--------------------------------------------------------------------------
+    */
+    public function setoresPorFilial(Request $request)
+    {
+        return DB::table('setores')
+            ->select('id', 'nome')
+            ->where('empresa_id', auth()->user()->empresa_id)
+            ->where('filial_id', (int) $request->get('filial_id'))
+            ->whereNull('deleted_at')
+            ->orderBy('nome')
+            ->get();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | HELPERS
+    |--------------------------------------------------------------------------
+    */
+    private function getFiliais($empresaId)
+    {
+        return DB::table('filiais')
+            ->select('id', DB::raw("COALESCE(nome_fantasia, razao_social) as nome"))
+            ->where('empresa_id', $empresaId)
+            ->whereNull('deleted_at')
+            ->orderByRaw("COALESCE(nome_fantasia, razao_social)")
+            ->get();
+    }
+
+    private function getPermissoes($empresaId)
+    {
+        return DB::table('permissoes')
+            ->select('id', 'nome_grupo')
+            ->where('empresa_id', $empresaId)
+            ->whereNull('deleted_at')
+            ->orderBy('nome_grupo')
+            ->get();
     }
 }
