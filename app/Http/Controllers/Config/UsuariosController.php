@@ -18,7 +18,7 @@ class UsuariosController extends Controller
         $busca    = trim((string) $request->get('q', ''));
         $situacao = trim((string) $request->get('status', ''));
 
-        // Query base – SEM selectRaw, SEM gambiarra
+        // Query base – simples e segura
         $query = DB::table('usuarios as u')
             ->leftJoin('permissoes as p', 'p.id', '=', 'u.permissao_id')
             ->select(
@@ -63,7 +63,7 @@ class UsuariosController extends Controller
             ->groupBy('status')
             ->pluck('status');
 
-        // Permissões da tela (seguro)
+        // Permissões da tela
         $podeCadastrar = false;
         $podeEditar = false;
 
@@ -86,5 +86,14 @@ class UsuariosController extends Controller
             'podeCadastrar' => $podeCadastrar,
             'podeEditar' => $podeEditar,
         ]);
+    }
+
+    /**
+     * Tela de novo usuário (placeholder)
+     * Evita erro fatal ao clicar em "Novo Usuário"
+     */
+    public function create()
+    {
+        return view('config.usuarios.create');
     }
 }
