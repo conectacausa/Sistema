@@ -99,7 +99,7 @@ Route::domain('{sub}.conecttarh.com.br')
             
             Route::get('/config/grupos/{id}/editar', [GrupoPermissaoController::class, 'edit'])
                 ->whereNumber('id')
-                //->middleware('screen:11') //
+                ->middleware('screen:11') 
                 ->name('config.grupos.edit');
             
             Route::put('/config/grupos/{id}', [GrupoPermissaoController::class, 'update'])
