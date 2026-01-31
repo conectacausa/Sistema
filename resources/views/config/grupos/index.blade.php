@@ -8,7 +8,7 @@
   <meta name="author" content="">
   <link rel="icon" href="{{ asset('assets/images/favicon.ico') }}">
 
-  <title>{{ config('app.name', 'ConecttaRH') }} | Grupo de Permissão</title>
+  <title>{{ config('app.name', 'ConecttaRH') }} | Grupos de Permissão</title>
 
   <!-- Vendors Style-->
   <link rel="stylesheet" href="{{ asset('assets/css/vendors_css.css') }}">
@@ -29,29 +29,29 @@
   {{-- Menu --}}
   @include('partials.menu')
 
-  <!-- Content Wrapper. Contains page content -->
+  <!-- Content Wrapper -->
   <div class="content-wrapper">
     <div class="container-full">
 
-      <!-- Content Header (Page header) -->
+      <!-- Content Header -->
       <div class="content-header">
         <div class="d-flex align-items-center">
           <div class="me-auto">
             <h4 class="page-title">Grupos de Permissão</h4>
-            <div class="d-inline-block align-items-center">
-              <nav>
-                <ol class="breadcrumb">
-                  <li class="breadcrumb-item">
-                    <a href="{{ url('/') }}"><i class="mdi mdi-home-outline"></i></a>
-                  </li>
-                  <li class="breadcrumb-item">Configuração</li>
-                  <li class="breadcrumb-item" aria-current="page">Grupos de Permissão</li>
-                </ol>
-              </nav>
-            </div>
+            <nav>
+              <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                  <a href="{{ route('dashboard') }}">
+                    <i class="mdi mdi-home-outline"></i>
+                  </a>
+                </li>
+                <li class="breadcrumb-item">Configuração</li>
+                <li class="breadcrumb-item active">Grupos de Permissão</li>
+              </ol>
+            </nav>
           </div>
 
-          <a href="{{ route('config.grupos.create') ?? '#' }}"
+          <a href="{{ route('config.grupos.create') }}"
              class="waves-effect waves-light btn mb-5 bg-gradient-success">
             Novo Grupo
           </a>
@@ -75,17 +75,19 @@
                     <div class="col-md-12">
                       <div class="form-group">
                         <label class="form-label">Nome do Grupo</label>
-                        <input type="text"
-                               name="nome_grupo"
-                               value="{{ request('nome_grupo') }}"
-                               class="form-control"
-                               placeholder="Nome do Grupo">
+                        <input
+                          type="text"
+                          name="nome_grupo"
+                          value="{{ request('nome_grupo') }}"
+                          class="form-control"
+                          placeholder="Nome do Grupo">
                       </div>
                     </div>
                   </div>
 
                   <div class="d-flex gap-2">
-                    <button type="submit" class="btn btn-primary waves-effect waves-light">
+                    <button type="submit"
+                            class="btn btn-primary waves-effect waves-light">
                       Filtrar
                     </button>
 
@@ -106,7 +108,7 @@
           <div class="col-12">
             <div class="box">
               <div class="box-header with-border">
-                <h4 class="box-title">Grupo de Permissão</h4>
+                <h4 class="box-title">Grupos de Permissão</h4>
               </div>
 
               <div class="box-body">
@@ -114,9 +116,9 @@
                   <table class="table">
                     <thead class="bg-primary">
                       <tr>
-                        <th>Nome Grupo</th>
+                        <th>Nome do Grupo</th>
                         <th>Usuários</th>
-                        <th>Ações</th>
+                        <th width="160">Ações</th>
                       </tr>
                     </thead>
 
@@ -130,26 +132,24 @@
                             @endif
                           </td>
 
-                          <td>{{ (int) $g->usuarios_count }}</td>
+                          <td>
+                            {{ $g->usuarios_count ?? 0 }}
+                          </td>
 
                           <td>
                             <div class="d-flex gap-1">
-                              <a href="{{ route('config.grupos.edit', $g->id) ?? '#' }}"
+                              <a href="{{ route('config.grupos.edit', $g->id) }}"
                                  class="btn btn-sm btn-primary">
                                 Editar
                               </a>
 
-                              <a href="{{ route('config.grupos.permissoes', $g->id) ?? '#' }}"
-                                 class="btn btn-sm btn-info">
-                                Permissões
-                              </a>
-
-                              <form action="{{ route('config.grupos.destroy', $g->id) ?? '#' }}"
+                              <form action="{{ route('config.grupos.destroy', $g->id) }}"
                                     method="POST"
                                     onsubmit="return confirm('Confirma a exclusão deste grupo?');">
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-danger">
+                                <button type="submit"
+                                        class="btn btn-sm btn-danger">
                                   Excluir
                                 </button>
                               </form>
@@ -159,7 +159,7 @@
                       @empty
                         <tr>
                           <td colspan="3" class="text-center">
-                            Nenhum grupo encontrado.
+                            Nenhum grupo de permissão encontrado.
                           </td>
                         </tr>
                       @endforelse
@@ -193,8 +193,8 @@
 <script src="{{ asset('assets/js/pages/chat-popup.js') }}"></script>
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
 
-<!-- Coup Admin App -->
-<script src="{{ asset('assets/js/demo.js') }}"></script>
+<!-- App -->
+<script src="{{ asset('assets/js/demo.js') }}"></cript>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
 </body>
