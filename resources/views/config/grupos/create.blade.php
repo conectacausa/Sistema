@@ -73,7 +73,6 @@
                                value="{{ old('nome_grupo') }}"
                                maxlength="160"
                                required>
-
                         @error('nome_grupo')
                           <div class="text-danger mt-1">{{ $message }}</div>
                         @enderror
@@ -81,14 +80,9 @@
                     </div>
                   </div>
 
-                  <div class="d-flex gap-2">
-                    <a href="{{ route('config.grupos.index') }}"
-                       class="btn btn-outline-secondary waves-effect waves-light">
-                      Voltar
-                    </a>
-
-                    <button type="submit"
-                            class="btn btn-primary waves-effect waves-light">
+                  {{-- ✅ Somente Salvar à direita --}}
+                  <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary waves-effect waves-light">
                       Salvar
                     </button>
                   </div>
@@ -111,6 +105,5 @@
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
-
 </body>
 </html>
