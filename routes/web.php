@@ -46,6 +46,10 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->middleware('screen:10')
                 ->name('config.usuarios.create');
 
+            Route::post('/config/usuarios', [UsuariosController::class, 'store'])
+                ->middleware('screen:10')
+                ->name('config.usuarios.store');
+
             Route::get('/config/usuarios/{id}/editar', [UsuariosController::class, 'edit'])
                 ->whereNumber('id')
                 ->middleware('screen:10')
