@@ -23,17 +23,13 @@
 <div class="wrapper">
   <div id="loader"></div>
 
-  {{-- HEADER (padrão projeto) --}}
+  {{-- HEADER / MENU (pasta partials) --}}
   @include('partials.header')
-
-  {{-- MENU (padrão projeto) --}}
   @include('partials.menu')
 
-  <!-- Content Wrapper. Contains page content -->
   <div class="content-wrapper">
     <div class="container-full">
 
-      <!-- Content Header (Page header) -->
       <div class="content-header">
         <div class="d-flex align-items-center">
           <div class="me-auto">
@@ -51,17 +47,17 @@
             </div>
           </div>
 
-          <a href="{{ route('config.usuarios.create') }}"
-             class="waves-effect waves-light btn mb-5 bg-gradient-success">
-            Novo Usuário
-          </a>
+          @if(!empty($podeCadastrar) && $podeCadastrar)
+            <a href="{{ route('config.usuarios.create') }}"
+               class="waves-effect waves-light btn mb-5 bg-gradient-success">
+              Novo Usuário
+            </a>
+          @endif
         </div>
       </div>
 
-      <!-- Main content -->
       <section class="content">
 
-        {{-- Alerts --}}
         @if(session('success'))
           <div class="alert alert-success">{{ session('success') }}</div>
         @endif
@@ -114,11 +110,8 @@
                   </div>
                 </form>
 
-                <small class="text-muted">
-                  Os filtros são aplicados automaticamente.
-                </small>
+                <small class="text-muted">Os filtros são aplicados automaticamente.</small>
               </div>
-
             </div>
           </div>
         </div>
@@ -140,7 +133,7 @@
                         <th>CPF</th>
                         <th>Grupo de Permissão</th>
                         <th>Situação</th>
-                        <th style="width: 120px;">Ações</th>
+                        <th style="width: 140px;">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -164,23 +157,29 @@
                             </span>
                           </td>
                           <td class="d-flex gap-2">
-                            <a href="{{ route('config.usuarios.edit', $u->id) }}"
-                               class="btn btn-sm btn-outline-primary"
-                               title="Editar">
-                              <i data-feather="edit"></i>
-                            </a>
 
-                            <form method="POST"
-                                  action="{{ route('config.usuarios.destroy', $u->id) }}"
-                                  class="d-inline form-delete-usuario">
-                              @csrf
-                              @method('DELETE')
-                              <button type="submit"
-                                      class="btn btn-sm btn-outline-danger"
-                                      title="Excluir">
-                                <i data-feather="trash-2"></i>
-                              </button>
-                            </form>
+                            @if(!empty($podeEditar) && $podeEditar)
+                              <a href="{{ route('config.usuarios.edit', $u->id) }}"
+                                 class="btn btn-sm btn-outline-primary"
+                                 title="Editar">
+                                <i data-feather="edit"></i>
+                              </a>
+
+                              <form method="POST"
+                                    action="{{ route('config.usuarios.destroy', $u->id) }}"
+                                    class="d-inline form-delete-usuario">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit"
+                                        class="btn btn-sm btn-outline-danger"
+                                        title="Excluir">
+                                  <i data-feather="trash-2"></i>
+                                </button>
+                              </form>
+                            @else
+                              <span class="text-muted">—</span>
+                            @endif
+
                           </td>
                         </tr>
                       @empty
@@ -202,23 +201,17 @@
         </div>
 
       </section>
-      <!-- /.content -->
-
     </div>
   </div>
-  <!-- /.content-wrapper -->
 
-  {{-- FOOTER (padrão projeto) --}}
+  {{-- FOOTER (pasta partials) --}}
   @include('partials.footer')
 </div>
-<!-- ./wrapper -->
 
-<!-- Vendor JS -->
 <script src="{{ asset('assets/js/vendors.min.js') }}"></script>
 <script src="{{ asset('assets/js/pages/chat-popup.js') }}"></script>
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
 
-<!-- Coup Admin App -->
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
@@ -226,7 +219,6 @@
   document.addEventListener('DOMContentLoaded', function () {
     if (window.feather) feather.replace();
 
-    // Confirm simples (mantendo padrão funcional)
     document.querySelectorAll('.form-delete-usuario').forEach(function (form) {
       form.addEventListener('submit', function (e) {
         if (!confirm('Confirma a exclusão deste usuário?')) {
@@ -235,7 +227,7 @@
       });
     });
 
-    // Filtro automático
+    // Filtro automático (sem botões)
     const form = document.getElementById('filtersForm');
     const qInput = document.getElementById('qInput');
     const statusSelect = document.getElementById('statusSelect');
