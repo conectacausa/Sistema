@@ -8,7 +8,7 @@
   <meta name="author" content="">
   <link rel="icon" href="{{ asset('assets/images/favicon.ico') }}">
 
-  <title>{{ config('app.name', 'ConecttaRH') }} | Grupos de Permissão</title>
+  <title>{{ config('app.name', 'ConecttaRH') }} | Grupo de Permissão</title>
 
   <!-- Vendors Style-->
   <link rel="stylesheet" href="{{ asset('assets/css/vendors_css.css') }}">
@@ -23,38 +23,49 @@
 <div class="wrapper">
   <div id="loader"></div>
 
-  {{-- Header --}}
-  @include('partials.header')
+  {{-- Incluir aqui o arquivo de header --}}
+  @includeIf('partials.header')
 
-  {{-- Menu --}}
-  @include('partials.menu')
+  {{-- Incluir menu aqui --}}
+  @includeIf('partials.menu')
 
-  <!-- Content Wrapper -->
+  <!-- Content Wrapper. Contains page content -->
   <div class="content-wrapper">
     <div class="container-full">
 
-      <!-- Content Header -->
+      <!-- Content Header (Page header) -->
       <div class="content-header">
         <div class="d-flex align-items-center">
           <div class="me-auto">
             <h4 class="page-title">Grupos de Permissão</h4>
-            <nav>
-              <ol class="breadcrumb">
-                <li class="breadcrumb-item">
-                  <a href="{{ route('dashboard') }}">
-                    <i class="mdi mdi-home-outline"></i>
-                  </a>
-                </li>
-                <li class="breadcrumb-item">Configuração</li>
-                <li class="breadcrumb-item active">Grupos de Permissão</li>
-              </ol>
-            </nav>
+            <div class="d-inline-block align-items-center">
+              <nav>
+                <ol class="breadcrumb">
+                  <li class="breadcrumb-item">
+                    <a href="{{ route('dashboard') }}">
+                      <i class="mdi mdi-home-outline"></i>
+                    </a>
+                  </li>
+                  <li class="breadcrumb-item">Configuração</li>
+                  <li class="breadcrumb-item" aria-current="page">Grupos de Permissão</li>
+                </ol>
+              </nav>
+            </div>
           </div>
 
-          <a href="{{ route('config.grupos.create') }}"
-             class="waves-effect waves-light btn mb-5 bg-gradient-success">
-            Novo Grupo
-          </a>
+          @if(\Illuminate\Support\Facades\Route::has('config.grupos.create'))
+            <a href="{{ route('config.grupos.create') }}"
+               class="waves-effect waves-light btn mb-5 bg-gradient-success">
+              Novo Grupo
+            </a>
+          @else
+            <button type="button"
+                    class="waves-effect waves-light btn mb-5 bg-gradient-success"
+                    disabled
+                    title="Rota config.grupos.create ainda não criada">
+              Novo Grupo
+            </button>
+          @endif
         </div>
       </div>
 
@@ -86,8 +97,7 @@
                   </div>
 
                   <div class="d-flex gap-2">
-                    <button type="submit"
-                            class="btn btn-primary waves-effect waves-light">
+                    <button type="submit" class="btn btn-primary waves-effect waves-light">
                       Filtrar
                     </button>
 
@@ -108,7 +118,7 @@
           <div class="col-12">
             <div class="box">
               <div class="box-header with-border">
-                <h4 class="box-title">Grupos de Permissão</h4>
+                <h4 class="box-title">Grupo de Permissão</h4>
               </div>
 
               <div class="box-body">
@@ -116,9 +126,9 @@
                   <table class="table">
                     <thead class="bg-primary">
                       <tr>
-                        <th>Nome do Grupo</th>
+                        <th>Nome Grupo</th>
                         <th>Usuários</th>
-                        <th width="160">Ações</th>
+                        <th>Ações</th>
                       </tr>
                     </thead>
 
@@ -127,39 +137,51 @@
                         <tr>
                           <td>
                             {{ $g->nome_grupo }}
-                            @if(!$g->status)
+                            @if(isset($g->status) && !$g->status)
                               <span class="badge badge-danger ms-2">Inativo</span>
                             @endif
                           </td>
 
-                          <td>
-                            {{ $g->usuarios_count ?? 0 }}
-                          </td>
+                          <td>{{ $g->usuarios_count ?? 0 }}</td>
 
                           <td>
                             <div class="d-flex gap-1">
-                              <a href="{{ route('config.grupos.edit', $g->id) }}"
-                                 class="btn btn-sm btn-primary">
-                                Editar
-                              </a>
+                              @if(\Illuminate\Support\Facades\Route::has('config.grupos.edit'))
+                                <a href="{{ route('config.grupos.edit', $g->id) }}"
+                                   class="btn btn-sm btn-primary">
+                                  Editar
+                                </a>
+                              @else
+                                <button class="btn btn-sm btn-primary" disabled
+                                        title="Rota config.grupos.edit ainda não criada">
+                                  Editar
+                                </button>
+                              @endif
 
-                              <form action="{{ route('config.grupos.destroy', $g->id) }}"
-                                    method="POST"
-                                    onsubmit="return confirm('Confirma a exclusão deste grupo?');">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit"
-                                        class="btn btn-sm btn-danger">
+                              @if(\Illuminate\Support\Facades\Route::has('config.grupos.destroy'))
+                                <form action="{{ route('config.grupos.destroy', $g->id) }}"
+                                      method="POST"
+                                      onsubmit="return confirm('Confirma a exclusão deste grupo?');"
+                                      style="display:inline;">
+                                  @csrf
+                                  @method('DELETE')
+                                  <button type="submit" class="btn btn-sm btn-danger">
+                                    Excluir
+                                  </button>
+                                </form>
+                              @else
+                                <button class="btn btn-sm btn-danger" disabled
+                                        title="Rota config.grupos.destroy ainda não criada">
                                   Excluir
                                 </button>
-                              </form>
+                              @endif
                             </div>
                           </td>
                         </tr>
                       @empty
                         <tr>
                           <td colspan="3" class="text-center">
-                            Nenhum grupo de permissão encontrado.
+                            Nenhum grupo encontrado.
                           </td>
                         </tr>
                       @endforelse
@@ -183,8 +205,9 @@
   </div>
   <!-- /.content-wrapper -->
 
-  {{-- Footer --}}
-  @include('partials.footer')
+  {{-- Incluir footer aqui --}}
+  @includeIf('partials.footer')
+
 </div>
 <!-- ./wrapper -->
 
@@ -193,8 +216,8 @@
 <script src="{{ asset('assets/js/pages/chat-popup.js') }}"></script>
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
 
-<!-- App -->
-<script src="{{ asset('assets/js/demo.js') }}"></cript>
+<!-- Coup Admin App -->
+<script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
 </body>
