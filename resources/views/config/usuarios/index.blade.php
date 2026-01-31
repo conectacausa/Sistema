@@ -74,36 +74,40 @@
                 <h4 class="box-title">Filtros</h4>
               </div>
               <div class="box-body">
-                <form method="GET">
+                <form method="GET" id="filtersForm">
                   <div class="row">
                     <div class="col-md-10">
                       <div class="form-group">
                         <label class="form-label">Nome ou CPF</label>
-                        <input type="text"
-                               name="q"
-                               value="{{ $busca ?? '' }}"
-                               class="form-control"
-                               placeholder="Nome ou CPF">
+                        <input
+                          type="text"
+                          name="q"
+                          id="filter-q"
+                          value="{{ $busca }}"
+                          class="form-control"
+                          placeholder="Nome ou CPF"
+                          autocomplete="off"
+                        >
                       </div>
                     </div>
-
+                
                     <div class="col-md-2">
                       <div class="form-group">
                         <label class="form-label">Situação</label>
-                        <select name="status"
-                                class="form-select"
-                                onchange="this.form.submit()">
+                        <select
+                          name="status"
+                          id="filter-status"
+                          class="form-select"
+                        >
                           <option value="">Todas</option>
-                          @foreach($situacoes ?? [] as $st)
-                            <option value="{{ $st }}"
-                              {{ ($situacaoSelecionada ?? '') === $st ? 'selected' : '' }}>
+                          @foreach($situacoes as $st)
+                            <option value="{{ $st }}" {{ $situacaoSelecionada === $st ? 'selected' : '' }}>
                               {{ ucfirst($st) }}
                             </option>
                           @endforeach
                         </select>
                       </div>
                     </div>
-
                   </div>
                 </form>
               </div>
@@ -174,8 +178,32 @@
 <script src="{{ asset('assets/js/pages/chat-popup.js') }}"></script>
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
 
-    <script src="{{ asset('assets/js/demo.js') }}"></script>
+<script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const form = document.getElementById('filtersForm');
+            const inputQ = document.getElementById('filter-q');
+            const selectStatus = document.getElementById('filter-status');
+        
+            let typingTimer = null;
+            const debounceTime = 400; // ms
+        
+            // Digitação no campo Nome/CPF
+            inputQ.addEventListener('input', function () {
+                clearTimeout(typingTimer);
+                typingTimer = setTimeout(function () {
+                    form.submit();
+                }, debounceTime);
+            });
+        
+            // Mudança no select Situação
+            selectStatus.addEventListener('change', function () {
+                form.submit();
+            });
+        });
+</script>
 
 </body>
 </html>
