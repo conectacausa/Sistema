@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Cargo\CboController;
 use App\Http\Controllers\Cargo\CargoController;
 use App\Http\Controllers\Recrutamento\FluxoAprovacaoController;
+use App\Http\Controllers\Cargo\HeadcountController;
 
 Route::domain('{sub}.conecttarh.com.br')
     ->middleware(['web', 'tenant'])
@@ -32,7 +33,6 @@ Route::domain('{sub}.conecttarh.com.br')
             |--------------------------------------------------------------------------
             */
 
-            // ✅ Tela Filiais (tela_id = 5)
             Route::get('/config/filiais', fn () => view('config.filiais.index'))
                 ->middleware('screen:5')
                 ->name('config.filiais.index');
@@ -43,51 +43,54 @@ Route::domain('{sub}.conecttarh.com.br')
             |--------------------------------------------------------------------------
             */
 
-            // ✅ Tela CBOs (tela_id = 6 | slug = cargos/cbo)
             Route::get('/cargos/cbo', [CboController::class, 'index'])
                 ->middleware('screen:6')
                 ->name('cargos.cbo.index');
 
-            // ✅ Novo CBO (placeholder por enquanto)
             Route::get('/cargos/cbo/novo', [CboController::class, 'create'])
                 ->middleware('screen:6')
                 ->name('cargos.cbo.create');
 
-Route::post('/cargos/cbo', [CboController::class, 'store'])
-    ->middleware('screen:6')
-    ->name('cargos.cbo.store');
+            Route::post('/cargos/cbo', [CboController::class, 'store'])
+                ->middleware('screen:6')
+                ->name('cargos.cbo.store');
 
-Route::get('/cargos/cbo/check', [CboController::class, 'checkCodigo'])
-    ->middleware('screen:6')
-    ->name('cargos.cbo.check');
+            Route::get('/cargos/cbo/check', [CboController::class, 'checkCodigo'])
+                ->middleware('screen:6')
+                ->name('cargos.cbo.check');
 
-            // ✅ Tela Cargos (tela_id = 7 | slug = cargos/cargos)
-Route::get('/cargos/cargos', [CargoController::class, 'index'])
-    ->middleware('screen:7')
-    ->name('cargos.cargos.index');
+            Route::get('/cargos/cargos', [CargoController::class, 'index'])
+                ->middleware('screen:7')
+                ->name('cargos.cargos.index');
 
-// placeholders (vamos implementar depois)
-Route::get('/cargos/cargos/novo', [CargoController::class, 'create'])
-    ->middleware('screen:7')
-    ->name('cargos.cargos.create');
+            Route::get('/cargos/cargos/novo', [CargoController::class, 'create'])
+                ->middleware('screen:7')
+                ->name('cargos.cargos.create');
 
-Route::get('/cargos/cargos/{id}/editar', [CargoController::class, 'edit'])
-    ->middleware('screen:7')
-    ->name('cargos.cargos.edit');
+            Route::get('/cargos/cargos/{id}/editar', [CargoController::class, 'edit'])
+                ->middleware('screen:7')
+                ->name('cargos.cargos.edit');
 
-            // ✅ Carregar setores pela filial (AJAX)
-Route::get('/cargos/setores-por-filial', [CargoController::class, 'setoresPorFilial'])
-    ->middleware('screen:7')
-    ->name('cargos.setores_por_filial');
+            Route::get('/cargos/setores-por-filial', [CargoController::class, 'setoresPorFilial'])
+                ->middleware('screen:7')
+                ->name('cargos.setores_por_filial');
 
-            Route::get('/cargos/qlp', [\App\Http\Controllers\Cargo\HeadcountController::class, 'index'])
-    ->name('cargos.headcount.index');
+            Route::get('/cargos/qlp', [HeadcountController::class, 'index'])
+                ->name('cargos.headcount.index');
 
-Route::get('/cargos/qlp/setores-por-filiais', [\App\Http\Controllers\Cargo\HeadcountController::class, 'setoresPorFiliais'])
-    ->name('cargos.headcount.setores_por_filiais');
+            Route::get('/cargos/qlp/setores-por-filiais', [HeadcountController::class, 'setoresPorFiliais'])
+                ->name('cargos.headcount.setores_por_filiais');
 
-            Route::prefix('recrutamento')->middleware(['auth'])->group(function () {
-    Route::resource('fluxo', FluxoAprovacaoController::class);
+            /*
+            |--------------------------------------------------------------------------
+            | RECRUTAMENTO E SELEÇÃO
+            |--------------------------------------------------------------------------
+            */
 
-        });
-    });
+            Route::prefix('recrutamento')->group(function () {
+                Route::resource('fluxo', FluxoAprovacaoController::class);
+            });
+
+        }); // 🔒 fecha middleware auth + tenant.user
+
+    }); // 🔒 fecha domain
