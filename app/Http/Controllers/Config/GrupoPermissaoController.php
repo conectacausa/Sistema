@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Empresa;
 use App\Models\Permissao;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class GrupoPermissaoController extends Controller
@@ -15,10 +16,12 @@ class GrupoPermissaoController extends Controller
         $sub = (string) request()->route('sub');
 
         if ($sub === '') {
-            abort(403, 'Subdomínio não identificado na rota (route sub vazio).');
+            abort(403, 'Subdomínio não identificado na rota.');
         }
 
-        $empresa = Empresa::query()->where('subdominio', $sub)->first();
+        $empresa = Empresa::query()
+            ->where('subdominio', $sub)
+            ->first();
 
         if (!$empresa) {
             abort(403, "Empresa não encontrada para subdominio='{$sub}'.");
@@ -68,6 +71,10 @@ class GrupoPermissaoController extends Controller
                     return $q->where('empresa_id', $empresa->id)->whereNull('deleted_at');
                 }),
             ],
+        ], [
+            'nome_grupo.required' => 'Informe o nome do grupo.',
+            'nome_grupo.max' => 'O nome do grupo deve ter no máximo 160 caracteres.',
+            'nome_grupo.unique' => 'Já existe um grupo com esse nome.',
         ]);
 
         $grupo = Permissao::create([
@@ -84,40 +91,55 @@ class GrupoPermissaoController extends Controller
         ]);
     }
 
-    /**
-     * ✅ EDIT DIAGNÓSTICO: não pode dar 404 "mudo".
-     */
-    public function edit($id)
+    public function edit(Request $request, $id)
     {
-        $sub = (string) request()->route('sub');
+        // ✅ DIAGNÓSTICO VISÍVEL MESMO COM APP_DEBUG=false
+        if ($request->query('diag') == '1') {
+            $sub = (string) request()->route('sub');
+            $empresa = Empresa::query()->where('subdominio', $sub)->first();
+
+            $conn = DB::connection();
+            $dbName = method_exists($conn, 'getDatabaseName') ? $conn->getDatabaseName() : null;
+            $driver = $conn->getDriverName();
+
+            $idInt = (int) $id;
+            $grupo = Permissao::query()->find($idInt);
+
+            return response()->json([
+                'reached' => true,
+                'route_sub' => $sub,
+                'empresa_found' => (bool) $empresa,
+                'empresa_id' => $empresa?->id,
+                'db_driver' => $driver,
+                'db_name' => $dbName,
+                'grupo_id' => $idInt,
+                'grupo_found' => (bool) $grupo,
+                'grupo_empresa_id' => $grupo?->empresa_id,
+            ], 200);
+        }
+
         $empresa = $this->empresaFromSub();
+        $id = (int) $id;
 
-        $idInt = (int) $id;
+        // Busca e valida empresa
+        $grupo = Permissao::query()->findOrFail($id);
 
-        // Busca o grupo SEM filtrar por empresa primeiro
-        $grupo = Permissao::query()->find($idInt);
-
-        if (!$grupo) {
-            abort(404, "DIAG: Grupo id={$idInt} não existe. sub={$sub} empresa_id_contexto={$empresa->id}");
+        if ((int) $grupo->empresa_id !== (int) $empresa->id) {
+            abort(403);
         }
 
-        if ((int)$grupo->empresa_id !== (int)$empresa->id) {
-            abort(403, "DIAG: Grupo id={$grupo->id} pertence empresa_id={$grupo->empresa_id}, mas contexto sub={$sub} é empresa_id={$empresa->id}");
-        }
-
-        // Se chegou aqui, está tudo certo: abre view
         return view('config.grupos.edit', compact('grupo'));
     }
 
     public function update(Request $request, $id)
     {
         $empresa = $this->empresaFromSub();
-        $idInt = (int) $id;
+        $id = (int) $id;
 
-        $grupo = Permissao::query()->findOrFail($idInt);
+        $grupo = Permissao::query()->findOrFail($id);
 
-        if ((int)$grupo->empresa_id !== (int)$empresa->id) {
-            abort(403, "DIAG: Grupo id={$grupo->id} pertence empresa_id={$grupo->empresa_id}, mas contexto empresa_id={$empresa->id}");
+        if ((int) $grupo->empresa_id !== (int) $empresa->id) {
+            abort(403);
         }
 
         $validated = $request->validate([
@@ -131,18 +153,19 @@ class GrupoPermissaoController extends Controller
                         return $q->where('empresa_id', $empresa->id)->whereNull('deleted_at');
                     }),
             ],
+        ], [
+            'nome_grupo.required' => 'Informe o nome do grupo.',
+            'nome_grupo.max' => 'O nome do grupo deve ter no máximo 160 caracteres.',
+            'nome_grupo.unique' => 'Já existe um grupo com esse nome.',
         ]);
 
-        $grupo->update(['nome_grupo' => $validated['nome_grupo']]);
+        $grupo->update([
+            'nome_grupo' => $validated['nome_grupo'],
+        ]);
 
         return redirect()->route('config.grupos.edit', [
             'sub' => request()->route('sub'),
             'id'  => $grupo->id,
-        ]);
-    }
-
-    public function destroy($id)
-    {
-        abort(501);
+        ])->with('success', 'Grupo atualizado com sucesso!');
     }
 }
