@@ -56,7 +56,7 @@
           {{-- Botão Novo Usuário --}}
           @if(!empty($podeCadastrar) && $podeCadastrar)
             <a href="{{ route('config.usuarios.create') }}"
-               class="waves-effect waves-light btn mb-5 bg-gradient-success">
+               class="waves-effect waves-light btn mb-5 bg-gradient-success btn-no-hover">
               Novo Usuário
             </a>
           @endif
