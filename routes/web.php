@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Cargo\CboController;
 use App\Http\Controllers\Cargo\CargoController;
+use App\Http\Controllers\Recrutamento\FluxoAprovacaoController;
 
 Route::domain('{sub}.conecttarh.com.br')
     ->middleware(['web', 'tenant'])
@@ -85,6 +86,8 @@ Route::get('/cargos/setores-por-filial', [CargoController::class, 'setoresPorFil
 Route::get('/cargos/qlp/setores-por-filiais', [\App\Http\Controllers\Cargo\HeadcountController::class, 'setoresPorFiliais'])
     ->name('cargos.headcount.setores_por_filiais');
 
+            Route::prefix('recrutamento')->middleware(['auth'])->group(function () {
+    Route::resource('fluxo', FluxoAprovacaoController::class);
 
         });
     });
