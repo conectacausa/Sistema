@@ -60,7 +60,7 @@
 
           @if(!empty($podeCadastrar) && $podeCadastrar)
             <a href="{{ route('config.usuarios.create') }}"
-               class="waves-effect waves-light btn mb-5 bg-gradient-success btn-no-hover">
+               class="waves-effect waves-light btn mb-5 bg-gradient-success">
               Novo Usuário
             </a>
           @endif
@@ -147,8 +147,32 @@
                             </span>
                           </td>
                           <td>
-                            {{-- ações (vamos recolocar depois, com calma) --}}
-                          </td>
+                          @if(!empty($podeEditar) && $podeEditar)
+                        
+                            {{-- Editar --}}
+                            <a href="{{ route('config.usuarios.edit', $u->id) }}"
+                               class="btn btn-sm btn-outline-primary"
+                               title="Editar">
+                              <i data-feather="edit"></i>
+                            </a>
+                        
+                            {{-- Inativar: só aparece se estiver ATIVO --}}
+                            @if(strtolower(trim((string)$u->status)) === 'ativo')
+                              <form method="POST"
+                                    action="{{ route('config.usuarios.inativar', $u->id) }}"
+                                    style="display:inline"
+                                    onsubmit="return confirm('Confirma inativar este usuário?');">
+                                @csrf
+                                <button type="submit"
+                                        class="btn btn-sm btn-outline-danger"
+                                        title="Inativar">
+                                  <i data-feather="user-x"></i>
+                                </button>
+                              </form>
+                            @endif
+                        
+                          @endif
+                        </td>
                         </tr>
                       @empty
                         <tr>
