@@ -10,38 +10,29 @@ use Illuminate\Validation\Rule;
 
 class GrupoPermissaoController extends Controller
 {
-    /**
-     * Empresa do contexto do request.
-     * Prioriza subdomínio. Se não resolver, tenta pelo usuário.
-     */
-    private function empresaIdFromContext(): int
+    private function empresaFromSub(): Empresa
     {
-        // 1) Pelo subdomínio {sub}
         $sub = (string) request()->route('sub');
-        if ($sub !== '') {
-            $empresa = Empresa::query()
-                ->where('subdominio', $sub)
-                ->first();
 
-            if ($empresa) {
-                return (int) $empresa->id;
-            }
+        if ($sub === '') {
+            abort(403, 'Subdomínio não identificado na rota (route sub vazio).');
         }
 
-        // 2) Fallback pelo usuário logado
-        if (auth()->check() && !empty(auth()->user()->empresa_id)) {
-            return (int) auth()->user()->empresa_id;
+        $empresa = Empresa::query()->where('subdominio', $sub)->first();
+
+        if (!$empresa) {
+            abort(403, "Empresa não encontrada para subdominio='{$sub}'.");
         }
 
-        abort(403, 'Não foi possível identificar a empresa do contexto (subdomínio/usuário).');
+        return $empresa;
     }
 
     public function index(Request $request)
     {
-        $empresaId = $this->empresaIdFromContext();
+        $empresa = $this->empresaFromSub();
 
         $query = Permissao::query()
-            ->where('empresa_id', $empresaId)
+            ->where('empresa_id', $empresa->id)
             ->withCount('usuarios')
             ->orderBy('nome_grupo');
 
@@ -66,64 +57,67 @@ class GrupoPermissaoController extends Controller
 
     public function store(Request $request)
     {
-        $empresaId = $this->empresaIdFromContext();
+        $empresa = $this->empresaFromSub();
 
         $validated = $request->validate([
             'nome_grupo' => [
                 'required',
                 'string',
                 'max:160',
-                Rule::unique('permissoes', 'nome_grupo')->where(function ($q) use ($empresaId) {
-                    return $q->where('empresa_id', $empresaId)->whereNull('deleted_at');
+                Rule::unique('permissoes', 'nome_grupo')->where(function ($q) use ($empresa) {
+                    return $q->where('empresa_id', $empresa->id)->whereNull('deleted_at');
                 }),
             ],
-        ], [
-            'nome_grupo.required' => 'Informe o nome do grupo.',
-            'nome_grupo.max' => 'O nome do grupo deve ter no máximo 160 caracteres.',
-            'nome_grupo.unique' => 'Já existe um grupo com esse nome.',
         ]);
 
         $grupo = Permissao::create([
-            'empresa_id'  => $empresaId,
+            'empresa_id'  => $empresa->id,
             'nome_grupo'  => $validated['nome_grupo'],
             'observacoes' => null,
             'status'      => true,
             'salarios'    => false,
         ]);
 
-        return redirect()
-            ->route('config.grupos.edit', [
-                'sub' => request()->route('sub'),
-                'id'  => $grupo->id,
-            ])
-            ->with('success', 'Grupo criado com sucesso!');
+        return redirect()->route('config.grupos.edit', [
+            'sub' => request()->route('sub'),
+            'id'  => $grupo->id,
+        ]);
     }
 
+    /**
+     * ✅ EDIT DIAGNÓSTICO: não pode dar 404 "mudo".
+     */
     public function edit($id)
     {
-        $empresaId = $this->empresaIdFromContext();
-        $id = (int) $id;
+        $sub = (string) request()->route('sub');
+        $empresa = $this->empresaFromSub();
 
-        // ✅ busca SEM filtrar por empresa para não dar 404 “misterioso”
-        $grupo = Permissao::query()->findOrFail($id);
+        $idInt = (int) $id;
 
-        // ✅ se não for da empresa do contexto, retorna 403 explicando
-        if ((int) $grupo->empresa_id !== (int) $empresaId) {
-            abort(403, "Grupo {$grupo->id} pertence à empresa_id={$grupo->empresa_id}, mas o contexto atual é empresa_id={$empresaId} (sub=".(string)request()->route('sub').").");
+        // Busca o grupo SEM filtrar por empresa primeiro
+        $grupo = Permissao::query()->find($idInt);
+
+        if (!$grupo) {
+            abort(404, "DIAG: Grupo id={$idInt} não existe. sub={$sub} empresa_id_contexto={$empresa->id}");
         }
 
+        if ((int)$grupo->empresa_id !== (int)$empresa->id) {
+            abort(403, "DIAG: Grupo id={$grupo->id} pertence empresa_id={$grupo->empresa_id}, mas contexto sub={$sub} é empresa_id={$empresa->id}");
+        }
+
+        // Se chegou aqui, está tudo certo: abre view
         return view('config.grupos.edit', compact('grupo'));
     }
 
     public function update(Request $request, $id)
     {
-        $empresaId = $this->empresaIdFromContext();
-        $id = (int) $id;
+        $empresa = $this->empresaFromSub();
+        $idInt = (int) $id;
 
-        $grupo = Permissao::query()->findOrFail($id);
+        $grupo = Permissao::query()->findOrFail($idInt);
 
-        if ((int) $grupo->empresa_id !== (int) $empresaId) {
-            abort(403, "Grupo {$grupo->id} pertence à empresa_id={$grupo->empresa_id}, mas o contexto atual é empresa_id={$empresaId}.");
+        if ((int)$grupo->empresa_id !== (int)$empresa->id) {
+            abort(403, "DIAG: Grupo id={$grupo->id} pertence empresa_id={$grupo->empresa_id}, mas contexto empresa_id={$empresa->id}");
         }
 
         $validated = $request->validate([
@@ -133,25 +127,22 @@ class GrupoPermissaoController extends Controller
                 'max:160',
                 Rule::unique('permissoes', 'nome_grupo')
                     ->ignore($grupo->id)
-                    ->where(function ($q) use ($empresaId) {
-                        return $q->where('empresa_id', $empresaId)->whereNull('deleted_at');
+                    ->where(function ($q) use ($empresa) {
+                        return $q->where('empresa_id', $empresa->id)->whereNull('deleted_at');
                     }),
             ],
-        ], [
-            'nome_grupo.required' => 'Informe o nome do grupo.',
-            'nome_grupo.max' => 'O nome do grupo deve ter no máximo 160 caracteres.',
-            'nome_grupo.unique' => 'Já existe um grupo com esse nome.',
         ]);
 
-        $grupo->update([
-            'nome_grupo' => $validated['nome_grupo'],
-        ]);
+        $grupo->update(['nome_grupo' => $validated['nome_grupo']]);
 
-        return redirect()
-            ->route('config.grupos.edit', [
-                'sub' => request()->route('sub'),
-                'id'  => $grupo->id,
-            ])
-            ->with('success', 'Grupo atualizado com sucesso!');
+        return redirect()->route('config.grupos.edit', [
+            'sub' => request()->route('sub'),
+            'id'  => $grupo->id,
+        ]);
+    }
+
+    public function destroy($id)
+    {
+        abort(501);
     }
 }
