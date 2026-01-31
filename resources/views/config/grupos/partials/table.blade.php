@@ -20,9 +20,7 @@
         </tr>
       @empty
         <tr>
-          <td colspan="2" class="text-center">
-            Nenhum grupo encontrado
-          </td>
+          <td colspan="2" class="text-center">Nenhum grupo encontrado.</td>
         </tr>
       @endforelse
     </tbody>
