@@ -174,9 +174,5 @@
 <script src="{{ asset('assets/js/pages/chat-popup.js') }}"></script>
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
 
-<!-- Coup Admin App -->
-<script src="{{ asset('assets/js/demo.js') }}"></cript>
-<script src="{{ asset('assets/js/template.js') }}"></script>
-
 </body>
 </html>
