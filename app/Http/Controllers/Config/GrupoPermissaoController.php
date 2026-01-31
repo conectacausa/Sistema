@@ -66,14 +66,16 @@ class GrupoPermissaoController extends Controller
             'salarios'    => false,
         ]);
 
-        // ✅ Redireciona para editar
         return redirect()
-            ->route('config.grupos.edit', $grupo->id)
+            ->route('config.grupos.edit', ['id' => $grupo->id])
             ->with('success', 'Grupo criado com sucesso!');
     }
 
-    public function edit(int $id)
+    // ✅ REMOVIDO "int" para não quebrar com string do parâmetro de rota
+    public function edit($id)
     {
+        $id = (int) $id;
+
         $tenant = app()->bound('tenant') ? app('tenant') : null;
         $empresaId = $tenant->id ?? (auth()->user()->empresa_id ?? null);
 
@@ -84,8 +86,11 @@ class GrupoPermissaoController extends Controller
         return view('config.grupos.edit', compact('grupo'));
     }
 
-    public function update(Request $request, int $id)
+    // ✅ REMOVIDO "int" para consistência
+    public function update(Request $request, $id)
     {
+        $id = (int) $id;
+
         $tenant = app()->bound('tenant') ? app('tenant') : null;
         $empresaId = $tenant->id ?? (auth()->user()->empresa_id ?? null);
 
@@ -115,7 +120,7 @@ class GrupoPermissaoController extends Controller
         ]);
 
         return redirect()
-            ->route('config.grupos.edit', $grupo->id)
+            ->route('config.grupos.edit', ['id' => $grupo->id])
             ->with('success', 'Grupo atualizado com sucesso!');
     }
 }
