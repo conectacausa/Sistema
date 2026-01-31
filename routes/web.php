@@ -50,6 +50,10 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->middleware('screen:10')
                 ->name('config.usuarios.destroy');
 
+            Route::get('/config/usuarios/novo', [UsuariosController::class, 'create'])
+                ->middleware('screen:10')
+                ->name('config.usuarios.create');
+
             /*
             |--------------------------------------------------------------------------
             | CADASTROS → CARGOS
