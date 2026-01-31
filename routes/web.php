@@ -69,6 +69,20 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->whereNumber('id')
                 ->middleware('screen:10')
                 ->name('config.usuarios.inativar');
+
+            Route::get('/config/usuarios/setores-por-filial', [UsuariosController::class, 'setoresPorFilial'])
+                ->whereNumber('filial_id')
+                ->middleware('screen:10')
+                ->name('config.usuarios.setores_por_filial');
+            
+            Route::get('/config/usuarios/lotacoes-grid', [UsuariosController::class, 'lotacoesGrid'])
+                ->middleware('screen:10')
+                ->name('config.usuarios.lotacoes_grid');
+            
+            Route::post('/config/usuarios/toggle-lotacao', [UsuariosController::class, 'toggleLotacao'])
+                ->middleware('screen:10')
+                ->name('config.usuarios.toggle_lotacao');
+
                     
             /*
             |--------------------------------------------------------------------------
