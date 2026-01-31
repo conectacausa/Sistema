@@ -45,6 +45,11 @@ Route::domain('{sub}.conecttarh.com.br')
             Route::get('/config/usuarios/{id}/editar', [UsuariosController::class, 'edit'])
                 ->middleware('screen:10')
                 ->name('config.usuarios.edit');
+
+            Route::put('/config/usuarios/{id}', [UsuariosController::class, 'update'])
+                ->whereNumber('id')
+                ->middleware('screen:10')
+                ->name('config.usuarios.update');
             
             Route::delete('/config/usuarios/{id}', [UsuariosController::class, 'destroy'])
                 ->middleware('screen:10')
@@ -57,6 +62,10 @@ Route::domain('{sub}.conecttarh.com.br')
             Route::post('/config/usuarios', [UsuariosController::class, 'store'])
                 ->middleware('screen:10')
                 ->name('config.usuarios.store');
+            Route::post('/config/usuarios/{id}/inativar', [UsuariosController::class, 'inativar'])
+                ->whereNumber('id')
+                ->middleware('screen:10')
+                ->name('config.usuarios.inativar');
 
             /*
             |--------------------------------------------------------------------------
