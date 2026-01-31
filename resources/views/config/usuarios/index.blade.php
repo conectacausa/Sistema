@@ -150,13 +150,8 @@
                           @if(!empty($podeEditar) && $podeEditar)
                         
                             {{-- Editar --}}
-                            <a href="{{ route('config.usuarios.edit', ['id' => $u->id]) }}"
-                               class="btn btn-sm btn-outline-primary js-action-link"
-                               title="Editar">
-                              <span class="d-inline-flex align-items-center">
-                                <i data-feather="edit"></i>
-                              </span>
-                            </a>
+                            <a href="{{ route('config.usuarios.edit', ['id' => $u->id]) }}">EDITAR TESTE</a>
+
                         
                             {{-- Inativar: só aparece se estiver ATIVO --}}
                             @if(strtolower(trim((string)$u->status)) === 'ativo')
