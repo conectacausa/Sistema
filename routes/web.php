@@ -86,6 +86,7 @@ Route::domain('{sub}.conecttarh.com.br')
             Route::get('/config/grupos', [GrupoPermissaoController::class, 'index'])
                 ->middleware('screen:11')
                 ->name('config.grupos.index');
+
             
             // (Deixa preparado pro próximo passo)
             Route::get('/config/grupos/novo', [GrupoPermissaoController::class, 'create'])
