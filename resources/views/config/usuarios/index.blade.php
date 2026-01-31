@@ -174,5 +174,8 @@
 <script src="{{ asset('assets/js/pages/chat-popup.js') }}"></script>
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
 
+    <script src="{{ asset('assets/js/demo.js') }}"></script>
+<script src="{{ asset('assets/js/template.js') }}"></script>
+
 </body>
 </html>
