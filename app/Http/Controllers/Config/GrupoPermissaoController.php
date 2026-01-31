@@ -9,10 +9,28 @@ use Illuminate\Validation\Rule;
 
 class GrupoPermissaoController extends Controller
 {
+    private function empresaId(): int
+    {
+        // Seu middleware tenant já deve setar app('tenant')
+        $tenant = app()->bound('tenant') ? app('tenant') : null;
+
+        // Prioriza tenant (mais confiável)
+        if ($tenant && isset($tenant->id) && $tenant->id) {
+            return (int) $tenant->id;
+        }
+
+        // Fallback (se existir no usuário)
+        if (auth()->check() && isset(auth()->user()->empresa_id) && auth()->user()->empresa_id) {
+            return (int) auth()->user()->empresa_id;
+        }
+
+        // Se cair aqui, é problema de contexto tenant/user
+        abort(403, 'Empresa não definida no contexto do tenant.');
+    }
+
     public function index(Request $request)
     {
-        $tenant = app()->bound('tenant') ? app('tenant') : null;
-        $empresaId = $tenant->id ?? (auth()->user()->empresa_id ?? null);
+        $empresaId = $this->empresaId();
 
         $query = Permissao::query()
             ->where('empresa_id', $empresaId)
@@ -40,8 +58,7 @@ class GrupoPermissaoController extends Controller
 
     public function store(Request $request)
     {
-        $tenant = app()->bound('tenant') ? app('tenant') : null;
-        $empresaId = $tenant->id ?? (auth()->user()->empresa_id ?? null);
+        $empresaId = $this->empresaId();
 
         $validated = $request->validate([
             'nome_grupo' => [
@@ -71,32 +88,29 @@ class GrupoPermissaoController extends Controller
             ->with('success', 'Grupo criado com sucesso!');
     }
 
-    // ✅ REMOVIDO "int" para não quebrar com string do parâmetro de rota
     public function edit($id)
     {
+        $empresaId = $this->empresaId();
         $id = (int) $id;
 
-        $tenant = app()->bound('tenant') ? app('tenant') : null;
-        $empresaId = $tenant->id ?? (auth()->user()->empresa_id ?? null);
-
+        // ✅ IMPORTANTÍSSIMO: filtra por empresa_id + id na mesma query
         $grupo = Permissao::query()
             ->where('empresa_id', $empresaId)
-            ->findOrFail($id);
+            ->where('id', $id)
+            ->firstOrFail();
 
         return view('config.grupos.edit', compact('grupo'));
     }
 
-    // ✅ REMOVIDO "int" para consistência
     public function update(Request $request, $id)
     {
+        $empresaId = $this->empresaId();
         $id = (int) $id;
-
-        $tenant = app()->bound('tenant') ? app('tenant') : null;
-        $empresaId = $tenant->id ?? (auth()->user()->empresa_id ?? null);
 
         $grupo = Permissao::query()
             ->where('empresa_id', $empresaId)
-            ->findOrFail($id);
+            ->where('id', $id)
+            ->firstOrFail();
 
         $validated = $request->validate([
             'nome_grupo' => [
