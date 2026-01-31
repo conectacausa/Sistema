@@ -30,7 +30,6 @@
             <h4 class="page-title">Usuários</h4>
           </div>
 
-          {{-- botão simples, sem CSS extra --}}
           @if(!empty($podeCadastrar) && $podeCadastrar)
             <a href="{{ route('config.usuarios.create') }}"
                class="btn btn-success">
@@ -42,7 +41,7 @@
 
       <section class="content">
 
-        {{-- filtros simples --}}
+        <!-- FILTROS -->
         <div class="row">
           <div class="col-12">
             <div class="box">
@@ -53,11 +52,12 @@
                       <input type="text"
                              name="q"
                              class="form-control"
-                             placeholder="Nome ou CPF"
+                             placeholder="Nome"
                              value="{{ $busca ?? '' }}">
                     </div>
                     <div class="col-md-2">
-                      <select name="status" class="form-select"
+                      <select name="status"
+                              class="form-select"
                               onchange="this.form.submit()">
                         <option value="">Todas</option>
                         @foreach($situacoes ?? [] as $st)
@@ -75,7 +75,7 @@
           </div>
         </div>
 
-        {{-- tabela --}}
+        <!-- TABELA -->
         <div class="row">
           <div class="col-12">
             <div class="box">
@@ -84,26 +84,20 @@
                   <thead class="bg-primary">
                     <tr>
                       <th>Nome</th>
-                      <th>CPF</th>
-                      <th>Grupo</th>
-                      <th>Status</th>
-                      <th>Ações</th>
+                      <th>Grupo de Permissão</th>
+                      <th>Situação</th>
                     </tr>
                   </thead>
                   <tbody>
                   @forelse($usuarios ?? [] as $u)
                     <tr>
                       <td>{{ $u->nome_completo }}</td>
-                      <td>{{ $u->cpf }}</td>
                       <td>{{ $u->grupo_permissao ?? '-' }}</td>
                       <td>{{ ucfirst($u->status) }}</td>
-                      <td>
-                        {{-- ações vazias por enquanto --}}
-                      </td>
                     </tr>
                   @empty
                     <tr>
-                      <td colspan="5" class="text-center">
+                      <td colspan="3" class="text-center">
                         Nenhum usuário encontrado
                       </td>
                     </tr>
@@ -121,7 +115,6 @@
   </div>
 
   @include('partials.footer')
-
 </div>
 
 <script src="{{ asset('assets/js/vendors.min.js') }}"></script>
