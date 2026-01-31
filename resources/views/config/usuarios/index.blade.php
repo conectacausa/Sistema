@@ -13,6 +13,20 @@
   <link rel="stylesheet" href="{{ asset('assets/css/vendors_css.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
+
+  <style>
+    /* 1) Botão "Novo Usuário" sem mudança no hover */
+    .btn-nohover:hover,
+    .btn-nohover:focus,
+    .btn-nohover:active {
+      background-color: inherit !important;
+      color: inherit !important;
+      border-color: inherit !important;
+      filter: none !important;
+      box-shadow: none !important;
+      transform: none !important;
+    }
+  </style>
 </head>
 
 <body class="hold-transition light-skin sidebar-mini theme-primary fixed">
@@ -42,10 +56,9 @@
             </div>
           </div>
 
-          {{-- Evita quebrar por name(): usa URL direta do slug --}}
           @if(!empty($podeCadastrar) && $podeCadastrar)
-            <a href="{{ url('/config/usuarios/novo') }}"
-               class="waves-effect waves-light btn mb-5 bg-gradient-success">
+            <a href="{{ route('config.usuarios.create') }}"
+               class="waves-effect waves-light btn mb-5 bg-gradient-success btn-nohover">
               Novo Usuário
             </a>
           @endif
@@ -53,15 +66,6 @@
       </div>
 
       <section class="content">
-        @if(session('success'))
-          <div class="alert alert-success">{{ session('success') }}</div>
-        @endif
-        @if(session('error'))
-          <div class="alert alert-danger">{{ session('error') }}</div>
-        @endif
-        @if(session('warning'))
-          <div class="alert alert-warning">{{ session('warning') }}</div>
-        @endif
 
         <!-- Filtros -->
         <div class="row">
@@ -72,7 +76,7 @@
               </div>
 
               <div class="box-body">
-                <form id="filtersForm" method="GET" action="{{ url('/config/usuarios') }}">
+                <form id="filtersForm" method="GET" action="{{ route('config.usuarios.index') }}">
                   <div class="row">
                     <div class="col-md-10">
                       <div class="form-group">
@@ -131,6 +135,7 @@
                         <th style="width: 160px;">Ações</th>
                       </tr>
                     </thead>
+
                     <tbody>
                       @php
                         $maskCpf = function ($cpf) {
@@ -142,7 +147,6 @@
 
                       @forelse($usuarios as $u)
                         @php $st = strtolower((string) $u->status); @endphp
-
                         <tr>
                           <td>{{ $u->nome_completo }}</td>
                           <td>{{ $maskCpf($u->cpf) }}</td>
@@ -155,17 +159,17 @@
 
                           <td class="d-flex gap-2">
                             @if(!empty($podeEditar) && $podeEditar)
-                              {{-- Editar --}}
-                              <a href="{{ url('/config/usuarios/' . $u->id . '/editar') }}"
+
+                              <a href="{{ route('config.usuarios.edit', $u->id) }}"
                                  class="btn btn-sm btn-outline-primary"
                                  title="Editar">
                                 <i data-feather="edit"></i>
                               </a>
 
-                              {{-- Inativar (somente se estiver ativo) --}}
+                              {{-- 4) Se já estiver inativo, não mostra o botão --}}
                               @if($st === 'ativo')
                                 <form method="POST"
-                                      action="{{ url('/config/usuarios/' . $u->id . '/inativar') }}"
+                                      action="{{ route('config.usuarios.inativar', $u->id) }}"
                                       class="d-inline form-inativar-usuario">
                                   @csrf
                                   <button type="submit"
@@ -175,6 +179,7 @@
                                   </button>
                                 </form>
                               @endif
+
                             @else
                               <span class="text-muted">—</span>
                             @endif
@@ -211,10 +216,14 @@
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
+{{-- 2) Toastr (no seu assets existe assets/js/pages/toastr.js) --}}
+<script src="{{ asset('assets/js/pages/toastr.js') }}"></script>
+
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     if (window.feather) feather.replace();
 
+    // 5) confirmação ao inativar
     document.querySelectorAll('.form-inativar-usuario').forEach(function (form) {
       form.addEventListener('submit', function (e) {
         if (!confirm('Confirma inativar este usuário?')) {
@@ -223,6 +232,7 @@
       });
     });
 
+    // Filtro automático (sem botões)
     const form = document.getElementById('filtersForm');
     const qInput = document.getElementById('qInput');
     const statusSelect = document.getElementById('statusSelect');
@@ -235,6 +245,25 @@
 
     qInput.addEventListener('input', submitDebounced);
     statusSelect.addEventListener('change', () => form.submit());
+
+    // 2) mensagens via Toastr (sem alert na página)
+    @if(session('success'))
+      if (window.toastr) toastr.success(@json(session('success')));
+    @endif
+    @if(session('error'))
+      if (window.toastr) toastr.error(@json(session('error')));
+    @endif
+    @if(session('warning'))
+      if (window.toastr) toastr.warning(@json(session('warning')));
+    @endif
+
+    @if($errors->any())
+      if (window.toastr) {
+        @foreach($errors->all() as $msg)
+          toastr.error(@json($msg));
+        @endforeach
+      }
+    @endif
   });
 </script>
 
