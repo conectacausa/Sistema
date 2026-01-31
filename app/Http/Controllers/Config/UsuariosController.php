@@ -176,9 +176,18 @@ class UsuariosController extends Controller
             ->first();
     
         if (!$usuario) {
-            // MOSTRA o motivo em vez de redirecionar "mudo"
-            abort(404, "Usuário não encontrado. Debug: auth_user_id=" . ($request->user()->id ?? 'null') .
-    ", auth_empresa_id=" . ($empresaId ?: '0') . ", usuario_id=" . $id);
+            \Log::error('USUARIOS_EDIT_NAO_ENCONTRADO', [
+                'auth_user_id' => $request->user()->id ?? null,
+                'auth_empresa_id' => $empresaId,
+                'usuario_id' => $id,
+                'path' => $request->path(),
+                'host' => $request->getHost(),
+                'sub' => (string) $request->route('sub'),
+            ]);
+        
+            return redirect()
+                ->route('config.usuarios.index')
+                ->with('error', 'Usuário não encontrado para esta empresa (verifique tenant/empresa).');
         }
     
         $filiais = DB::table('filiais')
