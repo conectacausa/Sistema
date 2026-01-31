@@ -11,30 +11,34 @@ use Illuminate\Validation\Rule;
 class GrupoPermissaoController extends Controller
 {
     /**
-     * Resolve a empresa pelo subdomínio da rota: {sub}.conecttarh.com.br
+     * Empresa do contexto do request.
+     * Prioriza subdomínio. Se não resolver, tenta pelo usuário.
      */
-    private function empresaIdFromSub(): int
+    private function empresaIdFromContext(): int
     {
+        // 1) Pelo subdomínio {sub}
         $sub = (string) request()->route('sub');
+        if ($sub !== '') {
+            $empresa = Empresa::query()
+                ->where('subdominio', $sub)
+                ->first();
 
-        if ($sub === '') {
-            abort(403, 'Subdomínio (tenant) não identificado.');
+            if ($empresa) {
+                return (int) $empresa->id;
+            }
         }
 
-        $empresa = Empresa::query()
-            ->where('subdominio', $sub)
-            ->first();
-
-        if (!$empresa) {
-            abort(403, 'Empresa não encontrada para este subdomínio.');
+        // 2) Fallback pelo usuário logado
+        if (auth()->check() && !empty(auth()->user()->empresa_id)) {
+            return (int) auth()->user()->empresa_id;
         }
 
-        return (int) $empresa->id;
+        abort(403, 'Não foi possível identificar a empresa do contexto (subdomínio/usuário).');
     }
 
     public function index(Request $request)
     {
-        $empresaId = $this->empresaIdFromSub();
+        $empresaId = $this->empresaIdFromContext();
 
         $query = Permissao::query()
             ->where('empresa_id', $empresaId)
@@ -48,7 +52,6 @@ class GrupoPermissaoController extends Controller
 
         $grupos = $query->paginate(10)->withQueryString();
 
-        // AJAX retorna só a tabela
         if ($request->ajax() || $request->boolean('ajax')) {
             return view('config.grupos.partials.tabela', compact('grupos'));
         }
@@ -63,7 +66,7 @@ class GrupoPermissaoController extends Controller
 
     public function store(Request $request)
     {
-        $empresaId = $this->empresaIdFromSub();
+        $empresaId = $this->empresaIdFromContext();
 
         $validated = $request->validate([
             'nome_grupo' => [
@@ -88,7 +91,6 @@ class GrupoPermissaoController extends Controller
             'salarios'    => false,
         ]);
 
-        // ✅ Redireciona para editar com o {sub} correto
         return redirect()
             ->route('config.grupos.edit', [
                 'sub' => request()->route('sub'),
@@ -99,26 +101,30 @@ class GrupoPermissaoController extends Controller
 
     public function edit($id)
     {
-        $empresaId = $this->empresaIdFromSub();
+        $empresaId = $this->empresaIdFromContext();
         $id = (int) $id;
 
-        $grupo = Permissao::query()
-            ->where('empresa_id', $empresaId)
-            ->where('id', $id)
-            ->firstOrFail();
+        // ✅ busca SEM filtrar por empresa para não dar 404 “misterioso”
+        $grupo = Permissao::query()->findOrFail($id);
+
+        // ✅ se não for da empresa do contexto, retorna 403 explicando
+        if ((int) $grupo->empresa_id !== (int) $empresaId) {
+            abort(403, "Grupo {$grupo->id} pertence à empresa_id={$grupo->empresa_id}, mas o contexto atual é empresa_id={$empresaId} (sub=".(string)request()->route('sub').").");
+        }
 
         return view('config.grupos.edit', compact('grupo'));
     }
 
     public function update(Request $request, $id)
     {
-        $empresaId = $this->empresaIdFromSub();
+        $empresaId = $this->empresaIdFromContext();
         $id = (int) $id;
 
-        $grupo = Permissao::query()
-            ->where('empresa_id', $empresaId)
-            ->where('id', $id)
-            ->firstOrFail();
+        $grupo = Permissao::query()->findOrFail($id);
+
+        if ((int) $grupo->empresa_id !== (int) $empresaId) {
+            abort(403, "Grupo {$grupo->id} pertence à empresa_id={$grupo->empresa_id}, mas o contexto atual é empresa_id={$empresaId}.");
+        }
 
         $validated = $request->validate([
             'nome_grupo' => [
