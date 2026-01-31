@@ -55,7 +55,7 @@ class UsuariosController extends Controller
             ->paginate(10)
             ->appends($request->query());
 
-        // ✅ Formata CPF na coleção (seguro, sem mexer no Blade)
+        // CPF formatado (seguro)
         $usuarios->getCollection()->transform(function ($u) {
             $cpf = preg_replace('/\D+/', '', (string)($u->cpf ?? ''));
 
@@ -117,5 +117,98 @@ class UsuariosController extends Controller
         return redirect()
             ->route('config.usuarios.index')
             ->with('success', 'Cadastro ainda não implementado.');
+    }
+
+    /**
+     * Tela de edição (preenchida)
+     */
+    public function edit($id)
+    {
+        $id = (int) $id;
+        $empresaId = auth()->user()->empresa_id;
+
+        $usuario = DB::table('usuarios')
+            ->whereNull('deleted_at')
+            ->where('empresa_id', $empresaId)
+            ->where('id', $id)
+            ->first();
+
+        if (!$usuario) {
+            return redirect()
+                ->route('config.usuarios.index')
+                ->with('error', 'Usuário não encontrado.');
+        }
+
+        // CPF formatado para exibir no input
+        $cpf = preg_replace('/\D+/', '', (string)($usuario->cpf ?? ''));
+        $cpf_formatado = (strlen($cpf) === 11)
+            ? substr($cpf, 0, 3) . '.' . substr($cpf, 3, 3) . '.' . substr($cpf, 6, 3) . '-' . substr($cpf, 9, 2)
+            : ($usuario->cpf ?? '');
+
+        // Lista de grupos/permissões
+        $permissoes = DB::table('permissoes')
+            ->select('id', 'nome_grupo')
+            ->orderBy('nome_grupo')
+            ->get();
+
+        return view('config.usuarios.edit', [
+            'usuario' => $usuario,
+            'cpf_formatado' => $cpf_formatado,
+            'permissoes' => $permissoes,
+        ]);
+    }
+
+    /**
+     * Salvar edição
+     */
+    public function update(Request $request, $id)
+    {
+        $id = (int) $id;
+        $empresaId = auth()->user()->empresa_id;
+
+        $request->validate([
+            'nome_completo' => ['required', 'string', 'max:255'],
+            'cpf'           => ['required', 'string', 'max:20'],
+            'permissao_id'  => ['required', 'integer'],
+            'status'        => ['required', 'in:ativo,inativo'],
+        ]);
+
+        $cpf = preg_replace('/\D+/', '', (string)$request->cpf);
+
+        DB::table('usuarios')
+            ->where('id', $id)
+            ->where('empresa_id', $empresaId)
+            ->update([
+                'nome_completo' => $request->nome_completo,
+                'cpf' => $cpf,
+                'permissao_id' => (int)$request->permissao_id,
+                'status' => $request->status,
+                'updated_at' => now(),
+            ]);
+
+        return redirect()
+            ->route('config.usuarios.index')
+            ->with('success', 'Usuário atualizado com sucesso.');
+    }
+
+    /**
+     * Inativar usuário (com confirmação no front)
+     */
+    public function inativar($id)
+    {
+        $id = (int) $id;
+        $empresaId = auth()->user()->empresa_id;
+
+        DB::table('usuarios')
+            ->where('id', $id)
+            ->where('empresa_id', $empresaId)
+            ->update([
+                'status' => 'inativo',
+                'updated_at' => now(),
+            ]);
+
+        return redirect()
+            ->route('config.usuarios.index')
+            ->with('success', 'Usuário inativado com sucesso.');
     }
 }
