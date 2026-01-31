@@ -18,7 +18,6 @@ class UsuariosController extends Controller
         $busca    = trim((string) $request->get('q', ''));
         $situacao = trim((string) $request->get('status', ''));
 
-        // Query base – simples e segura
         $query = DB::table('usuarios as u')
             ->leftJoin('permissoes as p', 'p.id', '=', 'u.permissao_id')
             ->select(
@@ -56,6 +55,23 @@ class UsuariosController extends Controller
             ->paginate(10)
             ->appends($request->query());
 
+        // ✅ Formata CPF na coleção (seguro, sem mexer no Blade)
+        $usuarios->getCollection()->transform(function ($u) {
+            $cpf = preg_replace('/\D+/', '', (string)($u->cpf ?? ''));
+
+            if (strlen($cpf) === 11) {
+                $u->cpf_formatado =
+                    substr($cpf, 0, 3) . '.' .
+                    substr($cpf, 3, 3) . '.' .
+                    substr($cpf, 6, 3) . '-' .
+                    substr($cpf, 9, 2);
+            } else {
+                $u->cpf_formatado = $u->cpf ?? '';
+            }
+
+            return $u;
+        });
+
         // Situações disponíveis
         $situacoes = DB::table('usuarios')
             ->where('empresa_id', $empresaId)
@@ -88,12 +104,18 @@ class UsuariosController extends Controller
         ]);
     }
 
-    /**
-     * Tela de novo usuário (placeholder)
-     * Evita erro fatal ao clicar em "Novo Usuário"
-     */
     public function create()
     {
         return view('config.usuarios.create');
+    }
+
+    /**
+     * Placeholder do store (pra não quebrar)
+     */
+    public function store(Request $request)
+    {
+        return redirect()
+            ->route('config.usuarios.index')
+            ->with('success', 'Cadastro ainda não implementado.');
     }
 }
