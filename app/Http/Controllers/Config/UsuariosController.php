@@ -165,18 +165,21 @@ class UsuariosController extends Controller
     |--------------------------------------------------------------------------
     */
     public function edit($id)
-    {
-        $empresaId = auth()->user()->empresa_id;
+{
+    $empresaId = auth()->user()->empresa_id;
+    $id = (int) $id;
 
-        $usuario = DB::table('usuarios')
-            ->where('empresa_id', $empresaId)
-            ->whereNull('deleted_at')
-            ->where('id', (int) $id)
-            ->first();
+    $usuario = DB::table('usuarios')
+        ->whereNull('deleted_at')
+        ->where('empresa_id', $empresaId)
+        ->where('id', $id)
+        ->first();
 
-        if (!$usuario) {
-            return redirect()->route('config.usuarios.index')->with('error', 'Usuário não encontrado.');
-        }
+    if (!$usuario) {
+        return redirect()
+            ->route('config.usuarios.index')
+            ->with('error', 'Usuário não encontrado para esta empresa (empresa_id=' . $empresaId . ', id=' . $id . ').');
+    }
 
         // tenta inferir filial/setor inicial
         $filialId = null;
