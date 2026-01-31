@@ -42,7 +42,7 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->middleware('screen:10')
                 ->name('config.usuarios.index');
             
-            Route::get('/config/usuarios/{id}/editar', [UsuariosController::class, 'edit'])
+           Route::get('/config/usuarios/{id}/editar', [UsuariosController::class, 'edit'])
                 ->whereNumber('id')
                 ->middleware('screen:10')
                 ->name('config.usuarios.edit');
