@@ -15,16 +15,22 @@ class GrupoPermissaoController extends Controller
 
         $query = Permissao::query()
             ->where('empresa_id', $empresaId)
-            ->orderBy('id', 'desc');
+            ->orderBy('nome_grupo');
 
-        // filtro por nome do grupo
         if ($request->filled('nome_grupo')) {
-            $nome = trim((string) $request->nome_grupo);
-            $query->where('nome_grupo', 'ilike', "%{$nome}%"); // PostgreSQL
+            $query->where(
+                'nome_grupo',
+                'ilike',
+                '%' . trim($request->nome_grupo) . '%'
+            );
         }
 
-        // você ainda pode colocar comCount depois que ligar usuarios_count
-        $grupos = $query->paginate(15)->withQueryString();
+        $grupos = $query->paginate(10)->withQueryString();
+
+        // Se for AJAX, retorna apenas a tabela
+        if ($request->ajax() || $request->boolean('ajax')) {
+            return view('config.grupos.partials.table', compact('grupos'));
+        }
 
         return view('config.grupos.index', compact('grupos'));
     }
