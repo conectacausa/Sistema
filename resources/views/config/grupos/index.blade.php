@@ -17,7 +17,6 @@
   <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
 </head>
-
 <body class="hold-transition light-skin sidebar-mini theme-primary fixed">
 
 <div class="wrapper">
@@ -32,6 +31,7 @@
   <!-- Content Wrapper. Contains page content -->
   <div class="content-wrapper">
     <div class="container-full">
+
       <!-- Content Header (Page header) -->
       <div class="content-header">
         <div class="d-flex align-items-center">
@@ -50,12 +50,22 @@
             </div>
           </div>
 
-          {{-- Botão "Novo Grupo" removido conforme pedido --}}
+          <a href="{{ route('config.grupos.create') }}"
+             class="waves-effect waves-light btn mb-5 bg-gradient-success">
+            Novo Grupo
+          </a>
         </div>
       </div>
 
       <!-- Main content -->
       <section class="content">
+
+        @if(session('success'))
+          <div class="alert alert-success">
+            {{ session('success') }}
+          </div>
+        @endif
+
         <!-- Filtros -->
         <div class="row">
           <div class="col-12">
@@ -68,13 +78,12 @@
                   <div class="col-md-12">
                     <div class="form-group">
                       <label class="form-label">Nome do Grupo</label>
-                      <input
-                        type="text"
-                        id="filtro-nome-grupo"
-                        name="nome_grupo"
-                        class="form-control"
-                        placeholder="Nome do Grupo"
-                        autocomplete="off">
+                      <input type="text"
+                             id="filtro-nome-grupo"
+                             class="form-control"
+                             placeholder="Nome do Grupo"
+                             autocomplete="off"
+                             value="{{ request('nome_grupo') }}">
                       <small class="text-muted">Digite para filtrar automaticamente.</small>
                     </div>
                   </div>
@@ -99,6 +108,7 @@
             </div>
           </div>
         </div>
+
       </section>
       <!-- /.content -->
 
@@ -110,7 +120,6 @@
   @includeIf('partials.footer')
 </div>
 <!-- ./wrapper -->
-
 
 <!-- Vendor JS -->
 <script src="{{ asset('assets/js/vendors.min.js') }}"></script>
@@ -132,13 +141,9 @@
 
     fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(r => r.text())
-      .then(html => {
-        wrap.innerHTML = html;
-      })
+      .then(html => { wrap.innerHTML = html; })
       .catch(err => console.error(err))
-      .finally(() => {
-        wrap.style.opacity = '1';
-      });
+      .finally(() => { wrap.style.opacity = '1'; });
   }
 
   function montarUrl(paginaUrl) {
@@ -152,7 +157,6 @@
     return u.toString();
   }
 
-  // Atualiza ao digitar (debounce)
   input.addEventListener('input', function () {
     clearTimeout(timer);
     timer = setTimeout(() => {
@@ -160,7 +164,6 @@
     }, 300);
   });
 
-  // Paginação via AJAX
   document.addEventListener('click', function (ev) {
     const a = ev.target.closest('#grupos-tabela .pagination a');
     if (!a) return;
