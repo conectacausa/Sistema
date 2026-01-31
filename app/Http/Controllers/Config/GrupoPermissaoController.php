@@ -91,45 +91,56 @@ class GrupoPermissaoController extends Controller
         ]);
     }
 
-    public function edit(Request $request, $id)
-    {
-        // ✅ DIAGNÓSTICO VISÍVEL MESMO COM APP_DEBUG=false
-        if ($request->query('diag') == '1') {
-            $sub = (string) request()->route('sub');
-            $empresa = Empresa::query()->where('subdominio', $sub)->first();
+  public function edit(Request $request, $id)
+{
+    // ✅ DIAGNÓSTICO VISÍVEL
+    if ($request->query('diag') == '1') {
+        $sub = (string) request()->route('sub');
+        $empresa = \App\Models\Empresa::query()->where('subdominio', $sub)->first();
 
-            $conn = DB::connection();
-            $dbName = method_exists($conn, 'getDatabaseName') ? $conn->getDatabaseName() : null;
-            $driver = $conn->getDriverName();
+        $params = request()->route() ? request()->route()->parameters() : [];
 
-            $idInt = (int) $id;
-            $grupo = Permissao::query()->find($idInt);
+        $conn = \Illuminate\Support\Facades\DB::connection();
+        $dbName = method_exists($conn, 'getDatabaseName') ? $conn->getDatabaseName() : null;
 
-            return response()->json([
-                'reached' => true,
-                'route_sub' => $sub,
-                'empresa_found' => (bool) $empresa,
-                'empresa_id' => $empresa?->id,
-                'db_driver' => $driver,
-                'db_name' => $dbName,
-                'grupo_id' => $idInt,
-                'grupo_found' => (bool) $grupo,
-                'grupo_empresa_id' => $grupo?->empresa_id,
-            ], 200);
-        }
+        $rawId = $id;
+        $idInt = (int) $id;
 
-        $empresa = $this->empresaFromSub();
-        $id = (int) $id;
+        $grupo = \App\Models\Permissao::query()->find($idInt);
 
-        // Busca e valida empresa
-        $grupo = Permissao::query()->findOrFail($id);
+        return response()->json([
+            'reached' => true,
+            'url' => $request->fullUrl(),
+            'route_uri' => request()->route()?->uri(),
+            'route_name' => request()->route()?->getName(),
+            'route_params' => $params,
 
-        if ((int) $grupo->empresa_id !== (int) $empresa->id) {
-            abort(403);
-        }
+            'route_sub' => $sub,
+            'empresa_found' => (bool) $empresa,
+            'empresa_id' => $empresa?->id,
 
-        return view('config.grupos.edit', compact('grupo'));
+            'db_name' => $dbName,
+
+            'raw_id' => $rawId,
+            'grupo_id_int' => $idInt,
+            'grupo_found' => (bool) $grupo,
+            'grupo_empresa_id' => $grupo?->empresa_id,
+        ], 200);
     }
+
+    // fluxo normal
+    $empresa = $this->empresaFromSub();
+    $id = (int) $id;
+
+    $grupo = \App\Models\Permissao::query()->findOrFail($id);
+
+    if ((int)$grupo->empresa_id !== (int)$empresa->id) {
+        abort(403);
+    }
+
+    return view('config.grupos.edit', compact('grupo'));
+}
+
 
     public function update(Request $request, $id)
     {
