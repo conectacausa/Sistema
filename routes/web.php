@@ -82,7 +82,7 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->middleware('screen:10')
                 ->name('config.usuarios.toggle_lotacao');
 
-            Route::get('/config/grupos', [GrupoPermissaoController::class, 'index']); // ✅
+            Route::get('/config/grupos', [GrupoPermissaoController::class, 'index'])
                 ->middleware('screen:11')
                 ->name('config.grupos.index');
             
