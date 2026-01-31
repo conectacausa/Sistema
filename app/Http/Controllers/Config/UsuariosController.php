@@ -11,76 +11,63 @@ class UsuariosController extends Controller
 {
     private function getAcoesTela10(): array
     {
-        $permissaoId = auth()->user()->permissao_id;
-
         $acao = DB::table('permissao_modulo_tela')
             ->select('cadastro', 'editar')
-            ->where('permissao_id', $permissaoId)
+            ->where('permissao_id', auth()->user()->permissao_id)
             ->where('tela_id', 10)
             ->where('ativo', true)
             ->first();
 
         return [
-            'podeCadastrar' => (bool) ($acao->cadastro ?? false),
-            'podeEditar'    => (bool) ($acao->editar ?? false),
+            'podeCadastrar' => (bool)($acao->cadastro ?? false),
+            'podeEditar'    => (bool)($acao->editar ?? false),
         ];
-    }
-
-    private function normalizeId($id): int
-    {
-        $id = (int) $id;
-        return $id > 0 ? $id : 0;
     }
 
     public function index(Request $request)
     {
         $empresaId = auth()->user()->empresa_id;
 
-        $busca = trim((string) $request->get('q', ''));
-        $situacao = trim((string) $request->get('status', ''));
+        $busca    = trim((string)$request->q);
+        $situacao = trim((string)$request->status);
 
-        $query = DB::table('usuarios as u')
+        $usuarios = DB::table('usuarios as u')
             ->leftJoin('permissoes as p', 'p.id', '=', 'u.permissao_id')
-            ->select([
-                'u.id',
-                'u.nome_completo',
-                'u.cpf',
-                'u.status',
-                'p.nome_grupo as grupo_permissao',
-            ])
+            ->selectRaw("
+                u.id,
+                u.nome_completo,
+                CASE 
+                    WHEN length(u.cpf) = 11 THEN
+                        substring(u.cpf from 1 for 3) || '.' ||
+                        substring(u.cpf from 4 for 3) || '.' ||
+                        substring(u.cpf from 7 for 3) || '-' ||
+                        substring(u.cpf from 10 for 2)
+                    ELSE u.cpf
+                END as cpf_formatado,
+                u.status,
+                p.nome_grupo as grupo_permissao
+            ")
             ->whereNull('u.deleted_at')
-            ->where('u.empresa_id', $empresaId);
-
-        if ($busca !== '') {
-            $cpfSomenteNumeros = preg_replace('/\D+/', '', $busca);
-
-            $query->where(function ($q) use ($busca, $cpfSomenteNumeros) {
-                $q->whereRaw('LOWER(u.nome_completo) LIKE ?', ['%' . mb_strtolower($busca) . '%']);
-
-                if ($cpfSomenteNumeros !== '') {
-                    $q->orWhere('u.cpf', $cpfSomenteNumeros);
-                }
-            });
-        }
-
-        if ($situacao !== '') {
-            $query->where('u.status', $situacao);
-        }
-
-        // Ordenação: ativos primeiro, depois inativos, depois por nome
-        $usuarios = $query
-            ->orderByRaw("CASE WHEN LOWER(u.status) = 'ativo' THEN 0 ELSE 1 END")
+            ->where('u.empresa_id', $empresaId)
+            ->when($busca, function ($q) use ($busca) {
+                $cpf = preg_replace('/\D/', '', $busca);
+                $q->where(function ($qq) use ($busca, $cpf) {
+                    $qq->whereRaw('LOWER(u.nome_completo) LIKE ?', ['%' . mb_strtolower($busca) . '%']);
+                    if ($cpf) {
+                        $qq->orWhere('u.cpf', $cpf);
+                    }
+                });
+            })
+            ->when($situacao, fn($q) => $q->where('u.status', $situacao))
+            ->orderByRaw("CASE WHEN u.status = 'ativo' THEN 0 ELSE 1 END")
             ->orderBy('u.nome_completo')
             ->paginate(10)
             ->appends($request->query());
 
         $situacoes = DB::table('usuarios')
-            ->select('status')
-            ->whereNull('deleted_at')
             ->where('empresa_id', $empresaId)
-            ->whereNotNull('status')
+            ->whereNull('deleted_at')
             ->groupBy('status')
-            ->orderBy('status')
             ->pluck('status');
 
         $acoes = $this->getAcoesTela10();
@@ -95,260 +82,17 @@ class UsuariosController extends Controller
         ]);
     }
 
-    public function create()
-    {
-        $empresaId = auth()->user()->empresa_id;
-
-        $acoes = $this->getAcoesTela10();
-        if (!$acoes['podeCadastrar']) {
-            return redirect()->route('config.usuarios.index')
-                ->with('error', 'Você não tem permissão para cadastrar usuários.');
-        }
-
-        $permissoes = DB::table('permissoes')
-            ->select('id', 'nome_grupo')
-            ->whereNull('deleted_at')
-            ->where('empresa_id', $empresaId)
-            ->where('status', true)
-            ->orderBy('nome_grupo')
-            ->get();
-
-        return view('config.usuarios.create', [
-            'permissoes' => $permissoes,
-        ]);
-    }
-
-    public function store(Request $request)
-    {
-        $empresaId = auth()->user()->empresa_id;
-
-        $acoes = $this->getAcoesTela10();
-        if (!$acoes['podeCadastrar']) {
-            return redirect()->route('config.usuarios.index')
-                ->with('error', 'Você não tem permissão para cadastrar usuários.');
-        }
-
-        $cpf = preg_replace('/\D+/', '', (string) $request->input('cpf', ''));
-
-        $validated = $request->validate([
-            'nome_completo' => ['required', 'string', 'max:255'],
-            'cpf'           => ['required'],
-            'email'         => ['nullable', 'email', 'max:190'],
-            'telefone'      => ['nullable', 'string', 'max:30'],
-            'permissao_id'  => ['required', 'integer'],
-            'status'        => ['required', 'in:ativo,inativo'],
-            'senha'         => ['required', 'string', 'min:6', 'max:255'],
-        ]);
-
-        if (strlen($cpf) !== 11) {
-            return back()->withErrors(['cpf' => 'CPF inválido.'])->withInput();
-        }
-
-        $cpfExiste = DB::table('usuarios')
-            ->whereNull('deleted_at')
-            ->where('empresa_id', $empresaId)
-            ->where('cpf', $cpf)
-            ->exists();
-
-        if ($cpfExiste) {
-            return back()->withErrors(['cpf' => 'Já existe um usuário com este CPF nesta empresa.'])->withInput();
-        }
-
-        $permValida = DB::table('permissoes')
-            ->whereNull('deleted_at')
-            ->where('empresa_id', $empresaId)
-            ->where('id', (int) $validated['permissao_id'])
-            ->where('status', true)
-            ->exists();
-
-        if (!$permValida) {
-            return back()->withErrors(['permissao_id' => 'Grupo de permissão inválido para esta empresa.'])->withInput();
-        }
-
-        DB::table('usuarios')->insert([
-            'nome_completo'     => $validated['nome_completo'],
-            'cpf'               => $cpf,
-            'empresa_id'        => $empresaId,
-            'permissao_id'      => (int) $validated['permissao_id'],
-            'email'             => $validated['email'] ?? null,
-            'telefone'          => $validated['telefone'] ?? null,
-            'senha'             => Hash::make($validated['senha']),
-            'status'            => $validated['status'],
-            'salarios'          => false,
-            'operador_whatsapp' => false,
-            'created_at'        => now(),
-            'updated_at'        => now(),
-        ]);
-
-        return redirect()->route('config.usuarios.index')
-            ->with('success', 'Usuário cadastrado com sucesso.');
-    }
-
-    public function edit($id)
-    {
-        $empresaId = auth()->user()->empresa_id;
-
-        $acoes = $this->getAcoesTela10();
-        if (!$acoes['podeEditar']) {
-            return redirect()->route('config.usuarios.index')
-                ->with('error', 'Você não tem permissão para editar usuários.');
-        }
-
-        $id = $this->normalizeId($id);
-        if ($id === 0) {
-            return redirect()->route('config.usuarios.index')
-                ->with('error', 'Parâmetro inválido.');
-        }
-
-        $usuario = DB::table('usuarios')
-            ->whereNull('deleted_at')
-            ->where('empresa_id', $empresaId)
-            ->where('id', $id)
-            ->first();
-
-        if (!$usuario) {
-            return redirect()->route('config.usuarios.index')->with('error', 'Usuário não encontrado.');
-        }
-
-        $permissoes = DB::table('permissoes')
-            ->select('id', 'nome_grupo')
-            ->whereNull('deleted_at')
-            ->where('empresa_id', $empresaId)
-            ->where('status', true)
-            ->orderBy('nome_grupo')
-            ->get();
-
-        return view('config.usuarios.edit', [
-            'usuario' => $usuario,
-            'permissoes' => $permissoes,
-        ]);
-    }
-
-    public function update(Request $request, $id)
-    {
-        $empresaId = auth()->user()->empresa_id;
-
-        $acoes = $this->getAcoesTela10();
-        if (!$acoes['podeEditar']) {
-            return redirect()->route('config.usuarios.index')
-                ->with('error', 'Você não tem permissão para editar usuários.');
-        }
-
-        $id = $this->normalizeId($id);
-        if ($id === 0) {
-            return redirect()->route('config.usuarios.index')
-                ->with('error', 'Parâmetro inválido.');
-        }
-
-        $usuario = DB::table('usuarios')
-            ->whereNull('deleted_at')
-            ->where('empresa_id', $empresaId)
-            ->where('id', $id)
-            ->first();
-
-        if (!$usuario) {
-            return redirect()->route('config.usuarios.index')->with('error', 'Usuário não encontrado.');
-        }
-
-        $cpf = preg_replace('/\D+/', '', (string) $request->input('cpf', ''));
-
-        $validated = $request->validate([
-            'nome_completo' => ['required', 'string', 'max:255'],
-            'cpf'           => ['required'],
-            'email'         => ['nullable', 'email', 'max:190'],
-            'telefone'      => ['nullable', 'string', 'max:30'],
-            'permissao_id'  => ['required', 'integer'],
-            'status'        => ['required', 'in:ativo,inativo'],
-            'senha'         => ['nullable', 'string', 'min:6', 'max:255'],
-        ]);
-
-        if (strlen($cpf) !== 11) {
-            return back()->withErrors(['cpf' => 'CPF inválido.'])->withInput();
-        }
-
-        $cpfExiste = DB::table('usuarios')
-            ->whereNull('deleted_at')
-            ->where('empresa_id', $empresaId)
-            ->where('cpf', $cpf)
-            ->where('id', '<>', $id)
-            ->exists();
-
-        if ($cpfExiste) {
-            return back()->withErrors(['cpf' => 'Já existe outro usuário com este CPF nesta empresa.'])->withInput();
-        }
-
-        $permValida = DB::table('permissoes')
-            ->whereNull('deleted_at')
-            ->where('empresa_id', $empresaId)
-            ->where('id', (int) $validated['permissao_id'])
-            ->where('status', true)
-            ->exists();
-
-        if (!$permValida) {
-            return back()->withErrors(['permissao_id' => 'Grupo de permissão inválido para esta empresa.'])->withInput();
-        }
-
-        $updateData = [
-            'nome_completo' => $validated['nome_completo'],
-            'cpf'           => $cpf,
-            'email'         => $validated['email'] ?? null,
-            'telefone'      => $validated['telefone'] ?? null,
-            'permissao_id'  => (int) $validated['permissao_id'],
-            'status'        => $validated['status'],
-            'updated_at'    => now(),
-        ];
-
-        if (!empty($validated['senha'])) {
-            $updateData['senha'] = Hash::make($validated['senha']);
-        }
-
-        DB::table('usuarios')
-            ->where('empresa_id', $empresaId)
-            ->where('id', $id)
-            ->whereNull('deleted_at')
-            ->update($updateData);
-
-        return redirect()->route('config.usuarios.index')
-            ->with('success', 'Usuário atualizado com sucesso.');
-    }
-
-    /**
-     * "Deletar" = inativar (regra do projeto)
-     */
     public function inativar($id)
     {
-        $empresaId = auth()->user()->empresa_id;
-
-        $acoes = $this->getAcoesTela10();
-        if (!$acoes['podeEditar']) {
-            return redirect()->route('config.usuarios.index')
-                ->with('error', 'Você não tem permissão para inativar usuários.');
-        }
-
-        $id = $this->normalizeId($id);
-        if ($id === 0) {
+        $id = (int)$id;
+        if ($id <= 0) {
             return redirect()->route('config.usuarios.index')
                 ->with('error', 'Parâmetro inválido.');
         }
 
-        $usuario = DB::table('usuarios')
-            ->whereNull('deleted_at')
-            ->where('empresa_id', $empresaId)
-            ->where('id', $id)
-            ->first();
-
-        if (!$usuario) {
-            return redirect()->route('config.usuarios.index')->with('error', 'Usuário não encontrado.');
-        }
-
-        if (strtolower((string) $usuario->status) !== 'ativo') {
-            return redirect()->route('config.usuarios.index')->with('warning', 'Usuário já está inativo.');
-        }
-
         DB::table('usuarios')
-            ->where('empresa_id', $empresaId)
             ->where('id', $id)
-            ->whereNull('deleted_at')
+            ->where('empresa_id', auth()->user()->empresa_id)
             ->update([
                 'status' => 'inativo',
                 'updated_at' => now(),
