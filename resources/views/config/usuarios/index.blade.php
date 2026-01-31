@@ -150,7 +150,7 @@
                           @if(!empty($podeEditar) && $podeEditar)
                         
                             {{-- Editar --}}
-                            <a href="{{ route('config.usuarios.edit', $u->id) }}"
+                            <a href="{{ route('config.usuarios.edit', ['id' => $u->id]) }}"
                                class="btn btn-sm btn-outline-primary"
                                title="Editar">
                               <i data-feather="edit"></i>
