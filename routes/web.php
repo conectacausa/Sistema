@@ -82,6 +82,34 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->middleware('screen:10')
                 ->name('config.usuarios.toggle_lotacao');
 
+            Route::get('/config/grupos', [GrupoPermissaoController::class, 'index'])
+                ->middleware('screen:11')
+                ->name('config.grupos.index');
+            
+            // (Deixa preparado pro próximo passo)
+            Route::get('/config/grupos/novo', [GrupoPermissaoController::class, 'create'])
+                ->middleware('screen:11')
+                ->name('config.grupos.create');
+            
+            Route::post('/config/grupos', [GrupoPermissaoController::class, 'store'])
+                ->middleware('screen:11')
+                ->name('config.grupos.store');
+            
+            Route::get('/config/grupos/{id}/editar', [GrupoPermissaoController::class, 'edit'])
+                ->whereNumber('id')
+                ->middleware('screen:11')
+                ->name('config.grupos.edit');
+            
+            Route::put('/config/grupos/{id}', [GrupoPermissaoController::class, 'update'])
+                ->whereNumber('id')
+                ->middleware('screen:11')
+                ->name('config.grupos.update');
+            
+            Route::delete('/config/grupos/{id}', [GrupoPermissaoController::class, 'destroy'])
+                ->whereNumber('id')
+                ->middleware('screen:11')
+                ->name('config.grupos.destroy');
+
                     
             /*
             |--------------------------------------------------------------------------
