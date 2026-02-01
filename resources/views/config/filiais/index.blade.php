@@ -138,10 +138,13 @@
                             </div>
 
                             <div class="box-body">
+
+                                <!-- ✅ Resumo -->
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div class="text-muted" id="filiaisResumo"></div>
+                                </div>
+
                                 <div class="table-responsive">
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <div class="text-muted" id="filiaisResumo"></div>
-                                    </div>
                                     <table class="table">
                                         <thead class="bg-primary">
                                         <tr>
@@ -205,6 +208,7 @@
 <!-- ✅ SweetAlert v1 (do template) -->
 <script src="{{ asset('assets/vendor_components/sweetalert/sweetalert.min.js') }}"></script>
 
+<!-- ✅ Rotas para o JS -->
 <script>
   window.FILIAIS_ROUTES = {
     create: "{{ route('config.filiais.create') }}",
