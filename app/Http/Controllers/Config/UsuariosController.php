@@ -119,6 +119,10 @@ class UsuariosController extends Controller
             'data_expiracao' => 'nullable',
             'status' => 'required|in:ativo,inativo',
             'foto' => 'nullable|image|max:2048',
+
+            // ✅ vínculo
+            'filial_id' => 'nullable|integer',
+            'setor_id'  => 'nullable|integer',
         ]);
 
         $cpf = preg_replace('/\D/', '', $request->cpf);
@@ -128,22 +132,80 @@ class UsuariosController extends Controller
             ? $request->file('foto')->store('usuarios', 'public')
             : null;
 
-        $id = DB::table('usuarios')->insertGetId([
-            'empresa_id' => $empresaId,
-            'nome_completo' => $request->nome_completo,
-            'cpf' => $cpf,
-            'permissao_id' => $request->permissao_id,
-            'email' => $request->email,
-            'telefone' => $telefone,
-            'data_expiracao' => $request->data_expiracao ?: null,
-            'status' => $request->status,
-            'foto' => $fotoPath,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        DB::beginTransaction();
+        try {
+            $id = DB::table('usuarios')->insertGetId([
+                'empresa_id' => $empresaId,
+                'nome_completo' => $request->nome_completo,
+                'cpf' => $cpf,
+                'permissao_id' => $request->permissao_id,
+                'email' => $request->email,
+                'telefone' => $telefone,
+                'data_expiracao' => $request->data_expiracao ?: null,
+                'status' => $request->status,
+                'foto' => $fotoPath,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
 
-        return redirect()->route('config.usuarios.edit', ['id' => $id])
-            ->with('success', 'Usuário cadastrado com sucesso.');
+            // ✅ Salvar vínculo filial/setor (se informado)
+            $filialId = (int) ($request->filial_id ?? 0);
+            $setorId  = (int) ($request->setor_id ?? 0);
+
+            if ($filialId > 0 && $setorId > 0) {
+                // desativa vínculos anteriores
+                DB::table('vinculo_usuario_lotacao')
+                    ->where('empresa_id', $empresaId)
+                    ->where('usuario_id', $id)
+                    ->whereNull('deleted_at')
+                    ->update([
+                        'ativo' => false,
+                        'updated_at' => now(),
+                    ]);
+
+                // ativa/cria vínculo
+                $existente = DB::table('vinculo_usuario_lotacao')
+                    ->where('empresa_id', $empresaId)
+                    ->where('usuario_id', $id)
+                    ->where('filial_id', $filialId)
+                    ->where('setor_id', $setorId)
+                    ->whereNull('deleted_at')
+                    ->first();
+
+                if ($existente) {
+                    DB::table('vinculo_usuario_lotacao')
+                        ->where('id', $existente->id)
+                        ->update([
+                            'ativo' => true,
+                            'updated_at' => now(),
+                        ]);
+                } else {
+                    DB::table('vinculo_usuario_lotacao')->insert([
+                        'empresa_id' => $empresaId,
+                        'usuario_id' => $id,
+                        'filial_id' => $filialId,
+                        'setor_id' => $setorId,
+                        'ativo' => true,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            return redirect()->route('config.usuarios.edit', ['id' => $id])
+                ->with('success', 'Usuário cadastrado com sucesso.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('USUARIO_STORE_ERRO', [
+                'empresaId' => $empresaId,
+                'sub' => $sub,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withInput()->with('error', 'Não foi possível salvar o usuário.');
+        }
     }
 
     /*
@@ -212,6 +274,10 @@ class UsuariosController extends Controller
             'data_expiracao' => 'nullable',
             'status' => 'required|in:ativo,inativo',
             'foto' => 'nullable|image|max:2048',
+
+            // ✅ vínculo
+            'filial_id' => 'nullable|integer',
+            'setor_id'  => 'nullable|integer',
         ]);
 
         $usuario = DB::table('usuarios')
@@ -233,23 +299,92 @@ class UsuariosController extends Controller
             $fotoPath = $request->file('foto')->store('usuarios', 'public');
         }
 
-        DB::table('usuarios')
-            ->where('empresa_id', $empresaId)
-            ->where('id', $id)
-            ->update([
-                'nome_completo' => $request->nome_completo,
-                'cpf' => $cpf,
-                'permissao_id' => $request->permissao_id,
-                'email' => $request->email,
-                'telefone' => $telefone,
-                'data_expiracao' => $request->data_expiracao ?: null,
-                'status' => $request->status,
-                'foto' => $fotoPath,
-                'updated_at' => now(),
+        DB::beginTransaction();
+        try {
+            DB::table('usuarios')
+                ->where('empresa_id', $empresaId)
+                ->where('id', $id)
+                ->update([
+                    'nome_completo' => $request->nome_completo,
+                    'cpf' => $cpf,
+                    'permissao_id' => $request->permissao_id,
+                    'email' => $request->email,
+                    'telefone' => $telefone,
+                    'data_expiracao' => $request->data_expiracao ?: null,
+                    'status' => $request->status,
+                    'foto' => $fotoPath,
+                    'updated_at' => now(),
+                ]);
+
+            // ✅ Salvar vínculo filial/setor
+            $filialId = (int) ($request->filial_id ?? 0);
+            $setorId  = (int) ($request->setor_id ?? 0);
+
+            if ($filialId <= 0 || $setorId <= 0) {
+                // se não selecionou, desativa todos
+                DB::table('vinculo_usuario_lotacao')
+                    ->where('empresa_id', $empresaId)
+                    ->where('usuario_id', $id)
+                    ->whereNull('deleted_at')
+                    ->update([
+                        'ativo' => false,
+                        'updated_at' => now(),
+                    ]);
+            } else {
+                // desativa anteriores
+                DB::table('vinculo_usuario_lotacao')
+                    ->where('empresa_id', $empresaId)
+                    ->where('usuario_id', $id)
+                    ->whereNull('deleted_at')
+                    ->update([
+                        'ativo' => false,
+                        'updated_at' => now(),
+                    ]);
+
+                // ativa/cria selecionado
+                $existente = DB::table('vinculo_usuario_lotacao')
+                    ->where('empresa_id', $empresaId)
+                    ->where('usuario_id', $id)
+                    ->where('filial_id', $filialId)
+                    ->where('setor_id', $setorId)
+                    ->whereNull('deleted_at')
+                    ->first();
+
+                if ($existente) {
+                    DB::table('vinculo_usuario_lotacao')
+                        ->where('id', $existente->id)
+                        ->update([
+                            'ativo' => true,
+                            'updated_at' => now(),
+                        ]);
+                } else {
+                    DB::table('vinculo_usuario_lotacao')->insert([
+                        'empresa_id' => $empresaId,
+                        'usuario_id' => $id,
+                        'filial_id' => $filialId,
+                        'setor_id' => $setorId,
+                        'ativo' => true,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            return redirect()->route('config.usuarios.edit', ['id' => $id])
+                ->with('success', 'Usuário atualizado com sucesso.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('USUARIO_UPDATE_ERRO', [
+                'empresaId' => $empresaId,
+                'sub' => $sub,
+                'id' => $id,
+                'error' => $e->getMessage(),
             ]);
 
-        return redirect()->route('config.usuarios.edit', ['id' => $id])
-            ->with('success', 'Usuário atualizado com sucesso.');
+            return back()->withInput()->with('error', 'Não foi possível salvar o usuário.');
+        }
     }
 
     /*
