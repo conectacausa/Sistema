@@ -4,7 +4,7 @@
       <tr>
         <th>Nome Grupo</th>
         <th style="width:140px;">Usuários</th>
-        <th style="width:180px;">Ações</th>
+        <th style="width:120px;">Ações</th>
       </tr>
     </thead>
     <tbody>
@@ -13,9 +13,10 @@
           <td>{{ $g->nome_grupo }}</td>
           <td>{{ $g->usuarios_count ?? 0 }}</td>
           <td>
-            <a class="btn btn-sm btn-primary"
-               href="{{ route('config.grupos.edit', ['sub' => request()->route('sub'), 'id' => $g->id]) }}">
-              Editar
+            <a href="{{ route('config.grupos.edit', ['sub' => request()->route('sub'), 'id' => $g->id]) }}"
+               class="btn btn-sm btn-primary"
+               title="Editar">
+              <i class="fa fa-edit"></i>
             </a>
           </td>
         </tr>
