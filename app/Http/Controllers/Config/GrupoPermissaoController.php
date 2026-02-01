@@ -89,9 +89,6 @@ class GrupoPermissaoController extends Controller
         ])->with('success', 'Grupo criado com sucesso!');
     }
 
-    /**
-     * ✅ EDIT com abas: Grupo / Usuários / Permissões
-     */
     public function edit(Request $request, $sub, $id)
     {
         $empresa = $this->empresaFromSub((string) $sub);
@@ -105,10 +102,10 @@ class GrupoPermissaoController extends Controller
         /**
          * -----------------------------
          * ABA USUÁRIOS (do grupo)
+         * usuarios.nome_completo
+         * filiais.nome_fantasia
+         * setores.nome
          * -----------------------------
-         * Assumimos: usuarios.permissao_id = permissoes.id
-         * + Tentativa de montar "Filial > Setor" via vinculo_usuario_lotacao.
-         * Se suas colunas/tabelas tiverem nomes diferentes, ajuste aqui.
          */
         $usuarios = DB::table('usuarios as u')
             ->where('u.permissao_id', $grupo->id)
@@ -117,29 +114,26 @@ class GrupoPermissaoController extends Controller
             ->leftJoin('setores as s', 's.id', '=', 'vul.setor_id')
             ->select([
                 'u.id',
-                'u.nome',
+                'u.nome_completo',
                 DB::raw("
                     COALESCE(
                         string_agg(
-                            COALESCE(f.nome, f.nome_filial, (vul.filial_id::text)) || ' > ' ||
-                            COALESCE(s.nome, s.nome_setor, (vul.setor_id::text)),
+                            COALESCE(f.nome_fantasia, (vul.filial_id::text)) || ' > ' ||
+                            COALESCE(s.nome, (vul.setor_id::text)),
                             '<br>'
                         ) FILTER (WHERE vul.id IS NOT NULL),
                         ''
                     ) as lotacoes_html
                 ")
             ])
-            ->groupBy('u.id', 'u.nome')
-            ->orderBy('u.nome')
+            ->groupBy('u.id', 'u.nome_completo')
+            ->orderBy('u.nome_completo')
             ->get();
 
         /**
          * -----------------------------
          * ABA PERMISSÕES
          * -----------------------------
-         * - Pega módulos vinculados à empresa (vinculo_modulos_empresas.ativo=true)
-         * - Para cada módulo, pega telas
-         * - Pega permissões existentes para este grupo em permissao_modulo_tela
          */
         $modulos = DB::table('modulos as m')
             ->join('vinculo_modulos_empresas as vme', 'vme.modulo_id', '=', 'm.id')
@@ -168,9 +162,8 @@ class GrupoPermissaoController extends Controller
         $permissoesExistentes = DB::table('permissao_modulo_tela')
             ->where('permissao_id', $grupo->id)
             ->get()
-            ->keyBy('tela_id'); // facilita check
+            ->keyBy('tela_id');
 
-        // Monta estrutura módulo -> telas
         $telasPorModulo = $telas->groupBy('modulo_id');
 
         return view('config.grupos.edit', [
@@ -182,9 +175,6 @@ class GrupoPermissaoController extends Controller
         ]);
     }
 
-    /**
-     * ✅ Salva: dados do grupo + permissões (grade)
-     */
     public function update(Request $request, $sub, $id)
     {
         $empresa = $this->empresaFromSub((string) $sub);
@@ -212,16 +202,12 @@ class GrupoPermissaoController extends Controller
             'salarios' => ((string) $validated['salarios'] === '1'),
         ]);
 
-        /**
-         * Atualiza permissões:
-         * perm[tela_id][ativo|cadastro|editar] = 1
-         */
         $perm = $request->input('perm', []);
         if (!is_array($perm)) $perm = [];
 
         $telaIds = array_map('intval', array_keys($perm));
-        if (!empty($telaIds)) {
 
+        if (!empty($telaIds)) {
             $telas = DB::table('telas')
                 ->whereIn('id', $telaIds)
                 ->get(['id', 'modulo_id']);
@@ -231,12 +217,10 @@ class GrupoPermissaoController extends Controller
             foreach ($telaIds as $telaId) {
                 $row = $perm[$telaId] ?? [];
 
-                $ativo = isset($row['ativo']) ? true : false;
-                $cadastro = isset($row['cadastro']) ? true : false;
-                $editar = isset($row['editar']) ? true : false;
+                $ativo = isset($row['ativo']);
+                $cadastro = isset($row['cadastro']);
+                $editar = isset($row['editar']);
 
-                // Se não marcou nada, podemos manter registro como ativo=false ou deletar.
-                // Aqui: se nada marcado, delete para limpar.
                 if (!$ativo && !$cadastro && !$editar) {
                     DB::table('permissao_modulo_tela')
                         ->where('permissao_id', $grupo->id)
@@ -248,7 +232,6 @@ class GrupoPermissaoController extends Controller
                 $moduloId = (int) ($telaToModulo[$telaId]->modulo_id ?? 0);
                 if ($moduloId <= 0) continue;
 
-                // Upsert (Postgres): tenta atualizar; se não existe, insere
                 $exists = DB::table('permissao_modulo_tela')
                     ->where('permissao_id', $grupo->id)
                     ->where('tela_id', $telaId)
