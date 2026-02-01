@@ -90,11 +90,14 @@ class GrupoPermissaoController extends Controller
         $grupo->save();
 
         return redirect()
-            ->route('config.grupos.edit', ['sub' => $request->route('sub'), 'id' => $grupo->id])
+            ->route('config.grupos.edit', [
+                'sub' => (string) $request->route('sub'),
+                'id'  => $grupo->id
+            ])
             ->with('success', 'Grupo criado com sucesso.');
     }
 
-    // ✅ IMPORTANTE: recebe $sub antes do $id
+    // ✅ ESSA ASSINATURA É O QUE EVITA O SUB IR PARA O $id
     public function edit(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
@@ -160,7 +163,6 @@ class GrupoPermissaoController extends Controller
         ]);
     }
 
-    // ✅ IMPORTANTE: recebe $sub antes do $id
     public function update(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
@@ -187,7 +189,6 @@ class GrupoPermissaoController extends Controller
         return back()->with('success', 'Alterações salvas.');
     }
 
-    // ✅ IMPORTANTE: recebe $sub antes do $id
     public function togglePermissao(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
@@ -270,7 +271,6 @@ class GrupoPermissaoController extends Controller
         return response()->json(['ok' => true, 'message' => 'Permissão atualizada.']);
     }
 
-    // ✅ IMPORTANTE: recebe $sub antes do $id
     public function destroy(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
@@ -284,7 +284,7 @@ class GrupoPermissaoController extends Controller
         $grupo->delete();
 
         return redirect()
-            ->route('config.grupos.index', ['sub' => $request->route('sub')])
+            ->route('config.grupos.index', ['sub' => (string)$request->route('sub')])
             ->with('success', 'Grupo excluído.');
     }
 }
