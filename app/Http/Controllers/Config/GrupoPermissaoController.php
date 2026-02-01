@@ -97,7 +97,6 @@ class GrupoPermissaoController extends Controller
             ->with('success', 'Grupo criado com sucesso.');
     }
 
-    // ✅ sub antes do id
     public function edit(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
@@ -108,6 +107,7 @@ class GrupoPermissaoController extends Controller
             ->where('id', $id)
             ->firstOrFail();
 
+        // ✅ CORRIGIDO: filiais usa nome_fantasia (não existe f.nome)
         $usuarios = DB::table('usuarios as u')
             ->select([
                 'u.id',
@@ -115,7 +115,7 @@ class GrupoPermissaoController extends Controller
                 DB::raw("
                     COALESCE(
                         string_agg(
-                            COALESCE(f.nome_fantasia, f.nome, (vul.filial_id::text))
+                            COALESCE(f.nome_fantasia, (vul.filial_id::text))
                             || ' > ' ||
                             COALESCE(s.nome, (vul.setor_id::text)),
                             '<br>'
