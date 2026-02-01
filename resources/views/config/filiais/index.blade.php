@@ -205,6 +205,18 @@
 <!-- ✅ SweetAlert v1 (do template) -->
 <script src="{{ asset('assets/vendor_components/sweetalert/sweetalert.min.js') }}"></script>
 
+<script>
+  window.FILIAIS_ROUTES = {
+    create: "{{ route('config.filiais.create') }}",
+    edit: (id) => "{{ url('/config/filiais') }}/" + id + "/editar",
+    destroy: (id) => "{{ url('/config/filiais') }}/" + id,
+    grid: "{{ route('config.filiais.grid') }}",
+    paises: "{{ route('config.filiais.paises') }}",
+    estados: "{{ route('config.filiais.estados') }}",
+    cidades: "{{ route('config.filiais.cidades') }}"
+  };
+</script>
+
 <!-- JS da tela -->
 <script src="{{ asset('assets/js/pages/config-filiais.js') }}?v={{ filemtime(public_path('assets/js/pages/config-filiais.js')) }}"></script>
 
