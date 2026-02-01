@@ -35,7 +35,6 @@ class UsuariosController extends Controller
 
         if ($busca !== '') {
             $cpf = preg_replace('/\D/', '', $busca);
-
             $query->where(function ($q) use ($busca, $cpf) {
                 $q->where('u.nome_completo', 'ILIKE', "%{$busca}%");
                 if ($cpf !== '') {
@@ -54,17 +53,12 @@ class UsuariosController extends Controller
             ->paginate(10)
             ->appends($request->query());
 
+        // CPF formatado
         $usuarios->getCollection()->transform(function ($u) {
             $cpf = preg_replace('/\D/', '', (string) ($u->cpf ?? ''));
-            if (strlen($cpf) === 11) {
-                $u->cpf_formatado =
-                    substr($cpf, 0, 3) . '.' .
-                    substr($cpf, 3, 3) . '.' .
-                    substr($cpf, 6, 3) . '-' .
-                    substr($cpf, 9, 2);
-            } else {
-                $u->cpf_formatado = $u->cpf ?? '';
-            }
+            $u->cpf_formatado = strlen($cpf) === 11
+                ? substr($cpf, 0, 3) . '.' . substr($cpf, 3, 3) . '.' . substr($cpf, 6, 3) . '-' . substr($cpf, 9, 2)
+                : $u->cpf;
             return $u;
         });
 
@@ -75,7 +69,7 @@ class UsuariosController extends Controller
             ->pluck('status');
 
         $permissaoTela = DB::table('permissao_modulo_tela')
-            ->where('permissao_id', (int) (auth()->user()->permissao_id ?? 0))
+            ->where('permissao_id', (int) auth()->user()->permissao_id)
             ->where('tela_id', 10)
             ->where('ativo', true)
             ->first();
@@ -97,11 +91,13 @@ class UsuariosController extends Controller
     */
     public function create(Request $request, string $sub)
     {
-        $empresaId = (int) (auth()->user()->empresa_id ?? 0);
+        $empresaId = (int) auth()->user()->empresa_id;
 
         return view('config.usuarios.create', [
             'filiais' => $this->getFiliais($empresaId),
             'permissoes' => $this->getPermissoes($empresaId),
+            'filialId' => null,
+            'setorId' => null,
         ]);
     }
 
@@ -112,59 +108,52 @@ class UsuariosController extends Controller
     */
     public function store(Request $request, string $sub)
     {
-        $empresaId = (int) (auth()->user()->empresa_id ?? 0);
+        $empresaId = (int) auth()->user()->empresa_id;
 
         $request->validate([
-            'nome_completo' => ['required', 'string', 'max:255'],
-            'cpf'           => ['required', 'string', 'max:20'],
-            'permissao_id'  => ['required', 'integer'],
-            'email'         => ['nullable', 'string', 'max:190'],
-            'telefone'      => ['nullable', 'string', 'max:30'],
-            'data_expiracao'=> ['nullable'],
-            'status'        => ['required', 'in:ativo,inativo'],
-            'foto'          => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'nome_completo' => 'required|string|max:255',
+            'cpf' => 'required|string|max:20',
+            'permissao_id' => 'required|integer',
+            'email' => 'nullable|string|max:190',
+            'telefone' => 'nullable|string|max:30',
+            'data_expiracao' => 'nullable',
+            'status' => 'required|in:ativo,inativo',
+            'foto' => 'nullable|image|max:2048',
         ]);
 
-        $cpf = preg_replace('/\D+/', '', (string) $request->cpf);
-        $telefone = preg_replace('/\D+/', '', (string) $request->telefone);
+        $cpf = preg_replace('/\D/', '', $request->cpf);
+        $telefone = preg_replace('/\D/', '', $request->telefone ?? '');
 
-        $dataExp = $request->data_expiracao ?: null;
-        if ($dataExp) {
-            $dataExp = str_replace('T', ' ', $dataExp) . ':00';
-        }
-
-        $fotoPath = null;
-        if ($request->hasFile('foto')) {
-            $fotoPath = $request->file('foto')->store('usuarios', 'public');
-        }
+        $fotoPath = $request->hasFile('foto')
+            ? $request->file('foto')->store('usuarios', 'public')
+            : null;
 
         $id = DB::table('usuarios')->insertGetId([
             'empresa_id' => $empresaId,
             'nome_completo' => $request->nome_completo,
             'cpf' => $cpf,
-            'permissao_id' => (int) $request->permissao_id,
+            'permissao_id' => $request->permissao_id,
             'email' => $request->email,
             'telefone' => $telefone,
-            'data_expiracao' => $dataExp,
+            'data_expiracao' => $request->data_expiracao ?: null,
             'status' => $request->status,
             'foto' => $fotoPath,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
-        return redirect()
-            ->route('config.usuarios.edit', ['id' => $id])
+        return redirect()->route('config.usuarios.edit', ['id' => $id])
             ->with('success', 'Usuário cadastrado com sucesso.');
     }
 
     /*
     |--------------------------------------------------------------------------
-    | EDIT  ✅ (sub + id)
+    | EDIT
     |--------------------------------------------------------------------------
     */
     public function edit(Request $request, string $sub, int $id)
     {
-        $empresaId = (int) (auth()->user()->empresa_id ?? 0);
+        $empresaId = (int) auth()->user()->empresa_id;
 
         $usuario = DB::table('usuarios')
             ->whereNull('deleted_at')
@@ -173,72 +162,73 @@ class UsuariosController extends Controller
             ->first();
 
         if (!$usuario) {
-            Log::error('USUARIOS_EDIT_NAO_ENCONTRADO', [
-                'sub' => $sub,
-                'auth_user_id' => auth()->id(),
-                'auth_empresa_id' => $empresaId,
-                'usuario_id' => $id,
-                'path' => $request->path(),
-                'host' => $request->getHost(),
-                'route_params' => $request->route()?->parameters() ?? [],
-            ]);
-
-            return redirect()
-                ->route('config.usuarios.index')
-                ->with('error', 'Usuário não encontrado para esta empresa.');
+            Log::error('USUARIO_EDIT_NAO_ENCONTRADO', compact('id', 'empresaId', 'sub'));
+            return redirect()->route('config.usuarios.index')
+                ->with('error', 'Usuário não encontrado.');
         }
 
-        $filiais = $this->getFiliais($empresaId);
-        $permissoes = $this->getPermissoes($empresaId);
+        // Inferir filial e setor
+        $filialId = null;
+        $setorId = null;
+
+        try {
+            $v = DB::table('vinculo_usuario_lotacao')
+                ->where('empresa_id', $empresaId)
+                ->where('usuario_id', $id)
+                ->where('ativo', true)
+                ->whereNull('deleted_at')
+                ->first();
+
+            if ($v) {
+                $filialId = $v->filial_id;
+                $setorId = $v->setor_id;
+            }
+        } catch (\Throwable $e) {}
 
         return view('config.usuarios.edit', [
             'usuario' => $usuario,
-            'filiais' => $filiais,
-            'permissoes' => $permissoes,
+            'filiais' => $this->getFiliais($empresaId),
+            'permissoes' => $this->getPermissoes($empresaId),
+            'filialId' => $filialId,
+            'setorId' => $setorId,
         ]);
     }
 
     /*
     |--------------------------------------------------------------------------
-    | UPDATE ✅ (sub + id)
+    | UPDATE
     |--------------------------------------------------------------------------
     */
     public function update(Request $request, string $sub, int $id)
     {
-        $empresaId = (int) (auth()->user()->empresa_id ?? 0);
+        $empresaId = (int) auth()->user()->empresa_id;
 
         $request->validate([
-            'nome_completo' => ['required', 'string', 'max:255'],
-            'cpf'           => ['required', 'string', 'max:20'],
-            'permissao_id'  => ['required', 'integer'],
-            'email'         => ['nullable', 'string', 'max:190'],
-            'telefone'      => ['nullable', 'string', 'max:30'],
-            'data_expiracao'=> ['nullable'],
-            'status'        => ['required', 'in:ativo,inativo'],
-            'foto'          => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'nome_completo' => 'required|string|max:255',
+            'cpf' => 'required|string|max:20',
+            'permissao_id' => 'required|integer',
+            'email' => 'nullable|string|max:190',
+            'telefone' => 'nullable|string|max:30',
+            'data_expiracao' => 'nullable',
+            'status' => 'required|in:ativo,inativo',
+            'foto' => 'nullable|image|max:2048',
         ]);
 
-        $usuarioAtual = DB::table('usuarios')
-            ->whereNull('deleted_at')
+        $usuario = DB::table('usuarios')
             ->where('empresa_id', $empresaId)
             ->where('id', $id)
+            ->whereNull('deleted_at')
             ->first();
 
-        if (!$usuarioAtual) {
-            return redirect()
-                ->route('config.usuarios.index')
-                ->with('error', 'Usuário não encontrado para atualizar.');
+        if (!$usuario) {
+            return redirect()->route('config.usuarios.index')
+                ->with('error', 'Usuário não encontrado.');
         }
 
-        $cpf = preg_replace('/\D+/', '', (string) $request->cpf);
-        $telefone = preg_replace('/\D+/', '', (string) $request->telefone);
+        $cpf = preg_replace('/\D/', '', $request->cpf);
+        $telefone = preg_replace('/\D/', '', $request->telefone ?? '');
 
-        $dataExp = $request->data_expiracao ?: null;
-        if ($dataExp) {
-            $dataExp = str_replace('T', ' ', $dataExp) . ':00';
-        }
-
-        $fotoPath = $usuarioAtual->foto ?? null;
+        $fotoPath = $usuario->foto;
         if ($request->hasFile('foto')) {
             $fotoPath = $request->file('foto')->store('usuarios', 'public');
         }
@@ -249,31 +239,27 @@ class UsuariosController extends Controller
             ->update([
                 'nome_completo' => $request->nome_completo,
                 'cpf' => $cpf,
-                'permissao_id' => (int) $request->permissao_id,
+                'permissao_id' => $request->permissao_id,
                 'email' => $request->email,
                 'telefone' => $telefone,
-                'data_expiracao' => $dataExp,
+                'data_expiracao' => $request->data_expiracao ?: null,
                 'status' => $request->status,
                 'foto' => $fotoPath,
                 'updated_at' => now(),
             ]);
 
-        return redirect()
-            ->route('config.usuarios.edit', ['id' => $id])
+        return redirect()->route('config.usuarios.edit', ['id' => $id])
             ->with('success', 'Usuário atualizado com sucesso.');
     }
 
     /*
     |--------------------------------------------------------------------------
-    | INATIVAR ✅ (sub + id)
+    | INATIVAR
     |--------------------------------------------------------------------------
     */
     public function inativar(Request $request, string $sub, int $id)
     {
-        $empresaId = (int) (auth()->user()->empresa_id ?? 0);
-
         DB::table('usuarios')
-            ->where('empresa_id', $empresaId)
             ->where('id', $id)
             ->whereNull('deleted_at')
             ->update([
@@ -281,34 +267,26 @@ class UsuariosController extends Controller
                 'updated_at' => now(),
             ]);
 
-        return redirect()
-            ->route('config.usuarios.index')
-            ->with('success', 'Usuário inativado com sucesso.');
+        return redirect()->route('config.usuarios.index')
+            ->with('success', 'Usuário inativado.');
     }
 
     /*
     |--------------------------------------------------------------------------
-    | AJAX: Setores por filial
+    | AJAX
     |--------------------------------------------------------------------------
     */
     public function setoresPorFilial(Request $request, string $sub)
     {
-        $empresaId = (int) (auth()->user()->empresa_id ?? 0);
-        $filialId = (int) $request->get('filial_id', 0);
+        $empresaId = (int) auth()->user()->empresa_id;
+        $filialId = (int) $request->get('filial_id');
 
-        if ($filialId <= 0) {
-            return response()->json([]);
-        }
-
-        $setores = DB::table('setores')
-            ->select('id', 'nome')
+        return DB::table('setores')
             ->where('empresa_id', $empresaId)
             ->where('filial_id', $filialId)
             ->whereNull('deleted_at')
             ->orderBy('nome')
             ->get();
-
-        return response()->json($setores);
     }
 
     /*
@@ -322,7 +300,7 @@ class UsuariosController extends Controller
             ->select('id', DB::raw("COALESCE(nome_fantasia, razao_social) as nome"))
             ->where('empresa_id', $empresaId)
             ->whereNull('deleted_at')
-            ->orderByRaw("COALESCE(nome_fantasia, razao_social)")
+            ->orderBy('nome')
             ->get();
     }
 
