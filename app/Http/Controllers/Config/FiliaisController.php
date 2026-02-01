@@ -3,48 +3,47 @@
 namespace App\Http\Controllers\Config;
 
 use App\Http\Controllers\Controller;
-use App\Models\Filial;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class FiliaisController extends Controller
 {
-    public function index()
+    public function index(Request $request, $sub)
     {
         return view('config.filiais.index', [
             'screenId' => 5,
         ]);
     }
 
-    public function create()
+    public function create(Request $request, $sub)
     {
         return view('config.filiais.create', [
             'screenId' => 5,
         ]);
     }
 
-    public function edit(Filial $filial)
+    public function edit(Request $request, $sub, $id)
     {
-        $empresaId = $this->empresaId();
-
-        if (isset($filial->empresa_id) && (int)$filial->empresa_id !== (int)$empresaId) {
-            abort(404);
-        }
-
+        // mantém simples por enquanto (você disse que create/edit será trabalhado depois)
+        // aqui você pode buscar a filial e validar tenant quando for montar o form.
         return view('config.filiais.edit', [
             'screenId' => 5,
-            'filial'   => $filial,
+            'filialId' => (int)$id,
         ]);
     }
 
-    public function grid(Request $request)
+    /**
+     * Grid JSON (blindada) - agora também remove soft-deletadas se existir deleted_at
+     */
+    public function grid(Request $request, $sub)
     {
         try {
             $perPage = (int)$request->query('per_page', 10);
             $perPage = max(5, min(50, $perPage));
             $q = trim((string)$request->query('q', ''));
 
+            // Lista colunas reais da tabela filiais
             $cols = collect(DB::select("
                 select column_name
                 from information_schema.columns
@@ -66,6 +65,12 @@ class FiliaisController extends Controller
 
             $query = DB::table('filiais')->select($select);
 
+            // ✅ não listar soft deletadas
+            if ($has('deleted_at')) {
+                $query->whereNull('deleted_at');
+            }
+
+            // tenant filter se houver empresa_id
             if ($has('empresa_id')) {
                 $empresaId = $this->empresaId();
                 if ((int)$empresaId > 0) {
@@ -73,6 +78,7 @@ class FiliaisController extends Controller
                 }
             }
 
+            // filtro texto
             if ($q !== '') {
                 $qDigits = preg_replace('/\D+/', '', $q);
 
@@ -91,6 +97,7 @@ class FiliaisController extends Controller
                 });
             }
 
+            // ordenação segura
             if ($has('nome_fantasia')) {
                 $query->orderBy('nome_fantasia');
             } else {
@@ -120,20 +127,72 @@ class FiliaisController extends Controller
         }
     }
 
-    public function destroy(Filial $filial)
+    /**
+     * Soft delete: seta deleted_at com NOW()
+     */
+    public function destroy(Request $request, $sub, $id)
     {
-        $empresaId = $this->empresaId();
+        try {
+            $id = (int)$id;
 
-        if (isset($filial->empresa_id) && (int)$filial->empresa_id !== (int)$empresaId) {
-            abort(404);
+            // Detecta colunas para aplicar tenant e soft delete com segurança
+            $cols = collect(DB::select("
+                select column_name
+                from information_schema.columns
+                where table_schema = 'public'
+                  and table_name = 'filiais'
+            "))->pluck('column_name')->map(fn($c) => strtolower($c))->flip();
+
+            $has = fn(string $c) => $cols->has(strtolower($c));
+
+            $query = DB::table('filiais')->where('id', $id);
+
+            // tenant filter se houver empresa_id
+            if ($has('empresa_id')) {
+                $empresaId = $this->empresaId();
+                if ((int)$empresaId > 0) {
+                    $query->where('empresa_id', (int)$empresaId);
+                }
+            }
+
+            // se tiver deleted_at: soft delete
+            if ($has('deleted_at')) {
+                $update = ['deleted_at' => now()];
+
+                // se existir updated_at, atualiza também
+                if ($has('updated_at')) {
+                    $update['updated_at'] = now();
+                }
+
+                $affected = $query->update($update);
+
+                if ($affected < 1) {
+                    return response()->json(['message' => 'Registro não encontrado ou sem permissão.'], 404);
+                }
+
+                return response()->json(['ok' => true]);
+            }
+
+            // fallback: se não existir coluna deleted_at, deleta de verdade (último recurso)
+            $affected = $query->delete();
+
+            if ($affected < 1) {
+                return response()->json(['message' => 'Registro não encontrado ou sem permissão.'], 404);
+            }
+
+            return response()->json(['ok' => true]);
+
+        } catch (\Throwable $e) {
+            report($e);
+            return response()->json([
+                'message' => 'Erro ao excluir filial.',
+                'detail'  => $e->getMessage(),
+            ], 500);
         }
-
-        $filial->delete();
-
-        return response()->json(['ok' => true]);
     }
 
-    public function paises()
+    /** Combos */
+    public function paises(Request $request, $sub)
     {
         if (!Schema::hasTable('paises')) {
             return response()->json(['data' => []]);
@@ -147,7 +206,7 @@ class FiliaisController extends Controller
         return response()->json(['data' => $rows]);
     }
 
-    public function estados(Request $request)
+    public function estados(Request $request, $sub)
     {
         if (!Schema::hasTable('estados')) {
             return response()->json(['data' => []]);
@@ -164,7 +223,7 @@ class FiliaisController extends Controller
         return response()->json(['data' => $rows]);
     }
 
-    public function cidades(Request $request)
+    public function cidades(Request $request, $sub)
     {
         if (!Schema::hasTable('cidades')) {
             return response()->json(['data' => []]);
