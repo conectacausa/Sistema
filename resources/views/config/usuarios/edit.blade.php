@@ -1,5 +1,6 @@
+{{-- resources/views/config/usuarios/edit.blade.php --}}
 <!DOCTYPE html>
-<html lang="{{ app()->getLocale() }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -8,52 +9,62 @@
   <meta name="author" content="">
   <link rel="icon" href="{{ asset('assets/images/favicon.ico') }}">
 
-  <title>{{ config('app.name') }} | Usuários</title>
+  <title>{{ config('app.name', 'ConecttaRH') }} | Usuários</title>
 
+  <!-- Vendors Style-->
   <link rel="stylesheet" href="{{ asset('assets/css/vendors_css.css') }}">
+
+  <!-- Style-->
   <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
 
-  <meta name="csrf-token" content="{{ csrf_token() }}">
-
   <style>
-    .foto-preview-box{
-      width: 100%;
-      min-height: 220px;
-      border: 1px dashed rgba(0,0,0,.2);
-      border-radius: 10px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      background: rgba(0,0,0,.02);
-      overflow:hidden;
+    /* remove hover do botão "Novo" (mantém padrão do tema sem trocar cor no hover) */
+    .btn-nohover:hover, .btn-nohover:focus, .btn-nohover:active {
+      filter: none !important;
+      opacity: 1 !important;
+      transform: none !important;
+      box-shadow: none !important;
     }
-    .foto-preview-box img{
-      width:100%;
-      height:220px;
+
+    /* preview foto */
+    .user-photo-box{
+      width: 100%;
+      border: 1px dashed rgba(0,0,0,.15);
+      border-radius: 8px;
+      padding: 10px;
+      background: rgba(0,0,0,.02);
+    }
+    .user-photo-preview{
+      width: 100%;
+      height: 210px; /* ocupa “3 linhas” visualmente */
+      border-radius: 8px;
       object-fit: cover;
+      background: #f5f6f7;
       display:block;
     }
-    .foto-preview-placeholder{
-      text-align:center;
-      color:#7a7a7a;
-      font-size: 12px;
-      padding: 10px;
+    .user-photo-actions{
+      margin-top: 10px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:space-between;
     }
   </style>
 </head>
 
 <body class="hold-transition light-skin sidebar-mini theme-primary fixed">
-
 <div class="wrapper">
   <div id="loader"></div>
 
+  {{-- Header / Menu / Footer ficam em partials --}}
   @include('partials.header')
   @include('partials.menu')
 
   <div class="content-wrapper">
     <div class="container-full">
 
+      <!-- Content Header (Page header) -->
       <div class="content-header">
         <div class="d-flex align-items-center">
           <div class="me-auto">
@@ -61,10 +72,10 @@
             <div class="d-inline-block align-items-center">
               <nav>
                 <ol class="breadcrumb">
-                  <li class="breadcrumb-item"><a href="{{ route('dashboard') }}"><i class="mdi mdi-home-outline"></i></a></li>
+                  <li class="breadcrumb-item"><a href="#"><i class="mdi mdi-home-outline"></i></a></li>
                   <li class="breadcrumb-item">Configuração</li>
                   <li class="breadcrumb-item"><a href="{{ route('config.usuarios.index') }}">Usuários</a></li>
-                  <li class="breadcrumb-item active" aria-current="page">Editar Usuário</li>
+                  <li class="breadcrumb-item" aria-current="page">Editar Usuário</li>
                 </ol>
               </nav>
             </div>
@@ -72,6 +83,7 @@
         </div>
       </div>
 
+      <!-- Main content -->
       <section class="content">
 
         <div class="row">
@@ -81,122 +93,178 @@
                 <h4 class="box-title">Cadastro de Usuário</h4>
               </div>
 
-              <div class="box-body">
-                <div class="vtabs">
-                  <ul class="nav nav-tabs tabs-vertical" role="tablist">
-                    <li class="nav-item">
-                      <a class="nav-link active" data-bs-toggle="tab" href="#usuarios" role="tab">
-                        <span><i class="ion-person me-15"></i>Usuário</span>
-                      </a>
-                    </li>
+              {{-- FORM envolve TODA a área (tabs + footer). Botão Salvar fica fora das tabs --}}
+              <form method="POST"
+                    action="{{ route('config.usuarios.update', ['id' => $usuario->id]) }}"
+                    enctype="multipart/form-data"
+                    id="formUsuario">
+                @csrf
+                @method('PUT')
 
-                    <li class="nav-item">
-                      <a class="nav-link" data-bs-toggle="tab" href="#lotacao" role="tab">
-                        <span><i class="ion-home me-15"></i>Lotação</span>
-                      </a>
-                    </li>
-                  </ul>
+                @php
+                  $filialId = $filialId ?? null;
+                  $setorId  = $setorId ?? null;
 
-                  <div class="tab-content">
-                    {{-- TAB USUÁRIO --}}
-                    <div class="tab-pane active" id="usuarios" role="tabpanel">
-                      <div class="p-15">
-                        <h3>Usuário</h3>
+                  $cpfDigits = preg_replace('/\D+/', '', (string)($usuario->cpf ?? ''));
+                  $cpfMask = (strlen($cpfDigits) === 11)
+                    ? substr($cpfDigits,0,3).'.'.substr($cpfDigits,3,3).'.'.substr($cpfDigits,6,3).'-'.substr($cpfDigits,9,2)
+                    : (string)($usuario->cpf ?? '');
 
-                        @if ($errors->any())
-                          <div class="alert alert-danger">
-                            <ul class="mb-0">
-                              @foreach ($errors->all() as $error)
-                                <li>{{ $error }}</li>
-                              @endforeach
-                            </ul>
-                          </div>
-                        @endif
+                  $telDigits = preg_replace('/\D+/', '', (string)($usuario->telefone ?? ''));
+                  $telMask = $usuario->telefone ?? '';
+                  if (strlen($telDigits) === 11) {
+                    $telMask = '('.substr($telDigits,0,2).')'.substr($telDigits,2,5).'-'.substr($telDigits,7,4);
+                  } elseif (strlen($telDigits) === 10) {
+                    $telMask = '('.substr($telDigits,0,2).')'.substr($telDigits,2,4).'-'.substr($telDigits,6,4);
+                  }
 
-                        <form method="POST"
-                              action="{{ route('config.usuarios.update', ['id' => $usuario->id]) }}"
-                              enctype="multipart/form-data"
-                              id="formUsuario">
-                          @csrf
-                          @method('PUT')
+                  // datetime-local (se vier timestamp padrão)
+                  $dataExp = $usuario->data_expiracao ?? null;
+                  $dataExpValue = '';
+                  if ($dataExp) {
+                    try {
+                      $dataExpValue = \Carbon\Carbon::parse($dataExp)->format('Y-m-d\TH:i');
+                    } catch (\Throwable $e) {
+                      $dataExpValue = '';
+                    }
+                  }
+
+                  $fotoUrl = !empty($usuario->foto)
+                    ? asset('storage/'.$usuario->foto)
+                    : asset('assets/images/avatar/avatar-1.png');
+                @endphp
+
+                <div class="box-body">
+                  <div class="vtabs">
+                    <ul class="nav nav-tabs tabs-vertical" role="tablist">
+                      <li class="nav-item">
+                        <a class="nav-link active" data-bs-toggle="tab" href="#tab_usuario" role="tab">
+                          <span><i class="ion-person me-15"></i>Usuário</span>
+                        </a>
+                      </li>
+                      <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#tab_lotacao" role="tab">
+                          <span><i class="ion-home me-15"></i>Lotação</span>
+                        </a>
+                      </li>
+                    </ul>
+
+                    <div class="tab-content">
+                      {{-- TAB: Usuário --}}
+                      <div class="tab-pane active" id="tab_usuario" role="tabpanel">
+                        <div class="p-15">
+                          <h3>Usuário</h3>
 
                           <div class="row">
-                            {{-- COLUNA ESQUERDA --}}
-                            <div class="col-md-9">
-                              <div class="row">
+                            {{-- COL: campos --}}
+                            <div class="col-12 col-lg-8">
 
-                                {{-- Linha 1 - Nome Completo --}}
-                                <div class="col-md-12">
+                              {{-- Linha 1 - Nome Completo --}}
+                              <div class="row">
+                                <div class="col-12">
                                   <div class="form-group">
                                     <label class="form-label">Nome Completo</label>
                                     <input type="text"
+                                           class="form-control @error('nome_completo') is-invalid @enderror"
                                            name="nome_completo"
-                                           class="form-control"
-                                           value="{{ old('nome_completo', $usuario->nome_completo) }}"
-                                           required>
+                                           value="{{ old('nome_completo', $usuario->nome_completo ?? '') }}"
+                                           placeholder="Nome completo">
+                                    @error('nome_completo')
+                                      <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                   </div>
                                 </div>
+                              </div>
 
-                                {{-- Linha 2 - CPF e Grupo --}}
-                                <div class="col-md-4">
+                              {{-- Linha 2 - CPF e Grupo --}}
+                              <div class="row">
+                                <div class="col-md-6">
                                   <div class="form-group">
                                     <label class="form-label">CPF</label>
                                     <input type="text"
+                                           class="form-control @error('cpf') is-invalid @enderror"
                                            name="cpf"
                                            id="cpf"
-                                           class="form-control"
-                                           value="{{ old('cpf', $usuario->cpf) }}"
-                                           required>
+                                           value="{{ old('cpf', $cpfMask) }}"
+                                           placeholder="000.000.000-00">
+                                    @error('cpf')
+                                      <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                   </div>
                                 </div>
 
-                                <div class="col-md-8">
+                                <div class="col-md-6">
                                   <div class="form-group">
                                     <label class="form-label">Grupo de Permissão</label>
-                                    <select name="permissao_id" class="form-select" required>
+                                    <select name="permissao_id"
+                                            class="form-select @error('permissao_id') is-invalid @enderror">
                                       <option value="">Selecione</option>
-                                      @foreach($permissoes as $p)
+                                      @foreach(($permissoes ?? []) as $p)
                                         <option value="{{ $p->id }}"
-                                          {{ (string)old('permissao_id', $usuario->permissao_id) === (string)$p->id ? 'selected' : '' }}>
+                                          @selected((int)old('permissao_id', $usuario->permissao_id ?? 0) === (int)$p->id)>
                                           {{ $p->nome_grupo }}
                                         </option>
                                       @endforeach
                                     </select>
+                                    @error('permissao_id')
+                                      <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                   </div>
                                 </div>
+                              </div>
 
-                                {{-- Linha 3 - Filial e Setor --}}
+                              {{-- Linha 3 - Filial e Setor --}}
+                              <div class="row">
                                 <div class="col-md-6">
                                   <div class="form-group">
                                     <label class="form-label">Filial</label>
-                                    <select name="filial_id" id="filial_id" class="form-select">
+                                    <select name="filial_id"
+                                            id="filial_id"
+                                            class="form-select @error('filial_id') is-invalid @enderror">
                                       <option value="">Selecione</option>
-                                      @foreach($filiais as $f)
-                                        <option value="{{ $f->id }}" {{ (string)old('filial_id', $filialId) === (string)$f->id ? 'selected' : '' }}>
+                                      @foreach(($filiais ?? []) as $f)
+                                        <option value="{{ $f->id }}"
+                                          @selected((string)old('filial_id', $filialId) === (string)$f->id)>
                                           {{ $f->nome }}
                                         </option>
                                       @endforeach
                                     </select>
+                                    @error('filial_id')
+                                      <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                   </div>
                                 </div>
 
                                 <div class="col-md-6">
                                   <div class="form-group">
                                     <label class="form-label">Setor</label>
-                                    <select name="setor_id" id="setor_id" class="form-select" disabled>
-                                      <option value="">Selecione a filial</option>
+                                    {{-- setores são carregados via JS ao escolher filial --}}
+                                    <select name="setor_id"
+                                            id="setor_id"
+                                            class="form-select @error('setor_id') is-invalid @enderror"
+                                            disabled>
+                                      <option value="">Selecione</option>
                                     </select>
+                                    @error('setor_id')
+                                      <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                   </div>
                                 </div>
+                              </div>
 
-                                {{-- Linha 4 - E-mail e Telefone --}}
+                              {{-- Linha 4 - E-mail e Telefone --}}
+                              <div class="row">
                                 <div class="col-md-6">
                                   <div class="form-group">
                                     <label class="form-label">E-mail</label>
                                     <input type="email"
+                                           class="form-control @error('email') is-invalid @enderror"
                                            name="email"
-                                           class="form-control"
-                                           value="{{ old('email', $usuario->email) }}">
+                                           value="{{ old('email', $usuario->email ?? '') }}"
+                                           placeholder="email@dominio.com">
+                                    @error('email')
+                                      <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                   </div>
                                 </div>
 
@@ -204,276 +272,338 @@
                                   <div class="form-group">
                                     <label class="form-label">Telefone</label>
                                     <input type="text"
+                                           class="form-control @error('telefone') is-invalid @enderror"
                                            name="telefone"
                                            id="telefone"
-                                           class="form-control"
-                                           value="{{ old('telefone', $usuario->telefone) }}">
+                                           value="{{ old('telefone', $telMask) }}"
+                                           placeholder="(00)00000-0000">
+                                    @error('telefone')
+                                      <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                   </div>
                                 </div>
+                              </div>
 
-                                {{-- Linha 5 - Data/Hora Expiração e Situação --}}
-                                @php
-                                  $exp = old('data_expiracao', $usuario->data_expiracao ?? '');
-                                  // converte "YYYY-MM-DD HH:MM:SS" para "YYYY-MM-DDTHH:MM"
-                                  if ($exp && strpos($exp, ' ') !== false) {
-                                      $exp = str_replace(' ', 'T', substr($exp, 0, 16));
-                                  }
-                                @endphp
-
+                              {{-- Linha 5 - Data/Hora Expiração e Situação --}}
+                              <div class="row">
                                 <div class="col-md-6">
                                   <div class="form-group">
-                                    <label class="form-label">Data/Hora de Expiração</label>
+                                    <label class="form-label">Data / Hora Expiração</label>
                                     <input type="datetime-local"
+                                           class="form-control @error('data_expiracao') is-invalid @enderror"
                                            name="data_expiracao"
-                                           class="form-control"
-                                           value="{{ $exp }}">
+                                           value="{{ old('data_expiracao', $dataExpValue) }}">
+                                    @error('data_expiracao')
+                                      <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                   </div>
                                 </div>
 
                                 <div class="col-md-6">
                                   <div class="form-group">
                                     <label class="form-label">Situação</label>
-                                    <select name="status" class="form-select" required>
-                                      <option value="ativo" {{ old('status', $usuario->status) === 'ativo' ? 'selected' : '' }}>Ativo</option>
-                                      <option value="inativo" {{ old('status', $usuario->status) === 'inativo' ? 'selected' : '' }}>Inativo</option>
+                                    <select name="status" class="form-select @error('status') is-invalid @enderror">
+                                      <option value="ativo" @selected(old('status', $usuario->status ?? 'ativo') === 'ativo')>Ativo</option>
+                                      <option value="inativo" @selected(old('status', $usuario->status ?? 'ativo') === 'inativo')>Inativo</option>
                                     </select>
+                                    @error('status')
+                                      <div class="invalid-feedback">{{ $message }}</div>
+                                    @enderror
                                   </div>
                                 </div>
-
-                                {{-- Botão Salvar à direita --}}
-                                <div class="col-md-12">
-                                  <div class="d-flex justify-content-end mt-3">
-                                    <button type="submit" class="btn bg-gradient-success waves-effect waves-light">
-                                      Salvar
-                                    </button>
-                                  </div>
-                                </div>
-
                               </div>
+
                             </div>
 
-                            {{-- COLUNA DIREITA (FOTO) --}}
-                            <div class="col-md-3">
+                            {{-- COL: Foto (preview ocupa “3 linhas”) --}}
+                            <div class="col-12 col-lg-4">
                               <div class="form-group">
                                 <label class="form-label">Foto</label>
 
-                                @php
-                                  $fotoUrl = '';
-                                  if (!empty($usuario->foto)) {
-                                    // foto salva no disk public
-                                    $fotoUrl = asset('storage/' . ltrim($usuario->foto, '/'));
-                                  }
-                                @endphp
+                                <div class="user-photo-box">
+                                  <img src="{{ $fotoUrl }}"
+                                       id="fotoPreview"
+                                       alt="Foto do usuário"
+                                       class="user-photo-preview">
 
-                                <div class="foto-preview-box mb-2" id="fotoPreviewBox">
-                                  <div class="foto-preview-placeholder" id="fotoPlaceholder" style="{{ $fotoUrl ? 'display:none;' : '' }}">
-                                    Nenhuma foto selecionada<br>
-                                    <small>Selecione um arquivo para visualizar</small>
+                                  <div class="user-photo-actions">
+                                    <input type="file"
+                                           name="foto"
+                                           id="foto"
+                                           class="form-control @error('foto') is-invalid @enderror"
+                                           accept="image/*">
                                   </div>
 
-                                  <img id="fotoPreviewImg" src="{{ $fotoUrl }}" alt="Preview" style="{{ $fotoUrl ? '' : 'display:none;' }}">
+                                  @error('foto')
+                                    <div class="text-danger mt-5">{{ $message }}</div>
+                                  @enderror
                                 </div>
 
-                                <input type="file"
-                                       name="foto"
-                                       id="foto"
-                                       class="form-control"
-                                       accept=".jpg,.jpeg,.png,.webp">
-                                <small class="text-muted">JPG/PNG/WebP até 2MB</small>
+                                <small class="text-muted d-block mt-5">
+                                  Formatos: JPG, PNG, WEBP (até 2MB)
+                                </small>
                               </div>
                             </div>
 
                           </div>
-                        </form>
+                        </div>
                       </div>
-                    </div>
 
-                    {{-- TAB LOTAÇÃO --}}
-                    <div class="tab-pane" id="lotacao" role="tabpanel">
-                      <div class="p-15">
-                        <h3>Lotações</h3>
+                      {{-- TAB: Lotação --}}
+                      <div class="tab-pane" id="tab_lotacao" role="tabpanel">
+                        <div class="p-15">
+                          <h3>Lotações</h3>
 
-                        <div class="row">
-                          <div class="col-md-4">
-                            <div class="form-group">
-                              <label class="form-label">Filial</label>
-                              <select id="lot_filial" class="form-select">
-                                <option value="">Todas</option>
-                                @foreach($filiais as $f)
-                                  <option value="{{ $f->id }}">{{ $f->nome }}</option>
-                                @endforeach
-                              </select>
+                          {{-- ocupa 100% do espaço disponível --}}
+                          <div class="row">
+                            <div class="col-12">
+
+                              <div class="row mb-15">
+                                <div class="col-md-6">
+                                  <label class="form-label">Filial</label>
+                                  <select id="filtroFilialLotacao" class="form-select">
+                                    <option value="">Selecione</option>
+                                    @foreach(($filiais ?? []) as $f)
+                                      <option value="{{ $f->id }}">{{ $f->nome }}</option>
+                                    @endforeach
+                                  </select>
+                                </div>
+
+                                <div class="col-md-6">
+                                  <label class="form-label">Setor</label>
+                                  <select id="filtroSetorLotacao" class="form-select" disabled>
+                                    <option value="">Selecione</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div class="table-responsive">
+                                <table class="table table-bordered table-hover align-middle w-100">
+                                  <thead class="bg-primary">
+                                    <tr>
+                                      <th>Filial</th>
+                                      <th>Setor</th>
+                                      <th>Cargo</th>
+                                      <th class="text-center">Vínculo</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody id="tabelaLotacoes">
+                                    {{-- A tabela será preenchida via JS/AJAX (próximo passo) --}}
+                                    <tr>
+                                      <td colspan="4" class="text-center text-muted">
+                                        Selecione a Filial e o Setor para carregar as lotações.
+                                      </td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+
                             </div>
                           </div>
 
-                          <div class="col-md-4">
-                            <div class="form-group">
-                              <label class="form-label">Setor</label>
-                              <select id="lot_setor" class="form-select" disabled>
-                                <option value="">Selecione a filial</option>
-                              </select>
-                            </div>
-                          </div>
                         </div>
-
-                        <div class="table-responsive">
-                          <table class="table">
-                            <thead class="bg-primary">
-                              <tr>
-                                <th>Filial</th>
-                                <th>Setor</th>
-                                <th>Cargo</th>
-                                <th>Vínculo</th>
-                              </tr>
-                            </thead>
-                            <tbody id="lotacoesBody">
-                              <tr>
-                                <td colspan="4" class="text-center">Carregando...</td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-
-                        <input type="hidden" id="usuario_id" value="{{ $usuario->id }}">
                       </div>
-                    </div>
 
-                  </div>
+                    </div> {{-- tab-content --}}
+                  </div> {{-- vtabs --}}
+                </div> {{-- box-body --}}
+
+                {{-- BOTÃO SALVAR FORA DAS TABS --}}
+                <div class="box-footer text-end">
+                  <a href="{{ route('config.usuarios.index') }}" class="btn btn-secondary me-10 btn-nohover">
+                    <i class="fa fa-arrow-left"></i> Voltar
+                  </a>
+
+                  <button type="submit" class="btn btn-success btn-nohover" id="btnSalvarUsuario">
+                    <i class="fa fa-save"></i> Salvar
+                  </button>
                 </div>
-              </div>
 
+              </form>
             </div>
           </div>
         </div>
 
       </section>
-
     </div>
   </div>
 
   @include('partials.footer')
 </div>
 
+<!-- Vendor JS -->
 <script src="{{ asset('assets/js/vendors.min.js') }}"></script>
 <script src="{{ asset('assets/js/pages/chat-popup.js') }}"></script>
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
+
+<!-- Coup Admin App -->
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
 <script>
-  function notifySuccess(msg) { if (window.toastr) toastr.success(msg); else alert(msg); }
-  function notifyError(msg) { if (window.toastr) toastr.error(msg); else alert(msg); }
-
-  function maskCPF(v) {
-    v = (v || '').replace(/\D/g,'').slice(0,11);
-    if (v.length <= 3) return v;
-    if (v.length <= 6) return v.replace(/(\d{3})(\d+)/,'$1.$2');
-    if (v.length <= 9) return v.replace(/(\d{3})(\d{3})(\d+)/,'$1.$2.$3');
-    return v.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/,'$1.$2.$3-$4');
-  }
-  function maskPhone(v) {
-    v = (v || '').replace(/\D/g,'').slice(0,11);
-    if (v.length <= 2) return '('+v;
-    if (v.length <= 7) return v.replace(/(\d{2})(\d+)/,'($1)$2');
-    return v.replace(/(\d{2})(\d{5})(\d+)/,'($1)$2-$3');
-  }
-
-  async function fetchJSON(url) {
-    const r = await fetch(url, { headers: { 'X-Requested-With':'XMLHttpRequest' } });
-    if (!r.ok) throw new Error('Erro ao carregar');
-    return await r.json();
-  }
-
-  document.addEventListener('DOMContentLoaded', function () {
-    if (window.feather) feather.replace();
-
-    // máscara cpf/telefone + normaliza preenchidos
-    const cpf = document.getElementById('cpf');
-    if (cpf) {
-      cpf.value = maskCPF(cpf.value);
-      cpf.addEventListener('input', () => cpf.value = maskCPF(cpf.value));
+  (function () {
+    // Toastr (se estiver disponível no bundle vendors)
+    function toast(type, msg) {
+      if (window.toastr && typeof window.toastr[type] === 'function') {
+        toastr.options = {
+          "closeButton": true,
+          "progressBar": true,
+          "positionClass": "toast-top-right",
+          "timeOut": "3500"
+        };
+        toastr[type](msg);
+      }
     }
 
-    const tel = document.getElementById('telefone');
-    if (tel) {
-      tel.value = maskPhone(tel.value);
-      tel.addEventListener('input', () => tel.value = maskPhone(tel.value));
-    }
+    @if(session('success'))
+      toast('success', @json(session('success')));
+    @endif
+    @if(session('error'))
+      toast('error', @json(session('error')));
+    @endif
+    @if($errors && $errors->any())
+      toast('error', 'Verifique os campos do formulário.');
+    @endif
 
-    // preview foto
-    const fotoInput = document.getElementById('foto');
-    const img = document.getElementById('fotoPreviewImg');
-    const placeholder = document.getElementById('fotoPlaceholder');
-
-    if (fotoInput && img && placeholder) {
-      fotoInput.addEventListener('change', function () {
-        const file = this.files && this.files[0] ? this.files[0] : null;
+    // Preview de foto
+    const inputFoto = document.getElementById('foto');
+    const preview = document.getElementById('fotoPreview');
+    if (inputFoto && preview) {
+      inputFoto.addEventListener('change', function () {
+        const file = this.files && this.files[0];
         if (!file) return;
-
-        const allowed = ['image/jpeg','image/png','image/webp'];
-        if (!allowed.includes(file.type)) {
-          notifyError('Formato inválido. Use JPG, PNG ou WebP.');
-          fotoInput.value = '';
-          return;
-        }
-
         const reader = new FileReader();
         reader.onload = function (e) {
-          img.src = e.target.result;
-          img.style.display = 'block';
-          placeholder.style.display = 'none';
+          preview.src = e.target.result;
         };
         reader.readAsDataURL(file);
       });
     }
 
-    // Filial -> Setor (carregar e já selecionar setor salvo se existir)
-    const filial = document.getElementById('filial_id');
-    const setor = document.getElementById('setor_id');
-    const setorSelecionado = @json(old('setor_id', $setorId));
+    // Máscaras (se o plugin existir no vendors)
+    if (window.jQuery) {
+      const $ = window.jQuery;
 
-    async function loadSetores(filialId, selectedId) {
-      setor.innerHTML = '<option value="">Carregando...</option>';
-      setor.disabled = true;
+      if ($.fn.inputmask) {
+        $('#cpf').inputmask('999.999.999-99');
+        $('#telefone').inputmask('(99)99999-9999');
+      }
+    }
 
-      if (!filialId) {
-        setor.innerHTML = '<option value="">Selecione a filial</option>';
-        setor.disabled = true;
+    // Carregar setores ao escolher filial (reaproveita endpoint já usado no projeto: /cargos/setores-por-filial)
+    const filialSelect = document.getElementById('filial_id');
+    const setorSelect  = document.getElementById('setor_id');
+    const setorPreSelecionado = @json(old('setor_id', $setorId));
+
+    function setSetorOptions(items, selectedId) {
+      if (!setorSelect) return;
+      setorSelect.innerHTML = '<option value="">Selecione</option>';
+      (items || []).forEach(function (s) {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.nome;
+        if (String(selectedId) === String(s.id)) opt.selected = true;
+        setorSelect.appendChild(opt);
+      });
+      setorSelect.disabled = false;
+    }
+
+    async function carregarSetoresParaSelect(filialId, selectedId) {
+      if (!filialId || !setorSelect) {
+        if (setorSelect) {
+          setorSelect.innerHTML = '<option value="">Selecione</option>';
+          setorSelect.disabled = true;
+        }
         return;
       }
 
       try {
-        const data = await fetchJSON(`{{ route('config.usuarios.setores_por_filial') }}?filial_id=${filialId}`);
-        setor.innerHTML = '<option value="">Selecione</option>';
-        data.forEach(s => {
-          const opt = document.createElement('option');
-          opt.value = s.id;
-          opt.textContent = s.nome;
-          if (String(selectedId) !== 'null' && String(selectedId) === String(s.id)) opt.selected = true;
-          setor.appendChild(opt);
-        });
-        setor.disabled = false;
+        const url = @json(url('/cargos/setores-por-filial')) + '?filial_id=' + encodeURIComponent(filialId);
+        const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
+        if (!res.ok) throw new Error('Falha ao buscar setores');
+        const data = await res.json();
+        setSetorOptions(data, selectedId);
       } catch (e) {
-        notifyError('Falha ao carregar setores.');
-        setor.innerHTML = '<option value="">Selecione a filial</option>';
-        setor.disabled = true;
+        if (setorSelect) {
+          setorSelect.innerHTML = '<option value="">Selecione</option>';
+          setorSelect.disabled = true;
+        }
+        toast('error', 'Não foi possível carregar os setores desta filial.');
       }
     }
 
-    if (filial && setor) {
-      // carregamento inicial (se já tiver filial)
-      if (filial.value) loadSetores(filial.value, setorSelecionado);
+    if (filialSelect) {
+      filialSelect.addEventListener('change', function () {
+        carregarSetoresParaSelect(this.value, null);
+      });
 
-      filial.addEventListener('change', function () {
-        loadSetores(this.value, null);
+      // on load: se já tem filial selecionada, carrega setores e marca o setor
+      const filialInicial = filialSelect.value;
+      if (filialInicial) {
+        carregarSetoresParaSelect(filialInicial, setorPreSelecionado);
+      }
+    }
+
+    // Lotação (layout pronto). Carregar setores do filtro de lotação também.
+    const filtroFilialLotacao = document.getElementById('filtroFilialLotacao');
+    const filtroSetorLotacao  = document.getElementById('filtroSetorLotacao');
+
+    function resetLotacaoTable(msg) {
+      const tbody = document.getElementById('tabelaLotacoes');
+      if (!tbody) return;
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="4" class="text-center text-muted">${msg || 'Selecione a Filial e o Setor para carregar as lotações.'}</td>
+        </tr>
+      `;
+    }
+
+    async function carregarSetoresLotacao(filialId) {
+      if (!filtroSetorLotacao) return;
+      filtroSetorLotacao.innerHTML = '<option value="">Selecione</option>';
+      filtroSetorLotacao.disabled = true;
+      resetLotacaoTable();
+
+      if (!filialId) return;
+
+      try {
+        const url = @json(url('/cargos/setores-por-filial')) + '?filial_id=' + encodeURIComponent(filialId);
+        const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
+        if (!res.ok) throw new Error('Falha ao buscar setores');
+        const data = await res.json();
+
+        (data || []).forEach(function (s) {
+          const opt = document.createElement('option');
+          opt.value = s.id;
+          opt.textContent = s.nome;
+          filtroSetorLotacao.appendChild(opt);
+        });
+
+        filtroSetorLotacao.disabled = false;
+      } catch (e) {
+        toast('error', 'Não foi possível carregar os setores (Lotação).');
+      }
+    }
+
+    if (filtroFilialLotacao) {
+      filtroFilialLotacao.addEventListener('change', function () {
+        carregarSetoresLotacao(this.value);
       });
     }
 
-    // toastr flash
-    @if(session('success')) notifySuccess(@json(session('success'))); @endif
-    @if(session('error')) notifyError(@json(session('error'))); @endif
-  });
+    if (filtroSetorLotacao) {
+      filtroSetorLotacao.addEventListener('change', function () {
+        // tabela será implementada no próximo passo (AJAX de lotações)
+        const filial = filtroFilialLotacao ? filtroFilialLotacao.value : '';
+        const setor = this.value;
+        if (!filial || !setor) {
+          resetLotacaoTable();
+          return;
+        }
+        resetLotacaoTable('Carregamento da tabela de lotações será habilitado no próximo passo.');
+      });
+    }
+  })();
 </script>
-
 </body>
 </html>
