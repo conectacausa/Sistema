@@ -29,25 +29,46 @@ class GrupoPermissaoController extends Controller
     public function index(Request $request)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
-
         $q = trim((string) $request->get('q', ''));
 
-        $grupos = Permissao::query()
-            ->where('empresa_id', $empresaId)
-            ->when($q !== '', fn($qq) => $qq->whereRaw('LOWER(nome_grupo) LIKE ?', ['%' . mb_strtolower($q) . '%']))
-            ->orderBy('nome_grupo')
-            ->get();
-
-        $counts = DB::table('usuarios')
+        // Subquery: contagem de usuários por permissao_id
+        $usuariosCountSub = DB::table('usuarios')
             ->select('permissao_id', DB::raw('COUNT(*)::int as total'))
-            ->whereIn('permissao_id', $grupos->pluck('id')->all())
-            ->groupBy('permissao_id')
-            ->pluck('total', 'permissao_id');
+            ->groupBy('permissao_id');
+
+        // ✅ Agora é paginate() (para $grupos->links())
+        $grupos = DB::table('permissoes as p')
+            ->leftJoinSub($usuariosCountSub, 'uc', function ($join) {
+                $join->on('uc.permissao_id', '=', 'p.id');
+            })
+            ->where('p.empresa_id', $empresaId)
+            ->whereNull('p.deleted_at')
+            ->when($q !== '', function ($query) use ($q) {
+                $query->where('p.nome_grupo', 'ilike', '%' . $q . '%');
+            })
+            ->orderBy('p.nome_grupo')
+            ->select([
+                'p.id',
+                'p.empresa_id',
+                'p.nome_grupo',
+                'p.observacoes',
+                'p.status',
+                'p.salarios',
+                'p.created_at',
+                'p.updated_at',
+                DB::raw('COALESCE(uc.total, 0) as usuarios_count'),
+            ])
+            ->paginate(10)
+            ->withQueryString();
+
+        // Se você usa filtro digitando e atualiza só a tabela
+        if ($request->ajax() || $request->boolean('ajax')) {
+            return view('config.grupos.partials.tabela', compact('grupos'));
+        }
 
         return view('config.grupos.index', [
             'grupos' => $grupos,
-            'counts' => $counts,
-            'q'      => $q,
+            'q' => $q,
         ]);
     }
 
@@ -76,7 +97,6 @@ class GrupoPermissaoController extends Controller
             ->with('success', 'Grupo criado com sucesso.');
     }
 
-    // ✅ id sem type-hint + cast manual
     public function edit(Request $request, $id)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
@@ -134,15 +154,14 @@ class GrupoPermissaoController extends Controller
             ->keyBy('tela_id');
 
         return view('config.grupos.edit', [
-            'grupo'               => $grupo,
-            'usuarios'            => $usuarios,
-            'modulos'             => $modulos,
-            'telasPorModulo'      => $telasPorModulo,
-            'permissoesExistentes'=> $permissoesExistentes,
+            'grupo' => $grupo,
+            'usuarios' => $usuarios,
+            'modulos' => $modulos,
+            'telasPorModulo' => $telasPorModulo,
+            'permissoesExistentes' => $permissoesExistentes,
         ]);
     }
 
-    // ✅ id sem type-hint + cast manual
     public function update(Request $request, $id)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
@@ -169,7 +188,6 @@ class GrupoPermissaoController extends Controller
         return back()->with('success', 'Alterações salvas.');
     }
 
-    // ✅ id sem type-hint + cast manual
     public function togglePermissao(Request $request, $id)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
@@ -252,7 +270,6 @@ class GrupoPermissaoController extends Controller
         return response()->json(['ok' => true, 'message' => 'Permissão atualizada.']);
     }
 
-    // ✅ id sem type-hint + cast manual
     public function destroy(Request $request, $id)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
