@@ -8,6 +8,7 @@ use App\Http\Controllers\Recrutamento\FluxoAprovacaoController;
 use App\Http\Controllers\Cargo\HeadcountController;
 use App\Http\Controllers\Config\UsuariosController;
 use App\Http\Controllers\Config\GrupoPermissaoController;
+use App\Http\Controllers\Config\FiliaisController;
 
 Route::domain('{sub}.conecttarh.com.br')
     ->middleware(['web', 'tenant'])
