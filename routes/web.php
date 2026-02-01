@@ -35,9 +35,38 @@ Route::domain('{sub}.conecttarh.com.br')
             |--------------------------------------------------------------------------
             */
 
-            Route::get('/config/filiais', fn () => view('config.filiais.index'))
+            Route::get('/config/filiais', [FiliaisController::class, 'index'])
                 ->middleware('screen:5')
                 ->name('config.filiais.index');
+
+            Route::get('/config/filiais/novo', [FiliaisController::class, 'create'])
+                ->middleware('screen:5')
+                ->name('config.filiais.create');
+            
+            Route::get('/config/filiais/{filial}/editar', [FiliaisController::class, 'edit'])
+                ->middleware('screen:5')
+                ->name('config.filiais.edit');
+            
+            Route::delete('/config/filiais/{filial}', [FiliaisController::class, 'destroy'])
+                ->middleware('screen:5')
+                ->name('config.filiais.destroy');
+            
+            /** AJAX da grid + combos */
+            Route::get('/config/filiais/grid', [FiliaisController::class, 'grid'])
+                ->middleware('screen:5')
+                ->name('config.filiais.grid');
+            
+            Route::get('/config/filiais/paises', [FiliaisController::class, 'paises'])
+                ->middleware('screen:5')
+                ->name('config.filiais.paises');
+            
+            Route::get('/config/filiais/estados', [FiliaisController::class, 'estados'])
+                ->middleware('screen:5')
+                ->name('config.filiais.estados');
+            
+            Route::get('/config/filiais/cidades', [FiliaisController::class, 'cidades'])
+                ->middleware('screen:5')
+                ->name('config.filiais.cidades');
             
             Route::get('/config/usuarios', [UsuariosController::class, 'index'])
                 ->middleware('screen:10')
