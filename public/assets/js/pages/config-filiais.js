@@ -65,23 +65,37 @@
 
   async function fetchJson(url, opts) {
     const res = await fetch(url, opts);
+
     if (!res.ok) {
-      let msg = `Erro HTTP ${res.status}`;
+      // tenta JSON
       try {
         const j = await res.json();
-        msg = j?.message || msg;
-      } catch (_) {}
-      throw new Error(msg);
+        const err = new Error(j?.message || `Erro HTTP ${res.status}`);
+        err.detail = j?.detail;
+        throw err;
+      } catch (_) {
+        // fallback texto/html
+        const t = await res.text().catch(() => "");
+        const err = new Error(`Erro HTTP ${res.status}`);
+        err.detail = t ? t.substring(0, 180) : "";
+        throw err;
+      }
     }
+
     return res.json();
   }
 
   async function loadPaises() {
-    const data = await fetchJson(routes.paises);
-    const rows = data?.data || [];
+    try {
+      const data = await fetchJson(routes.paises);
+      const rows = data?.data || [];
 
-    els.pais.innerHTML = `<option value="">Lista de País</option>` +
-      rows.map(r => `<option value="${r.id}">${escapeHtml(r.nome)}</option>`).join("");
+      els.pais.innerHTML = `<option value="">Lista de País</option>` +
+        rows.map(r => `<option value="${r.id}">${escapeHtml(r.nome)}</option>`).join("");
+    } catch (_) {
+      // se não existir tabela de países, mantém vazio sem quebrar
+      els.pais.innerHTML = `<option value="">Lista de País</option>`;
+    }
   }
 
   async function loadEstados(paisId) {
@@ -92,14 +106,18 @@
 
     if (!paisId) return;
 
-    const url = routes.estados + "?" + new URLSearchParams({ pais_id: paisId }).toString();
-    const data = await fetchJson(url);
-    const rows = data?.data || [];
+    try {
+      const url = routes.estados + "?" + new URLSearchParams({ pais_id: paisId }).toString();
+      const data = await fetchJson(url);
+      const rows = data?.data || [];
 
-    els.estado.innerHTML = `<option value="">Lista de Estado</option>` +
-      rows.map(r => `<option value="${r.id}">${escapeHtml(r.nome)} (${escapeHtml(r.uf)})</option>`).join("");
+      els.estado.innerHTML = `<option value="">Lista de Estado</option>` +
+        rows.map(r => `<option value="${r.id}">${escapeHtml(r.nome)} (${escapeHtml(r.uf)})</option>`).join("");
 
-    els.estado.disabled = false;
+      els.estado.disabled = false;
+    } catch (_) {
+      // ignora
+    }
   }
 
   async function loadCidades(estadoId) {
@@ -108,14 +126,18 @@
 
     if (!estadoId) return;
 
-    const url = routes.cidades + "?" + new URLSearchParams({ estado_id: estadoId }).toString();
-    const data = await fetchJson(url);
-    const rows = data?.data || [];
+    try {
+      const url = routes.cidades + "?" + new URLSearchParams({ estado_id: estadoId }).toString();
+      const data = await fetchJson(url);
+      const rows = data?.data || [];
 
-    els.cidade.innerHTML = `<option value="">Lista de Cidade</option>` +
-      rows.map(r => `<option value="${r.id}">${escapeHtml(r.nome)}</option>`).join("");
+      els.cidade.innerHTML = `<option value="">Lista de Cidade</option>` +
+        rows.map(r => `<option value="${r.id}">${escapeHtml(r.nome)}</option>`).join("");
 
-    els.cidade.disabled = false;
+      els.cidade.disabled = false;
+    } catch (_) {
+      // ignora
+    }
   }
 
   function renderRow(item) {
@@ -167,8 +189,7 @@
     els.prev.disabled = state.page <= 1;
     els.next.disabled = state.page >= state.lastPage;
 
-    // resumo do que aparece na tela (útil p/ você mostrar "soma do que está aparecendo")
-    if (total) {
+    if (total && from && to) {
       els.resumo.textContent = `Exibindo ${to - from + 1} item(ns) nesta página.`;
     } else {
       els.resumo.textContent = `Exibindo 0 item(ns) nesta página.`;
@@ -188,7 +209,10 @@
       renderTable(data?.data || []);
       renderPagination(data?.meta || {});
     } catch (e) {
-      els.tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${escapeHtml(e.message || "Erro ao carregar")}</td></tr>`;
+      let msg = e.message || "Erro ao carregar";
+      if (e.detail) msg = `${msg} - ${String(e.detail).substring(0, 160)}`;
+
+      els.tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${escapeHtml(msg)}</td></tr>`;
       els.pagInfo.textContent = "";
       els.resumo.textContent = "";
     } finally {
@@ -213,7 +237,6 @@
   async function onDelete(id) {
     if (!id) return;
 
-    // SweetAlert v1 (template)
     swal({
       title: "Confirmar exclusão?",
       text: "Esta ação não poderá ser desfeita.",
@@ -235,20 +258,17 @@
 
         swal("Excluída!", "Filial removida com sucesso.", "success");
 
-        // se apagar e a página ficar vazia, volta uma página (quando possível)
-        if (state.page > 1) {
-          // tenta recarregar e, se vier vazio, volta
-          await loadGrid();
-          const hasRows = els.tbody.querySelectorAll("tr[data-id]").length > 0;
-          if (!hasRows) {
-            state.page = Math.max(1, state.page - 1);
-            loadGrid();
-          }
-        } else {
+        await loadGrid();
+        const hasRows = els.tbody.querySelectorAll("tr[data-id]").length > 0;
+        if (!hasRows && state.page > 1) {
+          state.page = Math.max(1, state.page - 1);
           loadGrid();
         }
+
       } catch (e) {
-        swal("Erro", e.message || "Não foi possível excluir.", "error");
+        let msg = e.message || "Não foi possível excluir.";
+        if (e.detail) msg = `${msg} - ${String(e.detail).substring(0, 160)}`;
+        swal("Erro", msg, "error");
       }
     });
   }
@@ -260,12 +280,10 @@
   }
 
   function initEvents() {
-    // Nova filial
     els.btnNova?.addEventListener("click", function () {
       window.location.href = routes.create;
     });
 
-    // Filtros
     els.q?.addEventListener("input", debounceApplyFilters);
 
     els.pais?.addEventListener("change", async function () {
@@ -291,7 +309,6 @@
       applyFiltersAndReload();
     });
 
-    // Paginação
     els.prev?.addEventListener("click", function () {
       if (state.page > 1) {
         state.page -= 1;
@@ -306,7 +323,7 @@
       }
     });
 
-    // Delegação de eventos (pra não “perder” listener quando renderiza a tabela)
+    // Delegação: não perde evento ao re-renderizar
     document.addEventListener("click", function (ev) {
       const btn = ev.target.closest(".js-edit, .js-del");
       if (!btn) return;
@@ -323,6 +340,5 @@
     await loadGrid();
   }
 
-  // start
   document.addEventListener("DOMContentLoaded", init);
 })();
