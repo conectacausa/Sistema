@@ -92,12 +92,12 @@ class GrupoPermissaoController extends Controller
         return redirect()
             ->route('config.grupos.edit', [
                 'sub' => (string) $request->route('sub'),
-                'id'  => $grupo->id
+                'id'  => $grupo->id,
             ])
             ->with('success', 'Grupo criado com sucesso.');
     }
 
-    // ✅ ESSA ASSINATURA É O QUE EVITA O SUB IR PARA O $id
+    // ✅ sub antes do id
     public function edit(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
