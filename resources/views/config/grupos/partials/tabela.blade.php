@@ -14,9 +14,9 @@
           <td>{{ $g->usuarios_count ?? 0 }}</td>
           <td>
             <a href="{{ route('config.grupos.edit', ['sub' => request()->route('sub'), 'id' => $g->id]) }}"
-               class="btn btn-sm btn-primary"
+               class="waves-effect waves-circle btn btn-circle btn-primary btn-xs"
                title="Editar">
-              <i class="fa fa-edit"></i>
+              <i data-feather="edit-2"></i>
             </a>
           </td>
         </tr>
@@ -32,3 +32,8 @@
 <div class="d-flex justify-content-end">
   {!! $grupos->links() !!}
 </div>
+
+<script>
+  // garante que o feather redesenhe ícones quando esta partial for carregada via AJAX
+  if (window.feather) window.feather.replace();
+</script>
