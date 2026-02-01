@@ -20,7 +20,7 @@
                class="btn btn-sm btn-outline-primary"
                title="Editar"
                onclick="window.location.href='{{ $editUrl }}'; return false;">
-              <i data-feather="edit"></i>
+              &nbsp;<i data-feather="edit"></i>
             </a>
           </td>
         </tr>
@@ -36,7 +36,3 @@
 <div class="d-flex justify-content-end">
   {!! $grupos->links() !!}
 </div>
-
-<script>
-  if (window.feather) window.feather.replace();
-</script>
