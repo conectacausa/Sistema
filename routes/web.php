@@ -32,27 +32,28 @@ Route::domain('{sub}.conecttarh.com.br')
 
             /*
             |--------------------------------------------------------------------------
-            | CONFIGURAÇÕES
+            | CONFIGURAÇÕES - FILIAIS 
             |--------------------------------------------------------------------------
             */
 
-            Route::get('/config/filiais', [FiliaisController::class, 'index'])
+           Route::get('/config/filiais', [FiliaisController::class, 'index'])
                 ->middleware('screen:5')
                 ->name('config.filiais.index');
-
+            
             Route::get('/config/filiais/novo', [FiliaisController::class, 'create'])
                 ->middleware('screen:5')
                 ->name('config.filiais.create');
             
-            Route::get('/config/filiais/{filial}/editar', [FiliaisController::class, 'edit'])
+            Route::get('/config/filiais/{id}/editar', [FiliaisController::class, 'edit'])
+                ->whereNumber('id')
                 ->middleware('screen:5')
                 ->name('config.filiais.edit');
             
-            Route::delete('/config/filiais/{filial}', [FiliaisController::class, 'destroy'])
+            Route::delete('/config/filiais/{id}', [FiliaisController::class, 'destroy'])
+                ->whereNumber('id')
                 ->middleware('screen:5')
                 ->name('config.filiais.destroy');
             
-            /** AJAX da grid + combos */
             Route::get('/config/filiais/grid', [FiliaisController::class, 'grid'])
                 ->middleware('screen:5')
                 ->name('config.filiais.grid');
@@ -68,6 +69,12 @@ Route::domain('{sub}.conecttarh.com.br')
             Route::get('/config/filiais/cidades', [FiliaisController::class, 'cidades'])
                 ->middleware('screen:5')
                 ->name('config.filiais.cidades');
+
+            /*
+            |--------------------------------------------------------------------------
+            | CONFIGURAÇÕES - USUÁRIOS
+            |--------------------------------------------------------------------------
+            */
             
             Route::get('/config/usuarios', [UsuariosController::class, 'index'])
                 ->middleware('screen:10')
