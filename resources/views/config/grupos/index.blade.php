@@ -31,7 +31,9 @@
               <nav>
                 <ol class="breadcrumb">
                   <li class="breadcrumb-item">
-                    <a href="{{ route('dashboard', ['sub' => request()->route('sub')]) }}"><i class="mdi mdi-home-outline"></i></a>
+                    <a href="{{ route('dashboard', ['sub' => request()->route('sub')]) }}">
+                      <i class="mdi mdi-home-outline"></i>
+                    </a>
                   </li>
                   <li class="breadcrumb-item">Configuração</li>
                   <li class="breadcrumb-item" aria-current="page">Grupos de Permissão</li>
@@ -110,28 +112,43 @@
 
 <script>
 (function(){
-  const input = document.getElementById('filtro-nome');
+  const input   = document.getElementById('filtro-nome');
   const wrapper = document.getElementById('tabela-wrapper');
   if(!input || !wrapper) return;
 
   let t = null;
 
+  function renderFeather(){
+    if (window.feather) window.feather.replace();
+  }
+
   function fetchTabela(){
     const q = input.value || '';
     const url = new URL(window.location.href);
+
     url.searchParams.set('q', q);
     url.searchParams.set('ajax', '1');
 
     fetch(url.toString(), { headers: { 'X-Requested-With':'XMLHttpRequest' }})
       .then(r => r.text())
-      .then(html => { wrapper.innerHTML = html; })
+      .then(html => {
+        wrapper.innerHTML = html;
+
+        // ✅ ESSENCIAL: re-render dos ícones após AJAX
+        renderFeather();
+      })
       .catch(() => {});
   }
 
+  // busca automática ao digitar
   input.addEventListener('input', function(){
     clearTimeout(t);
     t = setTimeout(fetchTabela, 250);
   });
+
+  // ✅ também re-renderiza feather na carga inicial
+  renderFeather();
+
 })();
 </script>
 
