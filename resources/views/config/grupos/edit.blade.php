@@ -189,7 +189,7 @@
                               <tbody>
                                 @forelse($usuarios as $u)
                                   <tr>
-                                    <td>{{ $u->nome }}</td>
+                                    <td>{{ $u->nome_completo }}</td>
                                     <td>{!! $u->lotacoes_html ?: '-' !!}</td>
                                     <td>
                                       <button type="button" class="btn btn-sm btn-outline-danger" disabled>
