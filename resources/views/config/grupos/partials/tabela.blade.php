@@ -3,21 +3,20 @@
     <thead class="bg-primary">
       <tr>
         <th>Nome Grupo</th>
-        <th>Usuários</th>
-        <th>Status</th>
+        <th style="width:140px;">Usuários</th>
+        <th style="width:180px;">Ações</th>
       </tr>
     </thead>
     <tbody>
-      @forelse ($grupos as $g)
+      @forelse($grupos as $g)
         <tr>
           <td>{{ $g->nome_grupo }}</td>
-          <td>{{ (int) ($g->usuarios_count ?? 0) }}</td>
+          <td>{{ $g->usuarios_count ?? 0 }}</td>
           <td>
-            @if($g->status)
-              <span class="badge badge-success">Ativo</span>
-            @else
-              <span class="badge badge-danger">Inativo</span>
-            @endif
+            <a class="btn btn-sm btn-primary"
+               href="{{ route('config.grupos.edit', ['sub' => request()->route('sub'), 'id' => $g->id]) }}">
+              Editar
+            </a>
           </td>
         </tr>
       @empty
@@ -29,6 +28,6 @@
   </table>
 </div>
 
-<div class="mt-3">
-  {{ $grupos->links() }}
+<div class="d-flex justify-content-end">
+  {!! $grupos->links() !!}
 </div>
