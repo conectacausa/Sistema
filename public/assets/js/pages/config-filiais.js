@@ -153,13 +153,12 @@
         <td>${uf}</td>
         <td>${pais}</td>
         <td class="text-nowrap">
-          <button type="button" class="btn btn-sm btn-primary js-edit" data-id="${id}" title="Editar">
+          <a href="javascript:void(0)" class="action-icon js-edit" data-id="${id}" title="Editar" aria-label="Editar">
             <i data-feather="edit"></i>
-          </button>
-
-          <button type="button" class="btn btn-sm btn-danger js-del" data-id="${id}" title="Excluir">
+          </a>
+          <a href="javascript:void(0)" class="action-icon js-del ms-2" data-id="${id}" title="Excluir" aria-label="Excluir">
             <i data-feather="trash-2"></i>
-          </button>
+          </a>
         </td>
       </tr>
     `;
@@ -325,14 +324,14 @@
       }
     });
 
-    // Delegação (AJAX)
+    // Delegação (AJAX) — pega clique no <a> ou no <svg> interno do feather
     document.addEventListener("click", function (ev) {
-      const btn = ev.target.closest(".js-edit, .js-del");
-      if (!btn) return;
+      const target = ev.target.closest(".js-edit, .js-del");
+      if (!target) return;
 
-      const id = btn.getAttribute("data-id");
-      if (btn.classList.contains("js-edit")) onEdit(id);
-      if (btn.classList.contains("js-del")) onDelete(id);
+      const id = target.getAttribute("data-id");
+      if (target.classList.contains("js-edit")) onEdit(id);
+      if (target.classList.contains("js-del")) onDelete(id);
     });
   }
 
@@ -341,7 +340,7 @@
     await loadPaises();
     await loadGrid();
 
-    // feather inicial também (por garantia)
+    // feather inicial (garantia)
     if (window.feather) feather.replace();
   }
 
