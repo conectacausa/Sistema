@@ -9,14 +9,18 @@
     </thead>
     <tbody>
       @forelse($grupos as $g)
+        @php
+          $editUrl = route('config.grupos.edit', ['sub' => request()->route('sub'), 'id' => $g->id]);
+        @endphp
         <tr>
           <td>{{ $g->nome_grupo }}</td>
           <td>{{ $g->usuarios_count ?? 0 }}</td>
           <td>
-            <a href="{{ route('config.grupos.edit', ['sub' => request()->route('sub'), 'id' => $g->id]) }}"
-               class="waves-effect waves-circle btn btn-circle btn-primary btn-xs"
-               title="Editar">
-              <i data-feather="edit-2"></i>
+            <a href="{{ $editUrl }}"
+               class="btn btn-sm btn-outline-primary"
+               title="Editar"
+               onclick="window.location.href='{{ $editUrl }}'; return false;">
+              <i data-feather="edit"></i>
             </a>
           </td>
         </tr>
@@ -34,6 +38,5 @@
 </div>
 
 <script>
-  // garante que o feather redesenhe ícones quando esta partial for carregada via AJAX
   if (window.feather) window.feather.replace();
 </script>
