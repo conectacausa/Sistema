@@ -1,302 +1,328 @@
 (function () {
-    'use strict';
+  const $ = (sel) => document.querySelector(sel);
 
-    const SCREEN_ID = 5;
-    const PER_PAGE = 50;
+  const els = {
+    q: $("#filtroRazaoCnpj"),
+    pais: $("#filtroPais"),
+    estado: $("#filtroEstado"),
+    cidade: $("#filtroCidade"),
 
-    const API = {
-        filiais: '/api/filiais',
-        deleteFilial: (id) => `/api/filiais/${id}`,
-        paises: '/api/paises',
-        estados: (paisId) => `/api/paises/${paisId}/estados`,
-        cidades: (estadoId) => `/api/estados/${estadoId}/cidades`
-    };
+    tbody: $("#tabelaFiliaisBody"),
+    resumo: $("#filiaisResumo"),
+    pagInfo: $("#paginacaoInfo"),
+    prev: $("#btnPrev"),
+    next: $("#btnNext"),
 
-    const ROUTES = {
-        nova: '/config/filiais/nova',
-        editar: (id) => `/config/filiais/${id}/editar`
-    };
+    btnNova: $("#btnNovaFilial"),
+  };
 
-    const elNova = document.getElementById('btnNovaFilial');
-    const elQ = document.getElementById('filtroRazaoCnpj');
-    const elPais = document.getElementById('filtroPais');
-    const elEstado = document.getElementById('filtroEstado');
-    const elCidade = document.getElementById('filtroCidade');
+  const routes = window.FILIAIS_ROUTES || {};
 
-    const elTBody = document.getElementById('tabelaFiliaisBody');
-    const elInfo = document.getElementById('paginacaoInfo');
-    const elPrev = document.getElementById('btnPrev');
-    const elNext = document.getElementById('btnNext');
+  const state = {
+    page: 1,
+    perPage: 10,
+    lastPage: 1,
+    loading: false,
+    debounceTimer: null,
+    currentFilters: {
+      q: "",
+      pais_id: "",
+      estado_id: "",
+      cidade_id: ""
+    }
+  };
 
-    const state = {
-        page: 1,
-        lastPage: 1,
-        total: 0,
-        filtros: { q: '', pais_id: '', estado_id: '', cidade_id: '' }
-    };
+  function csrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || "";
+  }
 
-    const debounce = (fn, delay = 300) => {
-        let t;
-        return (...args) => {
-            clearTimeout(t);
-            t = setTimeout(() => fn.apply(null, args), delay);
-        };
-    };
+  function escapeHtml(s) {
+    return String(s ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
 
-    const maskCnpj = (value) => {
-        if (!value) return '';
-        const v = String(value).replace(/\D/g, '').padStart(14, '0');
-        return v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
-    };
+  function setLoading(isLoading) {
+    state.loading = isLoading;
+  }
 
-    const escapeHtml = (str) =>
-        String(str ?? '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
+  function buildQuery() {
+    const p = new URLSearchParams();
+    p.set("page", String(state.page));
+    p.set("per_page", String(state.perPage));
 
-    const setOptions = (select, items, placeholder) => {
-        select.innerHTML = '';
-        const opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = placeholder;
-        select.appendChild(opt);
+    const f = state.currentFilters;
+    if (f.q) p.set("q", f.q);
+    if (f.pais_id) p.set("pais_id", f.pais_id);
+    if (f.estado_id) p.set("estado_id", f.estado_id);
+    if (f.cidade_id) p.set("cidade_id", f.cidade_id);
 
-        (items || []).forEach(item => {
-            const o = document.createElement('option');
-            o.value = item.id;
-            o.textContent = item.nome;
-            select.appendChild(o);
+    return p.toString();
+  }
+
+  async function fetchJson(url, opts) {
+    const res = await fetch(url, opts);
+    if (!res.ok) {
+      let msg = `Erro HTTP ${res.status}`;
+      try {
+        const j = await res.json();
+        msg = j?.message || msg;
+      } catch (_) {}
+      throw new Error(msg);
+    }
+    return res.json();
+  }
+
+  async function loadPaises() {
+    const data = await fetchJson(routes.paises);
+    const rows = data?.data || [];
+
+    els.pais.innerHTML = `<option value="">Lista de País</option>` +
+      rows.map(r => `<option value="${r.id}">${escapeHtml(r.nome)}</option>`).join("");
+  }
+
+  async function loadEstados(paisId) {
+    els.estado.disabled = true;
+    els.estado.innerHTML = `<option value="">Lista de Estado</option>`;
+    els.cidade.disabled = true;
+    els.cidade.innerHTML = `<option value="">Lista de Cidade</option>`;
+
+    if (!paisId) return;
+
+    const url = routes.estados + "?" + new URLSearchParams({ pais_id: paisId }).toString();
+    const data = await fetchJson(url);
+    const rows = data?.data || [];
+
+    els.estado.innerHTML = `<option value="">Lista de Estado</option>` +
+      rows.map(r => `<option value="${r.id}">${escapeHtml(r.nome)} (${escapeHtml(r.uf)})</option>`).join("");
+
+    els.estado.disabled = false;
+  }
+
+  async function loadCidades(estadoId) {
+    els.cidade.disabled = true;
+    els.cidade.innerHTML = `<option value="">Lista de Cidade</option>`;
+
+    if (!estadoId) return;
+
+    const url = routes.cidades + "?" + new URLSearchParams({ estado_id: estadoId }).toString();
+    const data = await fetchJson(url);
+    const rows = data?.data || [];
+
+    els.cidade.innerHTML = `<option value="">Lista de Cidade</option>` +
+      rows.map(r => `<option value="${r.id}">${escapeHtml(r.nome)}</option>`).join("");
+
+    els.cidade.disabled = false;
+  }
+
+  function renderRow(item) {
+    const id = item.id;
+    const nome = escapeHtml(item.nome_fantasia || "");
+    const cnpj = escapeHtml(item.cnpj || "");
+    const cidade = escapeHtml(item.cidade_nome || "");
+    const uf = escapeHtml(item.estado_uf || "");
+    const pais = escapeHtml(item.pais_nome || "");
+
+    return `
+      <tr data-id="${id}">
+        <td>${nome}</td>
+        <td>${cnpj}</td>
+        <td>${cidade}</td>
+        <td>${uf}</td>
+        <td>${pais}</td>
+        <td class="text-nowrap">
+          <button type="button" class="btn btn-sm btn-primary js-edit" data-id="${id}">
+            Editar
+          </button>
+          <button type="button" class="btn btn-sm btn-danger js-del" data-id="${id}">
+            Excluir
+          </button>
+        </td>
+      </tr>
+    `;
+  }
+
+  function renderTable(items) {
+    if (!items || items.length === 0) {
+      els.tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">Nenhuma filial encontrada.</td></tr>`;
+      return;
+    }
+    els.tbody.innerHTML = items.map(renderRow).join("");
+  }
+
+  function renderPagination(meta) {
+    const total = meta?.total ?? 0;
+    const from = meta?.from ?? 0;
+    const to = meta?.to ?? 0;
+
+    state.lastPage = meta?.last_page ?? 1;
+
+    els.pagInfo.textContent = total
+      ? `Mostrando ${from}–${to} de ${total}`
+      : `Mostrando 0`;
+
+    els.prev.disabled = state.page <= 1;
+    els.next.disabled = state.page >= state.lastPage;
+
+    // resumo do que aparece na tela (útil p/ você mostrar "soma do que está aparecendo")
+    if (total) {
+      els.resumo.textContent = `Exibindo ${to - from + 1} item(ns) nesta página.`;
+    } else {
+      els.resumo.textContent = `Exibindo 0 item(ns) nesta página.`;
+    }
+  }
+
+  async function loadGrid() {
+    if (state.loading) return;
+    setLoading(true);
+
+    els.tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">Carregando filiais...</td></tr>`;
+
+    try {
+      const url = routes.grid + "?" + buildQuery();
+      const data = await fetchJson(url);
+
+      renderTable(data?.data || []);
+      renderPagination(data?.meta || {});
+    } catch (e) {
+      els.tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${escapeHtml(e.message || "Erro ao carregar")}</td></tr>`;
+      els.pagInfo.textContent = "";
+      els.resumo.textContent = "";
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function applyFiltersAndReload() {
+    state.currentFilters.q = (els.q?.value || "").trim();
+    state.currentFilters.pais_id = els.pais?.value || "";
+    state.currentFilters.estado_id = els.estado?.value || "";
+    state.currentFilters.cidade_id = els.cidade?.value || "";
+    state.page = 1;
+    loadGrid();
+  }
+
+  function debounceApplyFilters() {
+    if (state.debounceTimer) clearTimeout(state.debounceTimer);
+    state.debounceTimer = setTimeout(applyFiltersAndReload, 350);
+  }
+
+  async function onDelete(id) {
+    if (!id) return;
+
+    // SweetAlert v1 (template)
+    swal({
+      title: "Confirmar exclusão?",
+      text: "Esta ação não poderá ser desfeita.",
+      type: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      confirmButtonText: "Sim, excluir",
+      cancelButtonText: "Cancelar",
+      closeOnConfirm: false
+    }, async function () {
+      try {
+        await fetchJson(routes.destroy(id), {
+          method: "DELETE",
+          headers: {
+            "X-CSRF-TOKEN": csrfToken(),
+            "Accept": "application/json"
+          }
         });
-    };
 
-    const apiGet = async (url) => {
-        const res = await fetch(`${url}?screen_id=${SCREEN_ID}`, {
-            headers: { 'Accept': 'application/json' },
-            credentials: 'include'
-        });
-        if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`);
-        return res.json();
-    };
+        swal("Excluída!", "Filial removida com sucesso.", "success");
 
-    const apiDelete = async (url) => {
-        const tokenEl = document.querySelector('meta[name="csrf-token"]');
-        const token = tokenEl ? tokenEl.content : '';
-
-        const res = await fetch(`${url}?screen_id=${SCREEN_ID}`, {
-            method: 'DELETE',
-            credentials: 'include',
-            headers: {
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                ...(token ? { 'X-CSRF-TOKEN': token } : {})
-            }
-        });
-
-        const raw = await res.text().catch(() => '');
-        let json = null;
-        try { json = raw ? JSON.parse(raw) : null; } catch (_) {}
-
-        if (!res.ok) {
-            const msg = (json && (json.message || json.error)) ? (json.message || json.error) : (raw || 'Erro desconhecido');
-            throw new Error(`${res.status} - ${msg}`);
+        // se apagar e a página ficar vazia, volta uma página (quando possível)
+        if (state.page > 1) {
+          // tenta recarregar e, se vier vazio, volta
+          await loadGrid();
+          const hasRows = els.tbody.querySelectorAll("tr[data-id]").length > 0;
+          if (!hasRows) {
+            state.page = Math.max(1, state.page - 1);
+            loadGrid();
+          }
+        } else {
+          loadGrid();
         }
+      } catch (e) {
+        swal("Erro", e.message || "Não foi possível excluir.", "error");
+      }
+    });
+  }
 
-        return json || {};
-    };
+  function onEdit(id) {
+    if (!id) return;
+    const url = typeof routes.edit === "function" ? routes.edit(id) : (routes.edit + id);
+    window.location.href = url;
+  }
 
-    const renderTabela = (rows) => {
-        if (!rows || !rows.length) {
-            elTBody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">Nenhuma filial encontrada</td></tr>`;
-            return;
-        }
-
-        elTBody.innerHTML = rows.map(r => `
-            <tr>
-                <td>${escapeHtml(r.nome_fantasia || r.razao_social)}</td>
-                <td>${maskCnpj(r.cnpj)}</td>
-                <td>${escapeHtml(r.cidade?.nome || '')}</td>
-                <td>${escapeHtml(r.estado?.sigla || '')}</td>
-                <td>${escapeHtml(r.pais?.nome || '')}</td>
-                <td>
-                    <button class="btn btn-sm btn-primary btnEditar" data-id="${r.id}">Editar</button>
-                    <button class="btn btn-sm btn-danger btnExcluir" data-id="${r.id}">Excluir</button>
-                </td>
-            </tr>
-        `).join('');
-    };
-
-    const renderPaginacao = () => {
-        const start = state.total ? ((state.page - 1) * PER_PAGE + 1) : 0;
-        const end = Math.min(state.page * PER_PAGE, state.total);
-
-        elInfo.textContent = `Mostrando ${start}–${end} de ${state.total}`;
-        elPrev.disabled = state.page <= 1;
-        elNext.disabled = state.page >= state.lastPage;
-    };
-
-    const carregarFiliais = async () => {
-        const params = new URLSearchParams({
-            page: String(state.page),
-            per_page: String(PER_PAGE),
-            q: state.filtros.q || '',
-            pais_id: state.filtros.pais_id || '',
-            estado_id: state.filtros.estado_id || '',
-            cidade_id: state.filtros.cidade_id || ''
-        });
-
-        try {
-            const res = await fetch(`${API.filiais}?${params.toString()}&screen_id=${SCREEN_ID}`, {
-                headers: { 'Accept': 'application/json' },
-                credentials: 'include'
-            });
-
-            const json = await res.json();
-            renderTabela(json.data || []);
-            state.total = Number(json.meta?.total || 0);
-            state.lastPage = Number(json.meta?.last_page || 1);
-            state.page = Number(json.meta?.current_page || 1);
-            renderPaginacao();
-        } catch (e) {
-            console.error(e);
-            elTBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Erro ao carregar filiais</td></tr>`;
-        }
-    };
-
-    const carregarPaises = async () => {
-        const res = await apiGet(API.paises);
-        setOptions(elPais, res.data || [], 'Lista de País');
-    };
-
-    const carregarEstados = async (paisId) => {
-        elEstado.disabled = true;
-        setOptions(elEstado, [], 'Carregando...');
-        const res = await apiGet(API.estados(paisId));
-        setOptions(elEstado, res.data || [], 'Lista de Estado');
-        elEstado.disabled = false;
-    };
-
-    const carregarCidades = async (estadoId) => {
-        elCidade.disabled = true;
-        setOptions(elCidade, [], 'Carregando...');
-        const res = await apiGet(API.cidades(estadoId));
-        setOptions(elCidade, res.data || [], 'Lista de Cidade');
-        elCidade.disabled = false;
-    };
-
-    elNova?.addEventListener('click', () => (window.location.href = ROUTES.nova));
-
-    elQ?.addEventListener('input', debounce(() => {
-        state.filtros.q = (elQ.value || '').trim();
-        state.page = 1;
-        carregarFiliais();
-    }));
-
-    elPais?.addEventListener('change', async () => {
-        state.filtros.pais_id = elPais.value || '';
-        state.filtros.estado_id = '';
-        state.filtros.cidade_id = '';
-        state.page = 1;
-
-        elEstado.disabled = true;
-        elCidade.disabled = true;
-
-        setOptions(elEstado, [], 'Lista de Estado');
-        setOptions(elCidade, [], 'Lista de Cidade');
-
-        if (elPais.value) await carregarEstados(elPais.value);
-        carregarFiliais();
+  function initEvents() {
+    // Nova filial
+    els.btnNova?.addEventListener("click", function () {
+      window.location.href = routes.create;
     });
 
-    elEstado?.addEventListener('change', async () => {
-        state.filtros.estado_id = elEstado.value || '';
-        state.filtros.cidade_id = '';
-        state.page = 1;
+    // Filtros
+    els.q?.addEventListener("input", debounceApplyFilters);
 
-        elCidade.disabled = true;
-        setOptions(elCidade, [], 'Lista de Cidade');
+    els.pais?.addEventListener("change", async function () {
+      const paisId = els.pais.value || "";
+      state.currentFilters.pais_id = paisId;
+      state.currentFilters.estado_id = "";
+      state.currentFilters.cidade_id = "";
 
-        if (elEstado.value) await carregarCidades(elEstado.value);
-        carregarFiliais();
+      await loadEstados(paisId);
+      applyFiltersAndReload();
     });
 
-    elCidade?.addEventListener('change', () => {
-        state.filtros.cidade_id = elCidade.value || '';
-        state.page = 1;
-        carregarFiliais();
+    els.estado?.addEventListener("change", async function () {
+      const estadoId = els.estado.value || "";
+      state.currentFilters.estado_id = estadoId;
+      state.currentFilters.cidade_id = "";
+
+      await loadCidades(estadoId);
+      applyFiltersAndReload();
     });
 
-    elPrev?.addEventListener('click', () => {
-        if (state.page > 1) { state.page--; carregarFiliais(); }
+    els.cidade?.addEventListener("change", function () {
+      applyFiltersAndReload();
     });
 
-    elNext?.addEventListener('click', () => {
-        if (state.page < state.lastPage) { state.page++; carregarFiliais(); }
+    // Paginação
+    els.prev?.addEventListener("click", function () {
+      if (state.page > 1) {
+        state.page -= 1;
+        loadGrid();
+      }
     });
 
-    // ✅ Editar / Excluir com SweetAlert v1 (do template)
-    elTBody?.addEventListener('click', (e) => {
-        const btnEdit = e.target.closest('.btnEditar');
-        const btnDel = e.target.closest('.btnExcluir');
-
-        if (btnEdit) {
-            window.location.href = ROUTES.editar(btnEdit.dataset.id);
-            return;
-        }
-
-        if (btnDel) {
-            if (typeof window.swal !== 'function') {
-                console.error('SweetAlert não carregado (window.swal undefined).');
-                return;
-            }
-
-            const id = btnDel.dataset.id;
-
-            swal({
-                title: "Excluir filial?",
-                text: "Tem certeza que deseja excluir esta filial?",
-                type: "warning",
-                showCancelButton: true,
-                confirmButtonColor: "#dc3545",
-                confirmButtonText: "Sim",
-                cancelButtonText: "Cancelar",
-                closeOnConfirm: false,
-                closeOnCancel: true
-            }, async function(isConfirm) {
-                if (!isConfirm) return;
-
-                try {
-                    await apiDelete(API.deleteFilial(id));
-
-                    swal({
-                        title: "Excluída!",
-                        text: "Filial excluída com sucesso.",
-                        type: "success",
-                        timer: 1400,
-                        showConfirmButton: false
-                    });
-
-                    carregarFiliais();
-                } catch (err) {
-                    console.error(err);
-
-                    swal({
-                        title: "Erro",
-                        text: String(err.message || "Não foi possível excluir a filial."),
-                        type: "error"
-                    });
-                }
-            });
-        }
+    els.next?.addEventListener("click", function () {
+      if (state.page < state.lastPage) {
+        state.page += 1;
+        loadGrid();
+      }
     });
 
-    (async function init() {
-        elEstado && (elEstado.disabled = true);
-        elCidade && (elCidade.disabled = true);
-        await carregarPaises();
-        await carregarFiliais();
-    })();
+    // Delegação de eventos (pra não “perder” listener quando renderiza a tabela)
+    document.addEventListener("click", function (ev) {
+      const btn = ev.target.closest(".js-edit, .js-del");
+      if (!btn) return;
 
+      const id = btn.getAttribute("data-id");
+      if (btn.classList.contains("js-edit")) onEdit(id);
+      if (btn.classList.contains("js-del")) onDelete(id);
+    });
+  }
+
+  async function init() {
+    initEvents();
+    await loadPaises();
+    await loadGrid();
+  }
+
+  // start
+  document.addEventListener("DOMContentLoaded", init);
 })();
