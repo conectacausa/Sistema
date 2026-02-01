@@ -38,7 +38,6 @@ class GrupoPermissaoController extends Controller
             ->orderBy('nome_grupo')
             ->get();
 
-        // Conta usuários por grupo (permissao_id em usuarios)
         $counts = DB::table('usuarios')
             ->select('permissao_id', DB::raw('COUNT(*)::int as total'))
             ->whereIn('permissao_id', $grupos->pluck('id')->all())
@@ -77,16 +76,17 @@ class GrupoPermissaoController extends Controller
             ->with('success', 'Grupo criado com sucesso.');
     }
 
-    public function edit(Request $request, int $id)
+    // ✅ id sem type-hint + cast manual
+    public function edit(Request $request, $id)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
+        $id = (int) $id;
 
         $grupo = Permissao::query()
             ->where('empresa_id', $empresaId)
             ->where('id', $id)
             ->firstOrFail();
 
-        // Usuários do grupo (corrigido: nome_completo)
         $usuarios = DB::table('usuarios as u')
             ->select([
                 'u.id',
@@ -111,7 +111,6 @@ class GrupoPermissaoController extends Controller
             ->orderBy('u.nome_completo')
             ->get();
 
-        // Módulos vinculados à empresa
         $modulos = DB::table('modulos as m')
             ->join('vinculo_modulos_empresas as vme', 'vme.modulo_id', '=', 'm.id')
             ->where('vme.empresa_id', $empresaId)
@@ -124,13 +123,11 @@ class GrupoPermissaoController extends Controller
             ->orderBy('nome_tela')
             ->get(['id', 'nome_tela', 'slug', 'modulo_id']);
 
-        // Telas por módulo (mostra todas as telas do módulo)
         $telasPorModulo = [];
         foreach ($modulos as $m) {
             $telasPorModulo[$m->id] = $telas->where('modulo_id', $m->id)->values();
         }
 
-        // Permissões existentes (por tela_id)
         $permissoesExistentes = DB::table('permissao_modulo_tela')
             ->where('permissao_id', $grupo->id)
             ->get()
@@ -145,9 +142,11 @@ class GrupoPermissaoController extends Controller
         ]);
     }
 
-    public function update(Request $request, int $id)
+    // ✅ id sem type-hint + cast manual
+    public function update(Request $request, $id)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
+        $id = (int) $id;
 
         $grupo = Permissao::query()
             ->where('empresa_id', $empresaId)
@@ -170,13 +169,11 @@ class GrupoPermissaoController extends Controller
         return back()->with('success', 'Alterações salvas.');
     }
 
-    /**
-     * AJAX: marca/desmarca uma permissão (ativo/cadastro/editar) por tela.
-     * - Se todas (ativo/cadastro/editar) ficarem false => remove a linha do banco (revoga tudo daquela tela)
-     */
-    public function togglePermissao(Request $request, int $id)
+    // ✅ id sem type-hint + cast manual
+    public function togglePermissao(Request $request, $id)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
+        $id = (int) $id;
 
         $grupo = Permissao::query()
             ->where('empresa_id', $empresaId)
@@ -206,18 +203,15 @@ class GrupoPermissaoController extends Controller
             return response()->json(['ok' => false, 'message' => 'Tela não encontrada.'], 404);
         }
 
-        // Lê registro atual
         $row = DB::table('permissao_modulo_tela')
             ->where('permissao_id', $grupo->id)
             ->where('tela_id', $telaId)
             ->first();
 
-        // Se não existe e está desmarcando, não precisa fazer nada
         if (!$row && $valor === false) {
             return response()->json(['ok' => true, 'message' => 'Nenhuma alteração necessária.']);
         }
 
-        // Monta estado final
         $finalAtivo    = $row ? (bool)$row->ativo : false;
         $finalCadastro = $row ? (bool)$row->cadastro : false;
         $finalEditar   = $row ? (bool)$row->editar : false;
@@ -226,7 +220,6 @@ class GrupoPermissaoController extends Controller
         if ($campo === 'cadastro') $finalCadastro = $valor;
         if ($campo === 'editar')   $finalEditar = $valor;
 
-        // Se tudo OFF => remove linha
         if ($finalAtivo === false && $finalCadastro === false && $finalEditar === false) {
             DB::table('permissao_modulo_tela')
                 ->where('permissao_id', $grupo->id)
@@ -236,7 +229,6 @@ class GrupoPermissaoController extends Controller
             return response()->json(['ok' => true, 'message' => 'Acesso removido.']);
         }
 
-        // Senão upsert
         $payload = [
             'permissao_id' => $grupo->id,
             'modulo_id'    => $tela->modulo_id,
@@ -260,9 +252,11 @@ class GrupoPermissaoController extends Controller
         return response()->json(['ok' => true, 'message' => 'Permissão atualizada.']);
     }
 
-    public function destroy(Request $request, int $id)
+    // ✅ id sem type-hint + cast manual
+    public function destroy(Request $request, $id)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
+        $id = (int) $id;
 
         $grupo = Permissao::query()
             ->where('empresa_id', $empresaId)
