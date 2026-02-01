@@ -114,19 +114,25 @@ class UsuariosController extends Controller
             'nome_completo' => 'required|string|max:255',
             'cpf' => 'required|string|max:20',
             'permissao_id' => 'required|integer',
+            'filial_id' => 'nullable|integer',
+            'setor_id' => 'nullable|integer',
             'email' => 'nullable|string|max:190',
             'telefone' => 'nullable|string|max:30',
             'data_expiracao' => 'nullable',
             'status' => 'required|in:ativo,inativo',
             'foto' => 'nullable|image|max:2048',
-
-            // ✅ vínculo
-            'filial_id' => 'nullable|integer',
-            'setor_id'  => 'nullable|integer',
         ]);
 
-        $cpf = preg_replace('/\D/', '', $request->cpf);
-        $telefone = preg_replace('/\D/', '', $request->telefone ?? '');
+        $cpf = preg_replace('/\D/', '', (string) $request->cpf);
+        $telefone = preg_replace('/\D/', '', (string) ($request->telefone ?? ''));
+
+        // data_expiracao no banco é DATE: converte para Y-m-d se vier datetime-local
+        $dataExp = $request->input('data_expiracao');
+        $dataExpToSave = null;
+        if (!empty($dataExp)) {
+            // pode vir "YYYY-MM-DD" ou "YYYY-MM-DDTHH:MM"
+            $dataExpToSave = substr((string) $dataExp, 0, 10);
+        }
 
         $fotoPath = $request->hasFile('foto')
             ? $request->file('foto')->store('usuarios', 'public')
@@ -139,58 +145,16 @@ class UsuariosController extends Controller
                 'nome_completo' => $request->nome_completo,
                 'cpf' => $cpf,
                 'permissao_id' => $request->permissao_id,
+                'filial_id' => $request->filial_id ?: null,
+                'setor_id' => $request->setor_id ?: null,
                 'email' => $request->email,
                 'telefone' => $telefone,
-                'data_expiracao' => $request->data_expiracao ?: null,
+                'data_expiracao' => $dataExpToSave,
                 'status' => $request->status,
                 'foto' => $fotoPath,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
-
-            // ✅ Salvar vínculo filial/setor (se informado)
-            $filialId = (int) ($request->filial_id ?? 0);
-            $setorId  = (int) ($request->setor_id ?? 0);
-
-            if ($filialId > 0 && $setorId > 0) {
-                // desativa vínculos anteriores
-                DB::table('vinculo_usuario_lotacao')
-                    ->where('empresa_id', $empresaId)
-                    ->where('usuario_id', $id)
-                    ->whereNull('deleted_at')
-                    ->update([
-                        'ativo' => false,
-                        'updated_at' => now(),
-                    ]);
-
-                // ativa/cria vínculo
-                $existente = DB::table('vinculo_usuario_lotacao')
-                    ->where('empresa_id', $empresaId)
-                    ->where('usuario_id', $id)
-                    ->where('filial_id', $filialId)
-                    ->where('setor_id', $setorId)
-                    ->whereNull('deleted_at')
-                    ->first();
-
-                if ($existente) {
-                    DB::table('vinculo_usuario_lotacao')
-                        ->where('id', $existente->id)
-                        ->update([
-                            'ativo' => true,
-                            'updated_at' => now(),
-                        ]);
-                } else {
-                    DB::table('vinculo_usuario_lotacao')->insert([
-                        'empresa_id' => $empresaId,
-                        'usuario_id' => $id,
-                        'filial_id' => $filialId,
-                        'setor_id' => $setorId,
-                        'ativo' => true,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
-                }
-            }
 
             DB::commit();
 
@@ -229,23 +193,9 @@ class UsuariosController extends Controller
                 ->with('error', 'Usuário não encontrado.');
         }
 
-        // Inferir filial e setor
-        $filialId = null;
-        $setorId = null;
-
-        try {
-            $v = DB::table('vinculo_usuario_lotacao')
-                ->where('empresa_id', $empresaId)
-                ->where('usuario_id', $id)
-                ->where('ativo', true)
-                ->whereNull('deleted_at')
-                ->first();
-
-            if ($v) {
-                $filialId = $v->filial_id;
-                $setorId = $v->setor_id;
-            }
-        } catch (\Throwable $e) {}
+        // Agora filial/setor vem direto de usuarios (se colunas existirem)
+        $filialId = $usuario->filial_id ?? null;
+        $setorId  = $usuario->setor_id ?? null;
 
         return view('config.usuarios.edit', [
             'usuario' => $usuario,
@@ -269,15 +219,13 @@ class UsuariosController extends Controller
             'nome_completo' => 'required|string|max:255',
             'cpf' => 'required|string|max:20',
             'permissao_id' => 'required|integer',
+            'filial_id' => 'nullable|integer',
+            'setor_id' => 'nullable|integer',
             'email' => 'nullable|string|max:190',
             'telefone' => 'nullable|string|max:30',
             'data_expiracao' => 'nullable',
             'status' => 'required|in:ativo,inativo',
             'foto' => 'nullable|image|max:2048',
-
-            // ✅ vínculo
-            'filial_id' => 'nullable|integer',
-            'setor_id'  => 'nullable|integer',
         ]);
 
         $usuario = DB::table('usuarios')
@@ -291,8 +239,15 @@ class UsuariosController extends Controller
                 ->with('error', 'Usuário não encontrado.');
         }
 
-        $cpf = preg_replace('/\D/', '', $request->cpf);
-        $telefone = preg_replace('/\D/', '', $request->telefone ?? '');
+        $cpf = preg_replace('/\D/', '', (string) $request->cpf);
+        $telefone = preg_replace('/\D/', '', (string) ($request->telefone ?? ''));
+
+        // data_expiracao no banco é DATE: converte para Y-m-d se vier datetime-local
+        $dataExp = $request->input('data_expiracao');
+        $dataExpToSave = null;
+        if (!empty($dataExp)) {
+            $dataExpToSave = substr((string) $dataExp, 0, 10);
+        }
 
         $fotoPath = $usuario->foto;
         if ($request->hasFile('foto')) {
@@ -308,67 +263,15 @@ class UsuariosController extends Controller
                     'nome_completo' => $request->nome_completo,
                     'cpf' => $cpf,
                     'permissao_id' => $request->permissao_id,
+                    'filial_id' => $request->filial_id ?: null,
+                    'setor_id' => $request->setor_id ?: null,
                     'email' => $request->email,
                     'telefone' => $telefone,
-                    'data_expiracao' => $request->data_expiracao ?: null,
+                    'data_expiracao' => $dataExpToSave,
                     'status' => $request->status,
                     'foto' => $fotoPath,
                     'updated_at' => now(),
                 ]);
-
-            // ✅ Salvar vínculo filial/setor
-            $filialId = (int) ($request->filial_id ?? 0);
-            $setorId  = (int) ($request->setor_id ?? 0);
-
-            if ($filialId <= 0 || $setorId <= 0) {
-                // se não selecionou, desativa todos
-                DB::table('vinculo_usuario_lotacao')
-                    ->where('empresa_id', $empresaId)
-                    ->where('usuario_id', $id)
-                    ->whereNull('deleted_at')
-                    ->update([
-                        'ativo' => false,
-                        'updated_at' => now(),
-                    ]);
-            } else {
-                // desativa anteriores
-                DB::table('vinculo_usuario_lotacao')
-                    ->where('empresa_id', $empresaId)
-                    ->where('usuario_id', $id)
-                    ->whereNull('deleted_at')
-                    ->update([
-                        'ativo' => false,
-                        'updated_at' => now(),
-                    ]);
-
-                // ativa/cria selecionado
-                $existente = DB::table('vinculo_usuario_lotacao')
-                    ->where('empresa_id', $empresaId)
-                    ->where('usuario_id', $id)
-                    ->where('filial_id', $filialId)
-                    ->where('setor_id', $setorId)
-                    ->whereNull('deleted_at')
-                    ->first();
-
-                if ($existente) {
-                    DB::table('vinculo_usuario_lotacao')
-                        ->where('id', $existente->id)
-                        ->update([
-                            'ativo' => true,
-                            'updated_at' => now(),
-                        ]);
-                } else {
-                    DB::table('vinculo_usuario_lotacao')->insert([
-                        'empresa_id' => $empresaId,
-                        'usuario_id' => $id,
-                        'filial_id' => $filialId,
-                        'setor_id' => $setorId,
-                        'ativo' => true,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
-                }
-            }
 
             DB::commit();
 
