@@ -67,14 +67,12 @@
     const res = await fetch(url, opts);
 
     if (!res.ok) {
-      // tenta JSON
       try {
         const j = await res.json();
         const err = new Error(j?.message || `Erro HTTP ${res.status}`);
         err.detail = j?.detail;
         throw err;
       } catch (_) {
-        // fallback texto/html
         const t = await res.text().catch(() => "");
         const err = new Error(`Erro HTTP ${res.status}`);
         err.detail = t ? t.substring(0, 180) : "";
@@ -93,7 +91,6 @@
       els.pais.innerHTML = `<option value="">Lista de País</option>` +
         rows.map(r => `<option value="${r.id}">${escapeHtml(r.nome)}</option>`).join("");
     } catch (_) {
-      // se não existir tabela de países, mantém vazio sem quebrar
       els.pais.innerHTML = `<option value="">Lista de País</option>`;
     }
   }
@@ -156,11 +153,12 @@
         <td>${uf}</td>
         <td>${pais}</td>
         <td class="text-nowrap">
-          <button type="button" class="btn btn-sm btn-primary js-edit" data-id="${id}">
-            Editar
+          <button type="button" class="btn btn-sm btn-primary js-edit" data-id="${id}" title="Editar">
+            <i data-feather="edit"></i>
           </button>
-          <button type="button" class="btn btn-sm btn-danger js-del" data-id="${id}">
-            Excluir
+
+          <button type="button" class="btn btn-sm btn-danger js-del" data-id="${id}" title="Excluir">
+            <i data-feather="trash-2"></i>
           </button>
         </td>
       </tr>
@@ -207,6 +205,10 @@
       const data = await fetchJson(url);
 
       renderTable(data?.data || []);
+
+      // ✅ necessário após render via AJAX
+      if (window.feather) feather.replace();
+
       renderPagination(data?.meta || {});
     } catch (e) {
       let msg = e.message || "Erro ao carregar";
@@ -259,12 +261,12 @@
         swal("Excluída!", "Filial removida com sucesso.", "success");
 
         await loadGrid();
+
         const hasRows = els.tbody.querySelectorAll("tr[data-id]").length > 0;
         if (!hasRows && state.page > 1) {
           state.page = Math.max(1, state.page - 1);
           loadGrid();
         }
-
       } catch (e) {
         let msg = e.message || "Não foi possível excluir.";
         if (e.detail) msg = `${msg} - ${String(e.detail).substring(0, 160)}`;
@@ -323,7 +325,7 @@
       }
     });
 
-    // Delegação: não perde evento ao re-renderizar
+    // Delegação (AJAX)
     document.addEventListener("click", function (ev) {
       const btn = ev.target.closest(".js-edit, .js-del");
       if (!btn) return;
@@ -338,6 +340,9 @@
     initEvents();
     await loadPaises();
     await loadGrid();
+
+    // feather inicial também (por garantia)
+    if (window.feather) feather.replace();
   }
 
   document.addEventListener("DOMContentLoaded", init);
