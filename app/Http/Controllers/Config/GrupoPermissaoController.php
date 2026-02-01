@@ -26,17 +26,15 @@ class GrupoPermissaoController extends Controller
         return $empresaId;
     }
 
-    public function index(Request $request)
+    public function index(Request $request, $sub)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
         $q = trim((string) $request->get('q', ''));
 
-        // Subquery: contagem de usuários por permissao_id
         $usuariosCountSub = DB::table('usuarios')
             ->select('permissao_id', DB::raw('COUNT(*)::int as total'))
             ->groupBy('permissao_id');
 
-        // ✅ Agora é paginate() (para $grupos->links())
         $grupos = DB::table('permissoes as p')
             ->leftJoinSub($usuariosCountSub, 'uc', function ($join) {
                 $join->on('uc.permissao_id', '=', 'p.id');
@@ -61,7 +59,6 @@ class GrupoPermissaoController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        // Se você usa filtro digitando e atualiza só a tabela
         if ($request->ajax() || $request->boolean('ajax')) {
             return view('config.grupos.partials.tabela', compact('grupos'));
         }
@@ -72,12 +69,12 @@ class GrupoPermissaoController extends Controller
         ]);
     }
 
-    public function create(Request $request)
+    public function create(Request $request, $sub)
     {
         return view('config.grupos.create');
     }
 
-    public function store(Request $request)
+    public function store(Request $request, $sub)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
 
@@ -97,7 +94,8 @@ class GrupoPermissaoController extends Controller
             ->with('success', 'Grupo criado com sucesso.');
     }
 
-    public function edit(Request $request, $id)
+    // ✅ IMPORTANTE: recebe $sub antes do $id
+    public function edit(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
         $id = (int) $id;
@@ -162,7 +160,8 @@ class GrupoPermissaoController extends Controller
         ]);
     }
 
-    public function update(Request $request, $id)
+    // ✅ IMPORTANTE: recebe $sub antes do $id
+    public function update(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
         $id = (int) $id;
@@ -188,7 +187,8 @@ class GrupoPermissaoController extends Controller
         return back()->with('success', 'Alterações salvas.');
     }
 
-    public function togglePermissao(Request $request, $id)
+    // ✅ IMPORTANTE: recebe $sub antes do $id
+    public function togglePermissao(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
         $id = (int) $id;
@@ -270,7 +270,8 @@ class GrupoPermissaoController extends Controller
         return response()->json(['ok' => true, 'message' => 'Permissão atualizada.']);
     }
 
-    public function destroy(Request $request, $id)
+    // ✅ IMPORTANTE: recebe $sub antes do $id
+    public function destroy(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaIdFromSubdomain($request);
         $id = (int) $id;
