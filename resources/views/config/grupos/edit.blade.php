@@ -17,7 +17,6 @@
   <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
 
-  {{-- Ajustes mínimos para o vtabs ocupar 100% sem quebrar o tema --}}
   <style>
     .vtabs { display: flex; width: 100%; }
     .vtabs > .nav.tabs-vertical { flex: 0 0 260px; min-width: 260px; }
@@ -26,26 +25,21 @@
       .vtabs { display: block; }
       .vtabs > .nav.tabs-vertical { min-width: 100%; flex: 0 0 auto; }
     }
-    /* evita palavras quebrando em colunas muito estreitas */
-    .page-title, h3, h4, h5 { word-break: normal; }
   </style>
+
+  <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body class="hold-transition light-skin sidebar-mini theme-primary fixed">
 
 <div class="wrapper">
   <div id="loader"></div>
 
-  {{-- Header --}}
   @includeIf('partials.header')
-
-  {{-- Menu --}}
   @includeIf('partials.menu')
 
-  <!-- Content Wrapper. Contains page content -->
   <div class="content-wrapper">
     <div class="container-full">
 
-      <!-- Content Header (Page header) -->
       <div class="content-header">
         <div class="d-flex align-items-center">
           <div class="me-auto">
@@ -68,18 +62,25 @@
         </div>
       </div>
 
-      <!-- Main content -->
       <section class="content">
 
+        {{-- ✅ Alerts dismissable (padrão do exemplo) --}}
         @if(session('success'))
-          <div class="alert alert-success">{{ session('success') }}</div>
+          <div class="alert alert-success alert-dismissible">
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            {{ session('success') }}
+          </div>
         @endif
 
         @if($errors->any())
-          <div class="alert alert-danger">
+          <div class="alert alert-danger alert-dismissible">
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             Verifique os campos e tente novamente.
           </div>
         @endif
+
+        {{-- ✅ Área para alerts do AJAX --}}
+        <div id="alert-area"></div>
 
         <div class="row">
           <div class="col-12">
@@ -90,11 +91,11 @@
 
               <div class="box-body">
 
-                <form method="POST" action="{{ route('config.grupos.update', ['sub' => request()->route('sub'), 'id' => $grupo->id]) }}">
+                <form id="form-grupo" method="POST"
+                      action="{{ route('config.grupos.update', ['sub' => request()->route('sub'), 'id' => $grupo->id]) }}">
                   @csrf
                   @method('PUT')
 
-                  <!-- Nav tabs (layout ORIGINAL) -->
                   <div class="vtabs">
                     <ul class="nav nav-tabs tabs-vertical" role="tablist">
                       <li class="nav-item">
@@ -104,25 +105,22 @@
                       </li>
                       <li class="nav-item">
                         <a class="nav-link" data-bs-toggle="tab" href="#usuarios" role="tab">
-                          <span><i class="ion-home me-15"></i>Usuários</span>
+                          <span><i class="ion-person-stalker me-15"></i>Usuários</span>
                         </a>
                       </li>
                       <li class="nav-item">
                         <a class="nav-link" data-bs-toggle="tab" href="#permissoes" role="tab">
-                          <span><i class="ion-home me-15"></i>Permissões</span>
+                          <span><i class="ion-locked me-15"></i>Permissões</span>
                         </a>
                       </li>
                     </ul>
 
-                    <!-- Tab panes -->
                     <div class="tab-content">
 
-                      {{-- ABA GRUPO --}}
                       <div class="tab-pane active" id="grupo" role="tabpanel">
                         <div class="p-15">
                           <h3>Dados do Grupo</h3>
 
-                          {{-- linha 1: nome do grupo --}}
                           <div class="row">
                             <div class="col-12">
                               <div class="form-group">
@@ -140,7 +138,6 @@
                             </div>
                           </div>
 
-                          {{-- linha 2: observações --}}
                           <div class="row">
                             <div class="col-12">
                               <div class="form-group">
@@ -156,7 +153,6 @@
                             </div>
                           </div>
 
-                          {{-- linha 3: status + vê salários --}}
                           <div class="row">
                             <div class="col-md-6 col-12">
                               <div class="form-group">
@@ -182,7 +178,7 @@
                         </div>
                       </div>
 
-                      {{-- ABA USUÁRIOS --}}
+                      {{-- ✅ Usuários: removida coluna de desvincular --}}
                       <div class="tab-pane" id="usuarios" role="tabpanel">
                         <div class="p-15">
                           <h3>Usuários</h3>
@@ -193,7 +189,6 @@
                                 <tr>
                                   <th style="min-width:240px;">Nome</th>
                                   <th>Filial / Setor</th>
-                                  <th style="width:160px;">Ações</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -201,27 +196,20 @@
                                   <tr>
                                     <td>{{ $u->nome_completo }}</td>
                                     <td>{!! $u->lotacoes_html ?: '-' !!}</td>
-                                    <td>
-                                      <button type="button" class="btn btn-sm btn-outline-danger" disabled>
-                                        Desvincular
-                                      </button>
-                                    </td>
                                   </tr>
                                 @empty
                                   <tr>
-                                    <td colspan="3" class="text-center">Nenhum usuário vinculado a este grupo.</td>
+                                    <td colspan="2" class="text-center">Nenhum usuário vinculado a este grupo.</td>
                                   </tr>
                                 @endforelse
                               </tbody>
                             </table>
-                            <small class="text-muted">
-                              * O botão “Desvincular” será ativado quando criarmos a ação de desvincular.
-                            </small>
                           </div>
+
                         </div>
                       </div>
 
-                      {{-- ABA PERMISSÕES --}}
+                      {{-- ✅ Permissões com auto-save --}}
                       <div class="tab-pane" id="permissoes" role="tabpanel">
                         <div class="p-15">
                           <h3>Permissões</h3>
@@ -267,9 +255,9 @@
                                         <td class="text-center">
                                           <input type="checkbox"
                                                  id="{{ $idAtivo }}"
-                                                 class="chk-col-primary"
-                                                 name="perm[{{ $t->id }}][ativo]"
-                                                 value="1"
+                                                 class="chk-col-primary js-perm"
+                                                 data-tela-id="{{ $t->id }}"
+                                                 data-campo="ativo"
                                                  {{ $checkedAtivo ? 'checked' : '' }}>
                                           <label for="{{ $idAtivo }}"></label>
                                         </td>
@@ -277,9 +265,9 @@
                                         <td class="text-center">
                                           <input type="checkbox"
                                                  id="{{ $idCadastro }}"
-                                                 class="chk-col-primary"
-                                                 name="perm[{{ $t->id }}][cadastro]"
-                                                 value="1"
+                                                 class="chk-col-primary js-perm"
+                                                 data-tela-id="{{ $t->id }}"
+                                                 data-campo="cadastro"
                                                  {{ $checkedCadastro ? 'checked' : '' }}>
                                           <label for="{{ $idCadastro }}"></label>
                                         </td>
@@ -287,9 +275,9 @@
                                         <td class="text-center">
                                           <input type="checkbox"
                                                  id="{{ $idEditar }}"
-                                                 class="chk-col-primary"
-                                                 name="perm[{{ $t->id }}][editar]"
-                                                 value="1"
+                                                 class="chk-col-primary js-perm"
+                                                 data-tela-id="{{ $t->id }}"
+                                                 data-campo="editar"
                                                  {{ $checkedEditar ? 'checked' : '' }}>
                                           <label for="{{ $idEditar }}"></label>
                                         </td>
@@ -304,17 +292,18 @@
                               </div>
                             </div>
                           @empty
-                            <div class="alert alert-warning">
+                            <div class="alert alert-warning alert-dismissible">
+                              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                               Nenhum módulo está vinculado a esta empresa.
                             </div>
                           @endforelse
+
                         </div>
                       </div>
 
                     </div>
                   </div>
 
-                  {{-- ✅ BOTÃO SALVAR FORA DAS TABS (um único botão) --}}
                   <div class="d-flex justify-content-end mt-3">
                     <button type="submit" class="waves-effect waves-light btn bg-gradient-success">
                       Salvar
@@ -329,24 +318,26 @@
         </div>
 
       </section>
-      <!-- /.content -->
-
     </div>
   </div>
-  <!-- /.content-wrapper -->
 
   @includeIf('partials.footer')
 </div>
-<!-- ./wrapper -->
 
-<!-- Vendor JS -->
 <script src="{{ asset('assets/js/vendors.min.js') }}"></script>
 <script src="{{ asset('assets/js/pages/chat-popup.js') }}"></script>
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
 
-<!-- Coup Admin App -->
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
+
+{{-- ✅ JS do auto-save das permissões --}}
+<script>
+  window.CON_GROUP_ID = {{ (int)$grupo->id }};
+  window.CON_SUB = @json((string)request()->route('sub'));
+  window.CON_TOGGLE_URL = @json(route('config.grupos.permissoes.toggle', ['sub' => request()->route('sub'), 'id' => $grupo->id]));
+</script>
+<script src="{{ asset('assets/js/pages/config-grupos-edit.js') }}"></script>
 
 </body>
 </html>
