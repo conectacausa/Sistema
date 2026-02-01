@@ -112,6 +112,11 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->middleware('screen:11')
                 ->name('config.grupos.destroy');
 
+            Route::post('/config/grupos/{id}/permissoes/toggle', [GrupoPermissaoController::class, 'togglePermissao'])
+                ->whereNumber('id')
+                ->middleware('screen:11')
+                ->name('config.grupos.permissoes.toggle');
+
                     
             /*
             |--------------------------------------------------------------------------
