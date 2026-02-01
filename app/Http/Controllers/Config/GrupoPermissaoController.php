@@ -3,122 +3,99 @@
 namespace App\Http\Controllers\Config;
 
 use App\Http\Controllers\Controller;
-use App\Models\Empresa;
-use App\Models\Permissao;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Validator;
+use App\Models\Empresa;
+use App\Models\Permissao;
 
 class GrupoPermissaoController extends Controller
 {
-    private function empresaFromSub(string $sub): Empresa
+    private function empresaIdFromSubdomain(Request $request): int
     {
-        if ($sub === '') {
-            abort(403, 'Subdomínio não identificado.');
-        }
+        $sub = (string) $request->route('sub');
 
-        $empresa = Empresa::query()
+        $empresaId = (int) Empresa::query()
             ->where('subdominio', $sub)
-            ->first();
+            ->value('id');
 
-        if (!$empresa) {
-            abort(403, "Empresa não encontrada para subdominio='{$sub}'.");
+        if ($empresaId <= 0) {
+            abort(404);
         }
 
-        return $empresa;
+        return $empresaId;
     }
 
-    public function index(Request $request, $sub)
+    public function index(Request $request)
     {
-        $empresa = $this->empresaFromSub((string) $sub);
+        $empresaId = $this->empresaIdFromSubdomain($request);
 
-        $query = Permissao::query()
-            ->where('empresa_id', $empresa->id)
-            ->withCount('usuarios')
-            ->orderBy('nome_grupo');
+        $q = trim((string) $request->get('q', ''));
 
-        if ($request->filled('nome_grupo')) {
-            $nome = trim((string) $request->nome_grupo);
-            $query->where('nome_grupo', 'ilike', "%{$nome}%");
-        }
+        $grupos = Permissao::query()
+            ->where('empresa_id', $empresaId)
+            ->when($q !== '', fn($qq) => $qq->whereRaw('LOWER(nome_grupo) LIKE ?', ['%' . mb_strtolower($q) . '%']))
+            ->orderBy('nome_grupo')
+            ->get();
 
-        $grupos = $query->paginate(10)->withQueryString();
+        // Conta usuários por grupo (permissao_id em usuarios)
+        $counts = DB::table('usuarios')
+            ->select('permissao_id', DB::raw('COUNT(*)::int as total'))
+            ->whereIn('permissao_id', $grupos->pluck('id')->all())
+            ->groupBy('permissao_id')
+            ->pluck('total', 'permissao_id');
 
-        if ($request->ajax() || $request->boolean('ajax')) {
-            return view('config.grupos.partials.tabela', compact('grupos'));
-        }
-
-        return view('config.grupos.index', compact('grupos'));
+        return view('config.grupos.index', [
+            'grupos' => $grupos,
+            'counts' => $counts,
+            'q'      => $q,
+        ]);
     }
 
-    public function create(Request $request, $sub)
+    public function create(Request $request)
     {
         return view('config.grupos.create');
     }
 
-    public function store(Request $request, $sub)
+    public function store(Request $request)
     {
-        $empresa = $this->empresaFromSub((string) $sub);
+        $empresaId = $this->empresaIdFromSubdomain($request);
 
-        $validated = $request->validate([
-            'nome_grupo' => [
-                'required',
-                'string',
-                'max:160',
-                Rule::unique('permissoes', 'nome_grupo')->where(function ($q) use ($empresa) {
-                    return $q->where('empresa_id', $empresa->id)->whereNull('deleted_at');
-                }),
-            ],
-        ], [
-            'nome_grupo.required' => 'Informe o nome do grupo.',
-            'nome_grupo.max' => 'O nome do grupo deve ter no máximo 160 caracteres.',
-            'nome_grupo.unique' => 'Já existe um grupo com esse nome.',
+        $data = $request->validate([
+            'nome_grupo' => ['required', 'string', 'max:160'],
         ]);
 
-        $grupo = Permissao::create([
-            'empresa_id'  => $empresa->id,
-            'nome_grupo'  => $validated['nome_grupo'],
-            'observacoes' => null,
-            'status'      => true,
-            'salarios'    => false,
-        ]);
+        $grupo = new Permissao();
+        $grupo->empresa_id = $empresaId;
+        $grupo->nome_grupo = $data['nome_grupo'];
+        $grupo->status     = true;
+        $grupo->salarios   = false;
+        $grupo->save();
 
-        return redirect()->route('config.grupos.edit', [
-            'sub' => (string) $sub,
-            'id'  => $grupo->id,
-        ])->with('success', 'Grupo criado com sucesso!');
+        return redirect()
+            ->route('config.grupos.edit', ['sub' => $request->route('sub'), 'id' => $grupo->id])
+            ->with('success', 'Grupo criado com sucesso.');
     }
 
-    public function edit(Request $request, $sub, $id)
+    public function edit(Request $request, int $id)
     {
-        $empresa = $this->empresaFromSub((string) $sub);
-        $id = (int) $id;
+        $empresaId = $this->empresaIdFromSubdomain($request);
 
-        $grupo = Permissao::query()->findOrFail($id);
-        if ((int) $grupo->empresa_id !== (int) $empresa->id) {
-            abort(403);
-        }
+        $grupo = Permissao::query()
+            ->where('empresa_id', $empresaId)
+            ->where('id', $id)
+            ->firstOrFail();
 
-        /**
-         * -----------------------------
-         * ABA USUÁRIOS (do grupo)
-         * usuarios.nome_completo
-         * filiais.nome_fantasia
-         * setores.nome
-         * -----------------------------
-         */
+        // Usuários do grupo (corrigido: nome_completo)
         $usuarios = DB::table('usuarios as u')
-            ->where('u.permissao_id', $grupo->id)
-            ->leftJoin('vinculo_usuario_lotacao as vul', 'vul.usuario_id', '=', 'u.id')
-            ->leftJoin('filiais as f', 'f.id', '=', 'vul.filial_id')
-            ->leftJoin('setores as s', 's.id', '=', 'vul.setor_id')
             ->select([
                 'u.id',
                 'u.nome_completo',
                 DB::raw("
                     COALESCE(
                         string_agg(
-                            COALESCE(f.nome_fantasia, (vul.filial_id::text)) || ' > ' ||
+                            COALESCE(f.nome_fantasia, f.nome, (vul.filial_id::text))
+                            || ' > ' ||
                             COALESCE(s.nome, (vul.setor_id::text)),
                             '<br>'
                         ) FILTER (WHERE vul.id IS NOT NULL),
@@ -126,142 +103,176 @@ class GrupoPermissaoController extends Controller
                     ) as lotacoes_html
                 ")
             ])
+            ->leftJoin('vinculo_usuario_lotacao as vul', 'vul.usuario_id', '=', 'u.id')
+            ->leftJoin('filiais as f', 'f.id', '=', 'vul.filial_id')
+            ->leftJoin('setores as s', 's.id', '=', 'vul.setor_id')
+            ->where('u.permissao_id', $grupo->id)
             ->groupBy('u.id', 'u.nome_completo')
             ->orderBy('u.nome_completo')
             ->get();
 
-        /**
-         * -----------------------------
-         * ABA PERMISSÕES
-         * -----------------------------
-         */
+        // Módulos vinculados à empresa
         $modulos = DB::table('modulos as m')
             ->join('vinculo_modulos_empresas as vme', 'vme.modulo_id', '=', 'm.id')
-            ->where('vme.empresa_id', $empresa->id)
+            ->where('vme.empresa_id', $empresaId)
             ->where('vme.ativo', true)
             ->orderBy('vme.ordem')
-            ->orderBy('m.ordem')
-            ->select([
-                'm.id',
-                'm.nome',
-                'm.slug',
-                'm.icone',
-                'm.ordem',
-                'm.ativo',
-                'm.descricao',
-                'vme.ordem as ordem_empresa',
-            ])
+            ->select('m.id', 'm.nome', 'm.slug', 'm.icone', 'm.ordem', 'm.ativo', 'm.descricao')
             ->get();
 
         $telas = DB::table('telas')
-            ->whereIn('modulo_id', $modulos->pluck('id')->all())
-            ->orderBy('modulo_id')
             ->orderBy('nome_tela')
-            ->get();
+            ->get(['id', 'nome_tela', 'slug', 'modulo_id']);
 
+        // Telas por módulo (mostra todas as telas do módulo)
+        $telasPorModulo = [];
+        foreach ($modulos as $m) {
+            $telasPorModulo[$m->id] = $telas->where('modulo_id', $m->id)->values();
+        }
+
+        // Permissões existentes (por tela_id)
         $permissoesExistentes = DB::table('permissao_modulo_tela')
             ->where('permissao_id', $grupo->id)
             ->get()
             ->keyBy('tela_id');
 
-        $telasPorModulo = $telas->groupBy('modulo_id');
-
         return view('config.grupos.edit', [
-            'grupo' => $grupo,
-            'usuarios' => $usuarios,
-            'modulos' => $modulos,
-            'telasPorModulo' => $telasPorModulo,
-            'permissoesExistentes' => $permissoesExistentes,
+            'grupo'               => $grupo,
+            'usuarios'            => $usuarios,
+            'modulos'             => $modulos,
+            'telasPorModulo'      => $telasPorModulo,
+            'permissoesExistentes'=> $permissoesExistentes,
         ]);
     }
 
-    public function update(Request $request, $sub, $id)
+    public function update(Request $request, int $id)
     {
-        $empresa = $this->empresaFromSub((string) $sub);
-        $id = (int) $id;
+        $empresaId = $this->empresaIdFromSubdomain($request);
 
-        $grupo = Permissao::query()->findOrFail($id);
-        if ((int) $grupo->empresa_id !== (int) $empresa->id) {
-            abort(403);
-        }
+        $grupo = Permissao::query()
+            ->where('empresa_id', $empresaId)
+            ->where('id', $id)
+            ->firstOrFail();
 
-        $validated = $request->validate([
-            'nome_grupo' => ['required', 'string', 'max:160'],
-            'observacoes' => ['nullable', 'string'],
-            'status' => ['required', 'in:0,1'],
-            'salarios' => ['required', 'in:0,1'],
-            'perm' => ['array'],
-        ], [
-            'nome_grupo.required' => 'Informe o nome do grupo.',
+        $data = $request->validate([
+            'nome_grupo'   => ['required', 'string', 'max:160'],
+            'observacoes'  => ['nullable', 'string'],
+            'status'       => ['required'],
+            'salarios'     => ['required'],
         ]);
 
-        $grupo->update([
-            'nome_grupo' => $validated['nome_grupo'],
-            'observacoes' => $validated['observacoes'] ?? null,
-            'status' => ((string) $validated['status'] === '1'),
-            'salarios' => ((string) $validated['salarios'] === '1'),
+        $grupo->nome_grupo  = $data['nome_grupo'];
+        $grupo->observacoes = $data['observacoes'] ?? null;
+        $grupo->status      = (string)$data['status'] === '1';
+        $grupo->salarios    = (string)$data['salarios'] === '1';
+        $grupo->save();
+
+        return back()->with('success', 'Alterações salvas.');
+    }
+
+    /**
+     * AJAX: marca/desmarca uma permissão (ativo/cadastro/editar) por tela.
+     * - Se todas (ativo/cadastro/editar) ficarem false => remove a linha do banco (revoga tudo daquela tela)
+     */
+    public function togglePermissao(Request $request, int $id)
+    {
+        $empresaId = $this->empresaIdFromSubdomain($request);
+
+        $grupo = Permissao::query()
+            ->where('empresa_id', $empresaId)
+            ->where('id', $id)
+            ->firstOrFail();
+
+        $v = Validator::make($request->all(), [
+            'tela_id' => ['required', 'integer', 'min:1'],
+            'campo'   => ['required', 'in:ativo,cadastro,editar'],
+            'valor'   => ['required', 'in:0,1'],
         ]);
 
-        $perm = $request->input('perm', []);
-        if (!is_array($perm)) $perm = [];
-
-        $telaIds = array_map('intval', array_keys($perm));
-
-        if (!empty($telaIds)) {
-            $telas = DB::table('telas')
-                ->whereIn('id', $telaIds)
-                ->get(['id', 'modulo_id']);
-
-            $telaToModulo = $telas->keyBy('id');
-
-            foreach ($telaIds as $telaId) {
-                $row = $perm[$telaId] ?? [];
-
-                $ativo = isset($row['ativo']);
-                $cadastro = isset($row['cadastro']);
-                $editar = isset($row['editar']);
-
-                if (!$ativo && !$cadastro && !$editar) {
-                    DB::table('permissao_modulo_tela')
-                        ->where('permissao_id', $grupo->id)
-                        ->where('tela_id', $telaId)
-                        ->delete();
-                    continue;
-                }
-
-                $moduloId = (int) ($telaToModulo[$telaId]->modulo_id ?? 0);
-                if ($moduloId <= 0) continue;
-
-                $exists = DB::table('permissao_modulo_tela')
-                    ->where('permissao_id', $grupo->id)
-                    ->where('tela_id', $telaId)
-                    ->exists();
-
-                $payload = [
-                    'permissao_id' => $grupo->id,
-                    'modulo_id' => $moduloId,
-                    'tela_id' => $telaId,
-                    'ativo' => $ativo,
-                    'cadastro' => $cadastro,
-                    'editar' => $editar,
-                    'updated_at' => now(),
-                ];
-
-                if ($exists) {
-                    DB::table('permissao_modulo_tela')
-                        ->where('permissao_id', $grupo->id)
-                        ->where('tela_id', $telaId)
-                        ->update($payload);
-                } else {
-                    $payload['created_at'] = now();
-                    DB::table('permissao_modulo_tela')->insert($payload);
-                }
-            }
+        if ($v->fails()) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Dados inválidos.',
+                'errors' => $v->errors(),
+            ], 422);
         }
 
-        return redirect()->route('config.grupos.edit', [
-            'sub' => (string) $sub,
-            'id'  => $grupo->id,
-        ])->with('success', 'Grupo atualizado com sucesso!');
+        $telaId = (int) $request->input('tela_id');
+        $campo  = (string) $request->input('campo');
+        $valor  = (string) $request->input('valor') === '1';
+
+        $tela = DB::table('telas')->where('id', $telaId)->first(['id', 'modulo_id']);
+        if (!$tela) {
+            return response()->json(['ok' => false, 'message' => 'Tela não encontrada.'], 404);
+        }
+
+        // Lê registro atual
+        $row = DB::table('permissao_modulo_tela')
+            ->where('permissao_id', $grupo->id)
+            ->where('tela_id', $telaId)
+            ->first();
+
+        // Se não existe e está desmarcando, não precisa fazer nada
+        if (!$row && $valor === false) {
+            return response()->json(['ok' => true, 'message' => 'Nenhuma alteração necessária.']);
+        }
+
+        // Monta estado final
+        $finalAtivo    = $row ? (bool)$row->ativo : false;
+        $finalCadastro = $row ? (bool)$row->cadastro : false;
+        $finalEditar   = $row ? (bool)$row->editar : false;
+
+        if ($campo === 'ativo')    $finalAtivo = $valor;
+        if ($campo === 'cadastro') $finalCadastro = $valor;
+        if ($campo === 'editar')   $finalEditar = $valor;
+
+        // Se tudo OFF => remove linha
+        if ($finalAtivo === false && $finalCadastro === false && $finalEditar === false) {
+            DB::table('permissao_modulo_tela')
+                ->where('permissao_id', $grupo->id)
+                ->where('tela_id', $telaId)
+                ->delete();
+
+            return response()->json(['ok' => true, 'message' => 'Acesso removido.']);
+        }
+
+        // Senão upsert
+        $payload = [
+            'permissao_id' => $grupo->id,
+            'modulo_id'    => $tela->modulo_id,
+            'tela_id'      => $telaId,
+            'ativo'        => $finalAtivo,
+            'cadastro'     => $finalCadastro,
+            'editar'       => $finalEditar,
+            'updated_at'   => now(),
+        ];
+
+        if (!$row) {
+            $payload['created_at'] = now();
+            DB::table('permissao_modulo_tela')->insert($payload);
+        } else {
+            DB::table('permissao_modulo_tela')
+                ->where('permissao_id', $grupo->id)
+                ->where('tela_id', $telaId)
+                ->update($payload);
+        }
+
+        return response()->json(['ok' => true, 'message' => 'Permissão atualizada.']);
+    }
+
+    public function destroy(Request $request, int $id)
+    {
+        $empresaId = $this->empresaIdFromSubdomain($request);
+
+        $grupo = Permissao::query()
+            ->where('empresa_id', $empresaId)
+            ->where('id', $id)
+            ->firstOrFail();
+
+        $grupo->delete();
+
+        return redirect()
+            ->route('config.grupos.index', ['sub' => $request->route('sub')])
+            ->with('success', 'Grupo excluído.');
     }
 }
