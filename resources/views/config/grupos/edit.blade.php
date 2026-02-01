@@ -82,8 +82,8 @@
                   @method('PUT')
 
                   <!-- Nav tabs -->
-                  <div class="vtabs">
-                    <ul class="nav nav-tabs tabs-vertical" role="tablist">
+                  <div class="vtabs w-100">
+                    <ul class="nav nav-tabs tabs-vertical" role="tablist" style="min-width: 220px;">
                       <li class="nav-item">
                         <a class="nav-link active" data-bs-toggle="tab" href="#grupo" role="tab">
                           <span><i class="ion-person me-15"></i>Grupo</span>
@@ -102,15 +102,15 @@
                     </ul>
 
                     <!-- Tab panes -->
-                    <div class="tab-content">
+                    <div class="tab-content w-100" style="flex: 1 1 auto;">
 
                       {{-- ABA GRUPO --}}
-                      <div class="tab-pane active" id="grupo" role="tabpanel">
+                      <div class="tab-pane fade show active" id="grupo" role="tabpanel">
                         <div class="p-15">
                           <h3>Dados do Grupo</h3>
 
                           <div class="row">
-                            <div class="col-md-12">
+                            <div class="col-12">
                               <div class="form-group">
                                 <label class="form-label">Nome do Grupo</label>
                                 <input type="text"
@@ -127,7 +127,7 @@
                           </div>
 
                           <div class="row">
-                            <div class="col-md-12">
+                            <div class="col-12">
                               <div class="form-group">
                                 <label class="form-label">Observações</label>
                                 <textarea name="observacoes"
@@ -142,7 +142,7 @@
                           </div>
 
                           <div class="row">
-                            <div class="col-md-6">
+                            <div class="col-md-6 col-12">
                               <div class="form-group">
                                 <label class="form-label">Status</label>
                                 <select name="status" class="form-control @error('status') is-invalid @enderror" required>
@@ -152,7 +152,7 @@
                               </div>
                             </div>
 
-                            <div class="col-md-6">
+                            <div class="col-md-6 col-12">
                               <div class="form-group">
                                 <label class="form-label">Vê Salários</label>
                                 <select name="salarios" class="form-control @error('salarios') is-invalid @enderror" required>
@@ -163,17 +163,11 @@
                             </div>
                           </div>
 
-                          <div class="d-flex justify-content-end">
-                            <button type="submit" class="waves-effect waves-light btn bg-gradient-success">
-                              Salvar
-                            </button>
-                          </div>
-
                         </div>
                       </div>
 
                       {{-- ABA USUÁRIOS --}}
-                      <div class="tab-pane" id="usuarios" role="tabpanel">
+                      <div class="tab-pane fade" id="usuarios" role="tabpanel">
                         <div class="p-15">
                           <h3>Usuários</h3>
 
@@ -213,18 +207,16 @@
                       </div>
 
                       {{-- ABA PERMISSÕES --}}
-                      <div class="tab-pane" id="permissoes" role="tabpanel">
+                      <div class="tab-pane fade" id="permissoes" role="tabpanel">
                         <div class="p-15">
                           <h3>Permissões</h3>
 
                           @forelse($modulos as $m)
-                            <div class="mb-3">
-                              <div class="d-flex align-items-center justify-content-between">
-                                <h5 class="mb-0">{{ $m->nome }}</h5>
-                              </div>
+                            <div class="mb-4">
+                              <h5 class="mb-2">{{ $m->nome }}</h5>
 
-                              <div class="table-responsive mt-2">
-                                <table class="table table-striped">
+                              <div class="table-responsive">
+                                <table class="table table-striped align-middle">
                                   <thead class="bg-primary">
                                     <tr>
                                       <th style="width: 55%;">Tela</th>
@@ -241,32 +233,51 @@
                                     @forelse($telasDoModulo as $t)
                                       @php
                                         $p = $permissoesExistentes->get($t->id);
+
+                                        $checkedAtivo = old("perm.{$t->id}.ativo", $p?->ativo ? 1 : 0) ? true : false;
+                                        $checkedCadastro = old("perm.{$t->id}.cadastro", $p?->cadastro ? 1 : 0) ? true : false;
+                                        $checkedEditar = old("perm.{$t->id}.editar", $p?->editar ? 1 : 0) ? true : false;
+
+                                        $idAtivo = "perm_{$t->id}_ativo";
+                                        $idCadastro = "perm_{$t->id}_cadastro";
+                                        $idEditar = "perm_{$t->id}_editar";
                                       @endphp
+
                                       <tr>
                                         <td>
                                           <div class="fw-600">{{ $t->nome_tela }}</div>
                                           <small class="text-muted">{{ $t->slug }}</small>
                                         </td>
 
+                                        {{-- ✅ Checkbox estilizado do template (input + label) --}}
                                         <td class="text-center">
                                           <input type="checkbox"
+                                                 id="{{ $idAtivo }}"
+                                                 class="chk-col-primary"
                                                  name="perm[{{ $t->id }}][ativo]"
                                                  value="1"
-                                                 {{ old("perm.{$t->id}.ativo", $p?->ativo ? 1 : 0) ? 'checked' : '' }}>
+                                                 {{ $checkedAtivo ? 'checked' : '' }}>
+                                          <label for="{{ $idAtivo }}"></label>
                                         </td>
 
                                         <td class="text-center">
                                           <input type="checkbox"
+                                                 id="{{ $idCadastro }}"
+                                                 class="chk-col-primary"
                                                  name="perm[{{ $t->id }}][cadastro]"
                                                  value="1"
-                                                 {{ old("perm.{$t->id}.cadastro", $p?->cadastro ? 1 : 0) ? 'checked' : '' }}>
+                                                 {{ $checkedCadastro ? 'checked' : '' }}>
+                                          <label for="{{ $idCadastro }}"></label>
                                         </td>
 
                                         <td class="text-center">
                                           <input type="checkbox"
+                                                 id="{{ $idEditar }}"
+                                                 class="chk-col-primary"
                                                  name="perm[{{ $t->id }}][editar]"
                                                  value="1"
-                                                 {{ old("perm.{$t->id}.editar", $p?->editar ? 1 : 0) ? 'checked' : '' }}>
+                                                 {{ $checkedEditar ? 'checked' : '' }}>
+                                          <label for="{{ $idEditar }}"></label>
                                         </td>
                                       </tr>
                                     @empty
@@ -284,17 +295,19 @@
                             </div>
                           @endforelse
 
-                          <div class="d-flex justify-content-end">
-                            <button type="submit" class="waves-effect waves-light btn bg-gradient-success">
-                              Salvar
-                            </button>
-                          </div>
-
                         </div>
                       </div>
 
                     </div>
                   </div>
+
+                  {{-- ✅ BOTÃO SALVAR FORA DAS ABAS --}}
+                  <div class="d-flex justify-content-end mt-3">
+                    <button type="submit" class="waves-effect waves-light btn bg-gradient-success">
+                      Salvar
+                    </button>
+                  </div>
+
                 </form>
 
               </div>
