@@ -110,7 +110,7 @@
                       </li>
                       <li class="nav-item">
                         <a class="nav-link" data-bs-toggle="tab" href="#tab-solicitantes" role="tab">
-                          <span><i data-feather="user" class="me-10"></i>Solicitantes</span>
+                          <span><i data-feather="users" class="me-10"></i>Solicitantes</span>
                         </a>
                       </li>
                     </ul>
@@ -167,21 +167,29 @@
                             </div>
                           </div>
 
+                          {{-- Linha 4: ORÇAMENTO (CALCULADO) / DURAÇÃO / MENSAL / STATUS --}}
                           <div class="row">
                             <div class="col-md-3 col-12">
                               <div class="form-group">
                                 <label class="form-label">Orçamento</label>
-                                <input type="number" step="0.01" min="0"
-                                       name="orcamento_total"
+                                <input type="text"
+                                       id="orcamento_total_calc"
                                        class="form-control"
-                                       value="{{ old('orcamento_total', $processo->orcamento_total ?? null) }}">
+                                       value="R$ 0,00"
+                                       disabled>
+                                <input type="hidden"
+                                       name="orcamento_total"
+                                       id="orcamento_total_hidden"
+                                       value="{{ old('orcamento_total', $processo->orcamento_total ?? 0) }}">
                               </div>
                             </div>
 
                             <div class="col-md-3 col-12">
                               <div class="form-group">
                                 <label class="form-label">Duração (meses)</label>
-                                <input type="number" min="0"
+                                <input type="number"
+                                       min="0"
+                                       id="meses_duracao"
                                        name="meses_duracao"
                                        class="form-control"
                                        value="{{ old('meses_duracao', $processo->meses_duracao ?? 0) }}">
@@ -190,8 +198,11 @@
 
                             <div class="col-md-3 col-12">
                               <div class="form-group">
-                                <label class="form-label">Orçamento Mensal</label>
-                                <input type="number" step="0.01" min="0"
+                                <label class="form-label">Orçamento Mensal (aprovado)</label>
+                                <input type="number"
+                                       step="0.01"
+                                       min="0"
+                                       id="orcamento_mensal"
                                        name="orcamento_mensal"
                                        class="form-control"
                                        value="{{ old('orcamento_mensal', $processo->orcamento_mensal ?? 0) }}">
@@ -246,7 +257,7 @@
                                     $vBR = 'R$ ' . number_format($v, 2, ',', '.');
                                   @endphp
                                   <tr>
-                                    <td>{{ $u->filial_nome_fantasia ?? $u->nome_fantasia ?? '—' }}</td>
+                                    <td>{{ $u->filial_nome_fantasia ?? '—' }}</td>
                                     <td>{{ (int)($u->inscritos_count ?? 0) }}</td>
                                     <td>{{ (int)($u->aprovados_count ?? 0) }}</td>
                                     <td>{{ $vBR }}</td>
@@ -322,7 +333,7 @@
                                     <td>{{ $s->colaborador_nome ?? '—' }}</td>
                                     <td>{{ $s->curso_nome ?? '—' }}</td>
                                     <td>{{ $s->entidade_nome ?? '—' }}</td>
-                                    <td>{{ $s->filial_nome_fantasia ?? $s->filial_nome ?? '—' }}</td>
+                                    <td>{{ $s->filial_nome_fantasia ?? '—' }}</td>
                                     <td><span class="{{ $stLabel[1] }}">{{ $stLabel[0] }}</span></td>
                                     <td class="text-end">
                                       <form method="POST"
@@ -357,6 +368,7 @@
                     </div>
                   </div>
 
+                  {{-- SALVAR fora das abas --}}
                   <div class="d-flex justify-content-end mt-3">
                     <button type="submit" class="waves-effect waves-light btn bg-gradient-success">
                       Salvar
@@ -426,7 +438,6 @@
         <div class="modal-body">
           <div class="row">
 
-            {{-- Matrícula + busca --}}
             <div class="col-md-4 col-12">
               <div class="form-group">
                 <label class="form-label">Matrícula</label>
@@ -458,33 +469,28 @@
               </div>
             </div>
 
-            {{-- Entidade (busca + cria se não existir) --}}
             <div class="col-md-6 col-12">
               <div class="form-group">
                 <label class="form-label">Entidade (Universidade)</label>
                 <input type="text" id="entidade_nome" name="entidade_nome"
                        class="form-control" list="entidadesList"
-                       placeholder="Digite para buscar ou criar" required>
+                       placeholder="Digite para buscar ou cadastrar" required>
                 <datalist id="entidadesList"></datalist>
-                <small class="text-muted">Se não existir, será cadastrada como <b>aprovado = 0</b>.</small>
               </div>
             </div>
 
-            {{-- Curso (dependente da entidade + cria se não existir) --}}
             <div class="col-md-6 col-12">
               <div class="form-group">
                 <label class="form-label">Curso</label>
                 <input type="text" id="curso_nome" name="curso_nome"
                        class="form-control" list="cursosList"
-                       placeholder="Digite para buscar ou criar" required>
+                       placeholder="Digite para buscar ou cadastrar" required>
                 <datalist id="cursosList"></datalist>
-                <small class="text-muted">Se não existir para a entidade, será cadastrado como <b>aprovado = 0</b>.</small>
               </div>
             </div>
 
           </div>
 
-          {{-- Hidden IDs preenchidos automaticamente --}}
           <input type="hidden" id="colaborador_id" name="colaborador_id">
           <input type="hidden" id="filial_id" name="filial_id">
           <input type="hidden" id="entidade_id" name="entidade_id">
@@ -509,13 +515,15 @@
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
+{{-- Delete confirm global --}}
 <script src="{{ asset('assets/js/app-delete-confirm.js') }}"></script>
+
+{{-- WYSIHTML5 --}}
 <script src="{{ asset('assets/vendor_plugins/bootstrap-wysihtml5/bootstrap3-wysihtml5.all.js') }}"></script>
 
 <script>
   if (window.feather) feather.replace();
 
-  // URLs AJAX
   window.CON_SUB = @json($sub);
   window.CON_LOOKUP_COLAB = @json(route('beneficios.bolsa.colaborador.lookup', ['sub' => $sub]));
   window.CON_SEARCH_ENTIDADES = @json(route('beneficios.bolsa.entidades.search', ['sub' => $sub]));
@@ -531,14 +539,41 @@
         lists: { unordered: "Lista", ordered: "Lista numerada", outdent: "Diminuir recuo", indent: "Aumentar recuo" },
         link: { insert: "Inserir link", cancel: "Cancelar" },
         image: { insert: "Inserir imagem", cancel: "Cancelar" },
-        html: { edit: "Editar HTML" },
-        colours: { black: "Preto", silver: "Prata", gray: "Cinza", maroon: "Marrom", red: "Vermelho", purple: "Roxo", green: "Verde", olive: "Oliva", navy: "Azul marinho", blue: "Azul", orange: "Laranja" }
+        html: { edit: "Editar HTML" }
       };
       $('.textarea').wysihtml5({ locale: "pt-BR" });
     }
   });
 
-  // --- Helpers ---
+  // --------- Orçamento calculado ----------
+  function formatBRL(v){
+    try {
+      return new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' }).format(v);
+    } catch(e){
+      const n = (v || 0).toFixed(2).replace('.', ',');
+      return 'R$ ' + n;
+    }
+  }
+
+  function calcOrcamento(){
+    const meses = parseInt(document.getElementById('meses_duracao')?.value || '0', 10) || 0;
+    const mensal = parseFloat(document.getElementById('orcamento_mensal')?.value || '0') || 0;
+    const total = meses * mensal;
+
+    const display = document.getElementById('orcamento_total_calc');
+    const hidden = document.getElementById('orcamento_total_hidden');
+
+    if (display) display.value = formatBRL(total);
+    if (hidden) hidden.value = total.toFixed(2);
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    document.getElementById('meses_duracao')?.addEventListener('input', calcOrcamento);
+    document.getElementById('orcamento_mensal')?.addEventListener('input', calcOrcamento);
+    calcOrcamento();
+  });
+
+  // --------- Helpers ----------
   function debounce(fn, wait){
     let t = null;
     return function(...args){
@@ -552,16 +587,20 @@
     const okFilial = !!document.getElementById('filial_id').value;
     const entNome = (document.getElementById('entidade_nome').value || '').trim();
     const cursoNome = (document.getElementById('curso_nome').value || '').trim();
+
     document.getElementById('btnSalvarSolicitante').disabled = !(okColab && okFilial && entNome && cursoNome);
   }
 
-  // --- Colaborador por matrícula ---
+  // --------- Colaborador por matrícula ----------
   const matriculaEl = document.getElementById('matricula');
   const helpEl = document.getElementById('matriculaHelp');
 
   const lookupColab = debounce(async () => {
     const m = (matriculaEl.value || '').trim();
+
     helpEl.textContent = '';
+    helpEl.className = 'text-muted';
+
     document.getElementById('colaborador_id').value = '';
     document.getElementById('filial_id').value = '';
     document.getElementById('colaborador_nome').value = '';
@@ -576,23 +615,26 @@
       url.searchParams.set('matricula', m);
 
       const res = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-      if (!res.ok) throw new Error('Falha na busca');
-
       const data = await res.json();
-      if (!data || !data.ok) {
+
+      if (!res.ok || !data || !data.ok) {
         helpEl.textContent = data?.message || 'Colaborador não encontrado.';
         helpEl.className = 'text-danger';
-        setSubmitEnabled();
         return;
       }
 
-      document.getElementById('colaborador_id').value = data.colaborador.id;
-      document.getElementById('filial_id').value = data.filial?.id || '';
+      document.getElementById('colaborador_id').value = data.colaborador.id || '';
       document.getElementById('colaborador_nome').value = data.colaborador.nome || '';
-      document.getElementById('filial_nome').value = data.filial?.nome || '';
 
-      helpEl.textContent = 'Colaborador localizado.';
-      helpEl.className = 'text-success';
+      if (data.filial && data.filial.id) {
+        document.getElementById('filial_id').value = data.filial.id;
+        document.getElementById('filial_nome').value = data.filial.nome || '';
+        helpEl.textContent = 'Colaborador localizado.';
+        helpEl.className = 'text-success';
+      } else {
+        helpEl.textContent = 'Colaborador localizado, mas sem filial vinculada.';
+        helpEl.className = 'text-warning';
+      }
 
       setSubmitEnabled();
     }catch(e){
@@ -603,9 +645,9 @@
     }
   }, 350);
 
-  matriculaEl.addEventListener('input', lookupColab);
+  matriculaEl?.addEventListener('input', lookupColab);
 
-  // --- Entidades (datalist + id hidden) ---
+  // --------- Entidades / Cursos (datalist) ----------
   const entidadesMap = new Map(); // nome -> id
   const entidadeNomeEl = document.getElementById('entidade_nome');
   const entidadeIdEl = document.getElementById('entidade_id');
@@ -649,17 +691,16 @@
     }catch(e){ console.error(e); }
   }, 300);
 
-  entidadeNomeEl.addEventListener('input', searchEntidades);
+  entidadeNomeEl?.addEventListener('input', searchEntidades);
 
-  entidadeNomeEl.addEventListener('change', () => {
+  entidadeNomeEl?.addEventListener('change', () => {
     const nome = (entidadeNomeEl.value || '').trim();
     const id = entidadesMap.get(nome);
     entidadeIdEl.value = id ? String(id) : '';
-    clearCursos(); // sempre refaz cursos ao “fixar” entidade
+    clearCursos();
     setSubmitEnabled();
   });
 
-  // --- Cursos (dependente da entidade) ---
   const searchCursos = debounce(async () => {
     const q = (cursoNomeEl.value || '').trim();
     cursoIdEl.value = '';
@@ -669,7 +710,7 @@
 
     if (q.length < 2) return;
 
-    const entidadeId = entidadeIdEl.value; // se vazio, pode criar curso depois, mas busca precisa do id
+    const entidadeId = entidadeIdEl.value;
     if (!entidadeId) return;
 
     try{
@@ -689,19 +730,20 @@
     }catch(e){ console.error(e); }
   }, 300);
 
-  cursoNomeEl.addEventListener('input', searchCursos);
+  cursoNomeEl?.addEventListener('input', searchCursos);
 
-  cursoNomeEl.addEventListener('change', () => {
+  cursoNomeEl?.addEventListener('change', () => {
     const nome = (cursoNomeEl.value || '').trim();
     const id = cursosMap.get(nome);
     cursoIdEl.value = id ? String(id) : '';
     setSubmitEnabled();
   });
 
-  // habilita/desabilita salvar ao abrir modal
-  document.getElementById('modalAddSolicitante').addEventListener('shown.bs.modal', () => {
+  // reset básico ao abrir modal
+  document.getElementById('modalAddSolicitante')?.addEventListener('shown.bs.modal', () => {
     setSubmitEnabled();
   });
+
 </script>
 
 </body>
