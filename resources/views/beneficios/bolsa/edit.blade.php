@@ -8,9 +8,15 @@
 
   <title>{{ config('app.name', 'ConecttaRH') }} | Bolsa de Estudos</title>
 
+  <!-- Vendors Style-->
   <link rel="stylesheet" href="{{ asset('assets/css/vendors_css.css') }}">
+
+  <!-- Style-->
   <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
+
+  <!-- ✅ Bootstrap WYSIHTML5 CSS (do seu assets.zip) -->
+  <link rel="stylesheet" href="{{ asset('assets/vendor_plugins/bootstrap-wysihtml5/bootstrap3-wysihtml5.min.css') }}">
 
   <style>
     .vtabs { display:flex; width:100%; }
@@ -89,6 +95,7 @@
 
               <div class="box-body">
 
+                {{-- ✅ Form principal (Salvar fora das tabs) --}}
                 <form method="POST" action="{{ route('beneficios.bolsa.update', ['sub' => $sub, 'id' => $processo->id]) }}">
                   @csrf
                   @method('PUT')
@@ -149,7 +156,7 @@
                             </div>
                           </div>
 
-                          {{-- Linha 2 - Edital --}}
+                          {{-- Linha 2 - Edital (WYSIHTML5) --}}
                           <div class="row">
                             <div class="col-12">
                               <div class="form-group">
@@ -205,7 +212,7 @@
                             </div>
                           </div>
 
-                          {{-- Linha 4 - Valor Mês / Quant. Meses / Valor Total / Valor Usado / Saldo --}}
+                          {{-- Linha 4 - Valor Mês / Quant. Meses / Total / Usado / Saldo --}}
                           <div class="row">
                             <div class="col-md-3 col-12">
                               <div class="form-group">
@@ -304,6 +311,7 @@
                                   @php
                                     $v = (float)($u->soma_limite_aprovados ?? 0);
                                     $vBR = 'R$ ' . number_format($v, 2, ',', '.');
+                                    $vinculoId = $u->vinculo_id ?? $u->id;
                                   @endphp
                                   <tr>
                                     <td>{{ $u->filial_nome_fantasia ?? '—' }}</td>
@@ -311,11 +319,13 @@
                                     <td>{{ (int)($u->aprovados_count ?? 0) }}</td>
                                     <td>{{ $vBR }}</td>
                                     <td class="text-end">
+                                      {{-- ✅ EXCLUIR via form padrão + intent --}}
                                       <form method="POST"
-                                            action="{{ route('beneficios.bolsa.unidades.destroy', ['sub' => $sub, 'id' => $processo->id, 'vinculo_id' => $u->vinculo_id ?? $u->id]) }}"
+                                            action="{{ route('beneficios.bolsa.unidades.destroy', ['sub' => $sub, 'id' => $processo->id, 'vinculo_id' => $vinculoId]) }}"
                                             class="d-inline js-form-delete">
                                         @csrf
                                         @method('DELETE')
+                                        <input type="hidden" name="_delete_intent" value="1">
 
                                         <button type="button"
                                                 class="btn btn-danger btn-sm js-btn-delete"
@@ -388,6 +398,7 @@
                                             class="d-inline js-form-delete">
                                         @csrf
                                         @method('DELETE')
+                                        <input type="hidden" name="_delete_intent" value="1">
 
                                         <button type="button"
                                                 class="btn btn-danger btn-sm js-btn-delete"
@@ -421,7 +432,7 @@
                         </div>
                       </div>
 
-                      {{-- TAB 5 - CONFIGURAÇÃO --}}
+                      {{-- TAB 5 - CONFIG --}}
                       <div class="tab-pane" id="tab-config" role="tabpanel">
                         <div class="p-15">
                           <h3>Configuração</h3>
@@ -434,7 +445,7 @@
                     </div>
                   </div>
 
-                  {{-- SALVAR fora das abas --}}
+                  {{-- ✅ Salvar fora das abas --}}
                   <div class="d-flex justify-content-end mt-3">
                     <button type="submit" class="waves-effect waves-light btn bg-gradient-success">
                       Salvar
@@ -462,6 +473,7 @@
     <div class="modal-content">
       <form method="POST" action="{{ route('beneficios.bolsa.unidades.store', ['sub' => $sub, 'id' => $processo->id]) }}">
         @csrf
+
         <div class="modal-header">
           <h5 class="modal-title">Adicionar Unidade</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -483,16 +495,18 @@
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
           <button type="submit" class="btn bg-gradient-success">Salvar</button>
         </div>
+
       </form>
     </div>
   </div>
 </div>
 
-{{-- MODAL - ADICIONAR SOLICITANTE (mantido do seu atual) --}}
+{{-- MODAL - ADICIONAR SOLICITANTE --}}
 <div class="modal fade" id="modalAddSolicitante" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
-      <form method="POST" id="formAddSolicitante"
+      <form method="POST"
+            id="formAddSolicitante"
             action="{{ route('beneficios.bolsa.solicitantes.store', ['sub' => $sub, 'id' => $processo->id]) }}">
         @csrf
 
@@ -502,31 +516,122 @@
         </div>
 
         <div class="modal-body">
-          {{-- aqui permanece o mesmo modal que você já está usando --}}
-          <div class="alert alert-info mb-0">
-            Modal de solicitantes permanece igual ao último que já está funcionando (matrícula preenche nome e filial).
+
+          <div class="row">
+            <div class="col-md-4 col-12">
+              <div class="form-group">
+                <label class="form-label">Matrícula</label>
+                <input type="text" id="matricula" class="form-control" placeholder="Digite a matrícula" autocomplete="off">
+              </div>
+            </div>
+
+            <div class="col-md-8 col-12">
+              <div class="form-group">
+                <label class="form-label">Colaborador</label>
+                <input type="text" id="colaborador_nome" class="form-control" disabled>
+                <input type="hidden" name="colaborador_id" id="colaborador_id">
+              </div>
+            </div>
           </div>
+
+          <div class="row">
+            <div class="col-md-8 col-12">
+              <div class="form-group">
+                <label class="form-label">Filial</label>
+                <input type="text" id="filial_nome" class="form-control" disabled>
+                <input type="hidden" name="filial_id" id="filial_id">
+              </div>
+            </div>
+
+            <div class="col-md-4 col-12">
+              <div class="form-group">
+                <label class="form-label">Valor Total Mensalidade</label>
+                <input type="number" step="0.01" min="0" name="valor_total_mensalidade" class="form-control" required>
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 col-12">
+              <div class="form-group">
+                <label class="form-label">Entidade</label>
+                <input type="text" id="entidade_nome" name="entidade_nome" class="form-control" list="dlEntidades" placeholder="Digite para buscar..." autocomplete="off" required>
+                <datalist id="dlEntidades"></datalist>
+                <input type="hidden" id="entidade_id" name="entidade_id">
+              </div>
+            </div>
+
+            <div class="col-md-6 col-12">
+              <div class="form-group">
+                <label class="form-label">Curso</label>
+                <input type="text" id="curso_nome" name="curso_nome" class="form-control" list="dlCursos" placeholder="Digite para buscar..." autocomplete="off" required>
+                <datalist id="dlCursos"></datalist>
+                <input type="hidden" id="curso_id" name="curso_id">
+              </div>
+            </div>
+          </div>
+
+          <div id="modalAddSolicitanteAlert" class="mt-2"></div>
+
         </div>
 
         <div class="modal-footer d-flex justify-content-end gap-2">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
           <button type="submit" class="btn bg-gradient-success">Salvar</button>
         </div>
+
       </form>
     </div>
   </div>
 </div>
 
+<!-- Vendor JS -->
 <script src="{{ asset('assets/js/vendors.min.js') }}"></script>
 <script src="{{ asset('assets/js/pages/chat-popup.js') }}"></script>
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
+
+<!-- ✅ WYSIHTML5/CKEditor do seu template (mesmo do forms_editors.html) -->
+<script src="{{ asset('assets/vendor_components/ckeditor/ckeditor.js') }}"></script>
+<script src="{{ asset('assets/vendor_plugins/bootstrap-wysihtml5/bootstrap3-wysihtml5.all.js') }}"></script>
+<script src="{{ asset('assets/js/pages/editor.js') }}"></script>
+
+<!-- Coup Admin App -->
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
+
+<!-- Sweatalert delete padrão -->
 <script src="{{ asset('assets/js/app-delete-confirm.js') }}"></script>
 
 <script>
   if (window.feather) feather.replace();
 
+  // ====== WYSIHTML5 “pt-BR” (não há locale nativo neste plugin do template) ======
+  // Então traduzimos tooltips após inicialização.
+  function traduzTooltipsWysi(){
+    const map = {
+      "Bold": "Negrito",
+      "Italic": "Itálico",
+      "Underline": "Sublinhado",
+      "Insert unordered list": "Lista (marcadores)",
+      "Insert ordered list": "Lista (numerada)",
+      "Outdent": "Diminuir recuo",
+      "Indent": "Aumentar recuo",
+      "Insert link": "Inserir link",
+      "Insert image": "Inserir imagem",
+      "View source": "Ver código",
+      "Font styles": "Estilos de fonte",
+      "Font size": "Tamanho da fonte",
+      "Text color": "Cor do texto"
+    };
+
+    // tenta pegar botões do toolbar
+    document.querySelectorAll('.wysihtml5-toolbar [title]').forEach(el => {
+      const t = (el.getAttribute('title') || '').trim();
+      if (map[t]) el.setAttribute('title', map[t]);
+    });
+  }
+
+  // ====== Cálculos Tab Processo ======
   function formatBRL(v){
     try {
       return new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' }).format(v);
@@ -539,18 +644,14 @@
   function calcTotais(){
     const valorMes = parseFloat(document.getElementById('valor_mes')?.value || '0') || 0;
     const qtdMeses = parseInt(document.getElementById('quant_meses')?.value || '0', 10) || 0;
-
     const total = valorMes * qtdMeses;
 
-    // Valor usado por enquanto é 0 (vamos falar no futuro)
     const usado = parseFloat(document.getElementById('valor_usado_hidden')?.value || '0') || 0;
-
     const saldo = total - usado;
 
     const totalEl = document.getElementById('valor_total_calc');
     const saldoEl = document.getElementById('saldo_calc');
     const usadoEl = document.getElementById('valor_usado');
-
     const hiddenTotal = document.getElementById('orcamento_total_hidden');
 
     if (totalEl) totalEl.value = formatBRL(total);
@@ -559,10 +660,166 @@
     if (saldoEl) saldoEl.value = formatBRL(saldo);
   }
 
+  // ====== Modal solicitante: busca matrícula + autocomplete ======
+  const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+  const ROUTE_COLAB = @json(route('beneficios.bolsa.colaborador_por_matricula', ['sub' => $sub]));
+  const ROUTE_ENT   = @json(route('beneficios.bolsa.entidades.search', ['sub' => $sub]));
+  const ROUTE_CUR   = @json(route('beneficios.bolsa.cursos.search', ['sub' => $sub]));
+
+  let tMat = null, tEnt = null, tCur = null;
+
+  function setModalAlert(html){
+    const el = document.getElementById('modalAddSolicitanteAlert');
+    if (el) el.innerHTML = html || '';
+  }
+
+  async function fetchJSON(url){
+    const res = await fetch(url, {
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN': CSRF
+      }
+    });
+    return await res.json();
+  }
+
+  async function buscaColaborador(){
+    const mat = (document.getElementById('matricula')?.value || '').trim();
+    if (!mat) return;
+
+    try {
+      const j = await fetchJSON(ROUTE_COLAB + '?matricula=' + encodeURIComponent(mat));
+      if (!j.ok) {
+        document.getElementById('colaborador_id').value = '';
+        document.getElementById('colaborador_nome').value = '';
+        document.getElementById('filial_id').value = '';
+        document.getElementById('filial_nome').value = '';
+        setModalAlert('<div class="alert alert-warning py-2 mb-0">'+ (j.message || 'Colaborador não encontrado.') +'</div>');
+        return;
+      }
+
+      document.getElementById('colaborador_id').value = j.colaborador?.id || '';
+      document.getElementById('colaborador_nome').value = j.colaborador?.nome || '';
+      document.getElementById('filial_id').value = j.filial?.id || '';
+      document.getElementById('filial_nome').value = j.filial?.nome || '';
+      setModalAlert('');
+    } catch(e) {
+      setModalAlert('<div class="alert alert-danger py-2 mb-0">Erro ao buscar colaborador.</div>');
+    }
+  }
+
+  async function carregaEntidades(){
+    const q = (document.getElementById('entidade_nome')?.value || '').trim();
+    const dl = document.getElementById('dlEntidades');
+    if (!dl) return;
+
+    try {
+      const j = await fetchJSON(ROUTE_ENT + '?q=' + encodeURIComponent(q));
+      dl.innerHTML = '';
+      (j.items || []).forEach(it => {
+        const opt = document.createElement('option');
+        opt.value = it.nome;
+        opt.dataset.id = it.id;
+        dl.appendChild(opt);
+      });
+    } catch(e){}
+  }
+
+  async function carregaCursos(){
+    const entidadeId = (document.getElementById('entidade_id')?.value || '').trim();
+    const q = (document.getElementById('curso_nome')?.value || '').trim();
+    const dl = document.getElementById('dlCursos');
+    if (!dl) return;
+
+    dl.innerHTML = '';
+    if (!entidadeId) return;
+
+    try {
+      const j = await fetchJSON(ROUTE_CUR + '?entidade_id=' + encodeURIComponent(entidadeId) + '&q=' + encodeURIComponent(q));
+      (j.items || []).forEach(it => {
+        const opt = document.createElement('option');
+        opt.value = it.nome;
+        opt.dataset.id = it.id;
+        dl.appendChild(opt);
+      });
+    } catch(e){}
+  }
+
+  function resolveDatalistId(inputId, datalistId, hiddenId){
+    const input = document.getElementById(inputId);
+    const dl = document.getElementById(datalistId);
+    const hidden = document.getElementById(hiddenId);
+    if (!input || !dl || !hidden) return;
+
+    const val = (input.value || '').trim();
+    hidden.value = '';
+
+    // se o valor bater com option, pega o id (quando tiver)
+    const opt = Array.from(dl.options).find(o => (o.value || '').trim() === val);
+    if (opt && opt.dataset && opt.dataset.id) hidden.value = opt.dataset.id;
+  }
+
   document.addEventListener('DOMContentLoaded', function(){
+    // Cálculo financeiro
     document.getElementById('valor_mes')?.addEventListener('input', calcTotais);
     document.getElementById('quant_meses')?.addEventListener('input', calcTotais);
     calcTotais();
+
+    // WYSIHTML5 tooltip pt
+    setTimeout(traduzTooltipsWysi, 500);
+
+    // matrícula debounce
+    document.getElementById('matricula')?.addEventListener('input', function(){
+      clearTimeout(tMat);
+      tMat = setTimeout(buscaColaborador, 350);
+    });
+
+    // entidade debounce + resolve id
+    document.getElementById('entidade_nome')?.addEventListener('input', function(){
+      clearTimeout(tEnt);
+      document.getElementById('entidade_id').value = '';
+      document.getElementById('curso_id').value = '';
+      // ao trocar entidade, limpar curso
+      document.getElementById('curso_nome').value = '';
+      tEnt = setTimeout(carregaEntidades, 250);
+    });
+    document.getElementById('entidade_nome')?.addEventListener('change', function(){
+      resolveDatalistId('entidade_nome','dlEntidades','entidade_id');
+      // após escolher entidade, sugerir cursos
+      carregaCursos();
+    });
+
+    // curso debounce + resolve id
+    document.getElementById('curso_nome')?.addEventListener('input', function(){
+      clearTimeout(tCur);
+      document.getElementById('curso_id').value = '';
+      tCur = setTimeout(carregaCursos, 250);
+    });
+    document.getElementById('curso_nome')?.addEventListener('change', function(){
+      resolveDatalistId('curso_nome','dlCursos','curso_id');
+    });
+
+    // validar antes de enviar: precisa colaborador/filial preenchidos
+    document.getElementById('formAddSolicitante')?.addEventListener('submit', function(e){
+      const colId = (document.getElementById('colaborador_id')?.value || '').trim();
+      const filialId = (document.getElementById('filial_id')?.value || '').trim();
+      if (!colId || !filialId) {
+        e.preventDefault();
+        setModalAlert('<div class="alert alert-warning py-2 mb-0">Informe uma matrícula válida para preencher colaborador e filial.</div>');
+      }
+    });
+
+    // ao abrir modal, limpar alert e campos de ids
+    const modalEl = document.getElementById('modalAddSolicitante');
+    if (modalEl) {
+      modalEl.addEventListener('shown.bs.modal', function(){
+        setModalAlert('');
+        document.getElementById('matricula').focus();
+      });
+      modalEl.addEventListener('hidden.bs.modal', function(){
+        setModalAlert('');
+      });
+    }
   });
 </script>
 
