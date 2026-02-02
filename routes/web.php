@@ -9,6 +9,7 @@ use App\Http\Controllers\Cargo\HeadcountController;
 use App\Http\Controllers\Config\UsuariosController;
 use App\Http\Controllers\Config\GrupoPermissaoController;
 use App\Http\Controllers\Config\FiliaisController;
+use App\Http\Controllers\Beneficios\BolsaEstudosController;
 
 Route::domain('{sub}.conecttarh.com.br')
     ->middleware(['web', 'tenant'])
@@ -198,6 +199,53 @@ Route::domain('{sub}.conecttarh.com.br')
 
             Route::get('/cargos/qlp/setores-por-filiais', [HeadcountController::class, 'setoresPorFiliais'])
                 ->name('cargos.headcount.setores_por_filiais');
+
+            /*
+            |--------------------------------------------------------------------------
+            | BENEFÍCIOS → BOLSA DE ESTUDOS
+            |--------------------------------------------------------------------------
+            | Tela ID: 12
+            | Slug: beneficios/bolsa
+            */
+            
+            Route::get('/beneficios/bolsa', [BolsaEstudosController::class, 'index'])
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.index');
+            
+            Route::get('/beneficios/bolsa/novo', [BolsaEstudosController::class, 'create'])
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.create');
+            
+            Route::post('/beneficios/bolsa', [BolsaEstudosController::class, 'store'])
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.store');
+            
+            Route::get('/beneficios/bolsa/{id}/editar', [BolsaEstudosController::class, 'edit'])
+                ->whereNumber('id')
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.edit');
+            
+            Route::put('/beneficios/bolsa/{id}', [BolsaEstudosController::class, 'update'])
+                ->whereNumber('id')
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.update');
+            
+            Route::delete('/beneficios/bolsa/{id}', [BolsaEstudosController::class, 'destroy'])
+                ->whereNumber('id')
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.destroy');
+            
+            /*
+            |--------------------------------------------------------------------------
+            | BOLSA → APROVAÇÕES (pendências do ciclo)
+            |--------------------------------------------------------------------------
+            | Botão do index (users) chama esta rota quando pendentes_count > 0
+            */
+            Route::get('/beneficios/bolsa/{id}/aprovacoes', [BolsaEstudosController::class, 'aprovacoes'])
+                ->whereNumber('id')
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.aprovacoes');
+
 
             /*
             |--------------------------------------------------------------------------
