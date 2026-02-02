@@ -238,6 +238,29 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->whereNumber('id')
                 ->middleware('screen:12')
                 ->name('beneficios.bolsa.destroy');
+
+            Route::post('/beneficios/bolsa/{id}/unidades', [BolsaEstudosController::class, 'storeUnidade'])
+              ->whereNumber('id')
+              ->middleware('screen:12')
+              ->name('beneficios.bolsa.unidades.store');
+            
+            Route::delete('/beneficios/bolsa/{id}/unidades/{vinculo_id}', [BolsaEstudosController::class, 'destroyUnidade'])
+              ->whereNumber('id')
+              ->whereNumber('vinculo_id')
+              ->middleware('screen:12')
+              ->name('beneficios.bolsa.unidades.destroy');
+            
+            Route::post('/beneficios/bolsa/{id}/solicitantes', [BolsaEstudosController::class, 'storeSolicitante'])
+              ->whereNumber('id')
+              ->middleware('screen:12')
+              ->name('beneficios.bolsa.solicitantes.store');
+            
+            Route::delete('/beneficios/bolsa/{id}/solicitantes/{solicitacao_id}', [BolsaEstudosController::class, 'destroySolicitante'])
+              ->whereNumber('id')
+              ->whereNumber('solicitacao_id')
+              ->middleware('screen:12')
+              ->name('beneficios.bolsa.solicitantes.destroy');
+
             
             /*
             |--------------------------------------------------------------------------
