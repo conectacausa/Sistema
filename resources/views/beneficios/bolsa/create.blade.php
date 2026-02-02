@@ -67,7 +67,6 @@
 
       <section class="content">
 
-        {{-- Alerts dismissable --}}
         @if(session('success'))
           <div class="alert alert-success alert-dismissible">
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -110,7 +109,7 @@
                       </li>
                       <li class="nav-item">
                         <a class="nav-link disabled" href="javascript:void(0)">
-                          <span><i data-feather="users" class="me-10"></i>Unidades</span>
+                          <span><i data-feather="home" class="me-10"></i>Unidades</span>
                         </a>
                       </li>
                       <li class="nav-item">
@@ -121,12 +120,9 @@
                     </ul>
 
                     <div class="tab-content">
-
-                      {{-- TAB 1 - PROCESSO --}}
                       <div class="tab-pane active" id="tab-processo" role="tabpanel">
                         <div class="p-15">
 
-                          {{-- Linha 1 - Ciclo --}}
                           <div class="row">
                             <div class="col-12">
                               <div class="form-group">
@@ -145,7 +141,6 @@
                             </div>
                           </div>
 
-                          {{-- Linha 2 - Edital (WYSIHTML5) --}}
                           <div class="row">
                             <div class="col-12">
                               <div class="form-group">
@@ -158,7 +153,6 @@
                             </div>
                           </div>
 
-                          {{-- Linha 3 - Datas --}}
                           <div class="row">
                             <div class="col-md-6 col-12">
                               <div class="form-group">
@@ -180,14 +174,11 @@
                             </div>
                           </div>
 
-                          {{-- Linha 4 - Orçamento / Duração / Orçamento Mensal / Status --}}
                           <div class="row">
                             <div class="col-md-3 col-12">
                               <div class="form-group">
                                 <label class="form-label">Orçamento</label>
-                                <input type="number"
-                                       step="0.01"
-                                       min="0"
+                                <input type="number" step="0.01" min="0"
                                        name="orcamento_total"
                                        class="form-control"
                                        value="{{ old('orcamento_total') }}"
@@ -198,8 +189,7 @@
                             <div class="col-md-3 col-12">
                               <div class="form-group">
                                 <label class="form-label">Duração (meses)</label>
-                                <input type="number"
-                                       min="0"
+                                <input type="number" min="0"
                                        name="meses_duracao"
                                        class="form-control"
                                        value="{{ old('meses_duracao') }}"
@@ -210,9 +200,7 @@
                             <div class="col-md-3 col-12">
                               <div class="form-group">
                                 <label class="form-label">Orçamento Mensal</label>
-                                <input type="number"
-                                       step="0.01"
-                                       min="0"
+                                <input type="number" step="0.01" min="0"
                                        name="orcamento_mensal"
                                        class="form-control"
                                        value="{{ old('orcamento_mensal') }}"
@@ -232,17 +220,11 @@
                             </div>
                           </div>
 
-                          <div class="alert alert-info mb-0">
-                            Após salvar o processo, você poderá vincular unidades e adicionar solicitantes.
-                          </div>
-
                         </div>
                       </div>
-
                     </div>
                   </div>
 
-                  {{-- Botão salvar FORA das abas --}}
                   <div class="d-flex justify-content-end mt-3">
                     <button type="submit" class="waves-effect waves-light btn bg-gradient-success">
                       Salvar
@@ -267,7 +249,6 @@
 <script src="{{ asset('assets/js/vendors.min.js') }}"></script>
 <script src="{{ asset('assets/js/pages/chat-popup.js') }}"></script>
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
-
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
@@ -276,9 +257,21 @@
 <script>
   if (window.feather) feather.replace();
 
+  // Locale PT-BR inline + init
   document.addEventListener('DOMContentLoaded', function () {
-    if (typeof $ !== 'undefined' && $('.textarea').length) {
-      $('.textarea').wysihtml5();
+    if (typeof $ !== 'undefined' && $.fn.wysihtml5) {
+      $.fn.wysihtml5.locale = $.fn.wysihtml5.locale || {};
+      $.fn.wysihtml5.locale["pt-BR"] = {
+        font_styles: { normal: "Texto normal", h1: "Título 1", h2: "Título 2", h3: "Título 3" },
+        emphasis: { bold: "Negrito", italic: "Itálico", underline: "Sublinhado" },
+        lists: { unordered: "Lista", ordered: "Lista numerada", outdent: "Diminuir recuo", indent: "Aumentar recuo" },
+        link: { insert: "Inserir link", cancel: "Cancelar" },
+        image: { insert: "Inserir imagem", cancel: "Cancelar" },
+        html: { edit: "Editar HTML" },
+        colours: { black: "Preto", silver: "Prata", gray: "Cinza", maroon: "Marrom", red: "Vermelho", purple: "Roxo", green: "Verde", olive: "Oliva", navy: "Azul marinho", blue: "Azul", orange: "Laranja" }
+      };
+
+      $('.textarea').wysihtml5({ locale: "pt-BR" });
     }
   });
 </script>
