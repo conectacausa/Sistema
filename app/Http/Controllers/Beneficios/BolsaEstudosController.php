@@ -78,16 +78,15 @@ class BolsaEstudosController extends Controller
                 'edital'               => $data['edital'] ?? null,
                 'inscricoes_inicio_at' => $data['inscricoes_inicio_at'] ?? null,
                 'inscricoes_fim_at'    => $data['inscricoes_fim_at'] ?? null,
-                'orcamento_mensal'     => $data['orcamento_mensal'] ?? 0,
-                'meses_duracao'        => $data['meses_duracao'] ?? 0,
-                'status'               => $data['status'] ?? 0,
+                'orcamento_mensal'     => (float)($data['orcamento_mensal'] ?? 0),
+                'meses_duracao'        => (int)($data['meses_duracao'] ?? 0),
+                'status'               => (int)($data['status'] ?? 0),
                 'created_at'           => now(),
                 'updated_at'           => now(),
             ];
 
-            // Campo opcional (se existir no banco)
             if ($this->hasColumn('bolsa_estudos_processos', 'orcamento_total')) {
-                $insert['orcamento_total'] = $data['orcamento_total'] ?? null;
+                $insert['orcamento_total'] = (float)($data['orcamento_total'] ?? 0);
             }
 
             $processoId = (int) DB::table('bolsa_estudos_processos')->insertGetId($insert);
@@ -133,24 +132,22 @@ class BolsaEstudosController extends Controller
             ->orderBy('id')
             ->get();
 
-        // Aba Unidades (métricas por filial)
         $unidades = [];
         if ($this->tableExists('bolsa_estudos_processo_filiais')) {
             $unidades = $this->getUnidadesDoProcesso($empresaId, $id);
         }
 
-        // Aba Solicitantes
         $solicitantes = [];
         if ($this->tableExists('bolsa_estudos_solicitacoes')) {
             $solicitantes = $this->getSolicitantesDoProcesso($empresaId, $id);
         }
 
         return view('beneficios.bolsa.edit', [
-            'sub'         => $sub,
-            'processo'    => $processo,
-            'filiais'     => $filiais,
-            'unidades'    => $unidades,
-            'solicitantes'=> $solicitantes,
+            'sub'          => $sub,
+            'processo'     => $processo,
+            'filiais'      => $filiais,
+            'unidades'     => $unidades,
+            'solicitantes' => $solicitantes,
         ]);
     }
 
@@ -189,14 +186,14 @@ class BolsaEstudosController extends Controller
                 'edital'               => $data['edital'] ?? null,
                 'inscricoes_inicio_at' => $data['inscricoes_inicio_at'] ?? null,
                 'inscricoes_fim_at'    => $data['inscricoes_fim_at'] ?? null,
-                'orcamento_mensal'     => $data['orcamento_mensal'] ?? 0,
-                'meses_duracao'        => $data['meses_duracao'] ?? 0,
-                'status'               => $data['status'] ?? 0,
+                'orcamento_mensal'     => (float)($data['orcamento_mensal'] ?? 0),
+                'meses_duracao'        => (int)($data['meses_duracao'] ?? 0),
+                'status'               => (int)($data['status'] ?? 0),
                 'updated_at'           => now(),
             ];
 
             if ($this->hasColumn('bolsa_estudos_processos', 'orcamento_total')) {
-                $update['orcamento_total'] = $data['orcamento_total'] ?? null;
+                $update['orcamento_total'] = (float)($data['orcamento_total'] ?? 0);
             }
 
             DB::table('bolsa_estudos_processos')
@@ -249,67 +246,6 @@ class BolsaEstudosController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | APROVAÇÕES (lista pendentes status=3)
-    |--------------------------------------------------------------------------
-    */
-    public function aprovacoes(Request $request, string $sub, int $id)
-    {
-        if (!$this->tableExists('bolsa_estudos_solicitacoes')) {
-            return redirect()
-                ->route('beneficios.bolsa.index', ['sub' => $sub])
-                ->with('error', 'Tabela de solicitações ainda não foi criada (migration pendente).');
-        }
-
-        $empresaId = (int) (auth()->user()->empresa_id ?? 0);
-
-        $processo = DB::table('bolsa_estudos_processos')
-            ->where('empresa_id', $empresaId)
-            ->where('id', $id)
-            ->whereNull('deleted_at')
-            ->first();
-
-        if (!$processo) {
-            return redirect()
-                ->route('beneficios.bolsa.index', ['sub' => $sub])
-                ->with('error', 'Ciclo não encontrado.');
-        }
-
-        $solicitacoes = DB::table('bolsa_estudos_solicitacoes as s')
-            ->where('s.empresa_id', $empresaId)
-            ->where('s.processo_id', $id)
-            ->where('s.status', 3)
-            ->whereNull('s.deleted_at')
-            ->leftJoin('colaboradores as c', 'c.id', '=', 's.colaborador_id')
-            ->leftJoin('filiais as f', 'f.id', '=', 's.filial_id')
-            ->leftJoin('bolsa_estudos_cursos as cu', 'cu.id', '=', 's.curso_id')
-            ->leftJoin('bolsa_estudos_entidades as e', 'e.id', '=', 'cu.entidade_id')
-            ->select([
-                's.id',
-                's.colaborador_id',
-                's.filial_id',
-                's.curso_id',
-                's.valor_total_mensalidade',
-                's.valor_concessao',
-                's.valor_limite',
-                's.status',
-                's.solicitacao_at',
-                'c.nome as colaborador_nome',
-                DB::raw("COALESCE(f.nome_fantasia, f.razao_social) as filial_nome"),
-                'cu.nome as curso_nome',
-                'e.nome as entidade_nome',
-            ])
-            ->orderByDesc('s.id')
-            ->paginate(15);
-
-        return view('beneficios.bolsa.aprovacoes', [
-            'sub'          => $sub,
-            'processo'     => $processo,
-            'solicitacoes' => $solicitacoes,
-        ]);
-    }
-
-    /*
-    |--------------------------------------------------------------------------
     | UNIDADES (vínculo processo_filiais)
     |--------------------------------------------------------------------------
     */
@@ -325,18 +261,16 @@ class BolsaEstudosController extends Controller
             'filial_id' => ['required', 'integer', 'min:1'],
         ]);
 
-        // Garante processo
-        $ok = DB::table('bolsa_estudos_processos')
+        $processoOk = DB::table('bolsa_estudos_processos')
             ->where('empresa_id', $empresaId)
             ->where('id', $id)
             ->whereNull('deleted_at')
             ->exists();
 
-        if (!$ok) {
+        if (!$processoOk) {
             return back()->with('error', 'Processo não encontrado.');
         }
 
-        // Garante filial da empresa
         $filialOk = DB::table('filiais')
             ->where('empresa_id', $empresaId)
             ->where('id', (int)$data['filial_id'])
@@ -346,7 +280,6 @@ class BolsaEstudosController extends Controller
             return back()->with('error', 'Filial inválida.');
         }
 
-        // Evita duplicado
         $exists = DB::table('bolsa_estudos_processo_filiais')
             ->where('processo_id', $id)
             ->where('filial_id', (int)$data['filial_id'])
@@ -374,7 +307,6 @@ class BolsaEstudosController extends Controller
             return back()->with('error', 'Tabela de vínculo de unidades não existe.');
         }
 
-        // Só remove vínculos do processo da empresa do usuário
         $processoOk = DB::table('bolsa_estudos_processos')
             ->where('empresa_id', $empresaId)
             ->where('id', $id)
@@ -422,7 +354,6 @@ class BolsaEstudosController extends Controller
             'curso_nome'              => ['required', 'string', 'max:255'],
         ]);
 
-        // Processo ok
         $processoOk = DB::table('bolsa_estudos_processos')
             ->where('empresa_id', $empresaId)
             ->where('id', $id)
@@ -433,7 +364,6 @@ class BolsaEstudosController extends Controller
             return back()->with('error', 'Processo não encontrado.');
         }
 
-        // Filial ok
         $filialOk = DB::table('filiais')
             ->where('empresa_id', $empresaId)
             ->where('id', (int)$data['filial_id'])
@@ -443,7 +373,6 @@ class BolsaEstudosController extends Controller
             return back()->with('error', 'Filial inválida.');
         }
 
-        // Colaborador ok (garante que pertence à empresa)
         $colOk = DB::table('colaboradores')
             ->where('empresa_id', $empresaId)
             ->where('id', (int)$data['colaborador_id'])
@@ -455,7 +384,7 @@ class BolsaEstudosController extends Controller
 
         DB::beginTransaction();
         try {
-            // Entidade: usa id se veio, senão cria/acha por nome
+            // ENTIDADE: usa id se veio; senão cria/acha por nome
             $entidadeId = (int)($data['entidade_id'] ?? 0);
             $entNome = trim((string)$data['entidade_nome']);
 
@@ -482,7 +411,7 @@ class BolsaEstudosController extends Controller
                 }
             }
 
-            // Curso: usa id se veio, senão cria/acha por nome+entidade
+            // CURSO: usa id se veio; senão cria/acha por nome+entidade
             $cursoId = (int)($data['curso_id'] ?? 0);
             $curNome = trim((string)$data['curso_nome']);
 
@@ -510,21 +439,26 @@ class BolsaEstudosController extends Controller
                 }
             }
 
-            // Insere solicitação (status 0 = Digitação)
-            DB::table('bolsa_estudos_solicitacoes')->insert([
+            $insertSolic = [
                 'empresa_id'              => $empresaId,
                 'processo_id'             => $id,
                 'colaborador_id'          => (int)$data['colaborador_id'],
-                'filial_id'               => (int)$data['filial_id'],
                 'curso_id'                => $cursoId,
                 'valor_total_mensalidade' => $data['valor_total_mensalidade'],
                 'valor_concessao'         => null,
                 'valor_limite'            => null,
-                'status'                  => 0,
+                'status'                  => 0,     // 0=Digitação
                 'solicitacao_at'          => now(),
                 'created_at'              => now(),
                 'updated_at'              => now(),
-            ]);
+            ];
+
+            // filial_id em solicitações (se existir)
+            if ($this->hasColumn('bolsa_estudos_solicitacoes', 'filial_id')) {
+                $insertSolic['filial_id'] = (int)$data['filial_id'];
+            }
+
+            DB::table('bolsa_estudos_solicitacoes')->insert($insertSolic);
 
             DB::commit();
 
@@ -553,7 +487,6 @@ class BolsaEstudosController extends Controller
             return back()->with('error', 'Processo não encontrado.');
         }
 
-        // Soft delete se existir coluna deleted_at, senão delete
         if ($this->hasColumn('bolsa_estudos_solicitacoes', 'deleted_at')) {
             $updated = DB::table('bolsa_estudos_solicitacoes')
                 ->where('empresa_id', $empresaId)
@@ -597,15 +530,24 @@ class BolsaEstudosController extends Controller
             return response()->json(['ok' => false, 'message' => 'Informe a matrícula.']);
         }
 
-        // Ajuste aqui caso seu campo se chame diferente
+        if (!Schema::hasTable('colaboradores') || !Schema::hasColumn('colaboradores', 'matricula')) {
+            return response()->json(['ok' => false, 'message' => 'Coluna matricula não existe em colaboradores (migration pendente).']);
+        }
+
         $col = DB::table('colaboradores')
             ->where('empresa_id', $empresaId)
-            ->where(function ($q) use ($matricula) {
-                $q->where('matricula', $matricula)
-                  ->orWhere('codigo', $matricula);
-            })
+            ->where('matricula', $matricula)
             ->select(['id', 'nome', 'filial_id'])
             ->first();
+
+        // fallback: se digitarem um número e não tiver matrícula cadastrada, tenta por ID
+        if (!$col && ctype_digit($matricula)) {
+            $col = DB::table('colaboradores')
+                ->where('empresa_id', $empresaId)
+                ->where('id', (int)$matricula)
+                ->select(['id', 'nome', 'filial_id'])
+                ->first();
+        }
 
         if (!$col) {
             return response()->json(['ok' => false, 'message' => 'Colaborador não encontrado.']);
@@ -734,23 +676,40 @@ class BolsaEstudosController extends Controller
     */
     private function getUnidadesDoProcesso(int $empresaId, int $processoId): array
     {
-        // inscritos = todas solicitações do processo por filial (qualquer status)
-        // aprovados = status=2
-        // soma limite aprovados = SUM(valor_limite) status=2
         if (!$this->tableExists('bolsa_estudos_solicitacoes')) {
-            // sem tabela de solicitações, retorna só as filiais vinculadas
             $rows = DB::table('bolsa_estudos_processo_filiais as pf')
                 ->join('filiais as f', 'f.id', '=', 'pf.filial_id')
                 ->where('pf.processo_id', $processoId)
                 ->where('f.empresa_id', $empresaId)
                 ->select([
                     'pf.id as vinculo_id',
+                    'pf.filial_id',
                     DB::raw("COALESCE(f.nome_fantasia, f.razao_social) as filial_nome_fantasia"),
                     DB::raw("0 as inscritos_count"),
                     DB::raw("0 as aprovados_count"),
                     DB::raw("0 as soma_limite_aprovados"),
                 ])
-                ->orderBy('f.id')
+                ->orderBy('pf.filial_id')
+                ->get();
+
+            return $rows->all();
+        }
+
+        // Se ainda não existe s.filial_id, não quebra a tela: retorna sem métricas
+        if (!$this->hasColumn('bolsa_estudos_solicitacoes', 'filial_id')) {
+            $rows = DB::table('bolsa_estudos_processo_filiais as pf')
+                ->join('filiais as f', 'f.id', '=', 'pf.filial_id')
+                ->where('pf.processo_id', $processoId)
+                ->where('f.empresa_id', $empresaId)
+                ->select([
+                    'pf.id as vinculo_id',
+                    'pf.filial_id',
+                    DB::raw("COALESCE(f.nome_fantasia, f.razao_social) as filial_nome_fantasia"),
+                    DB::raw("0 as inscritos_count"),
+                    DB::raw("0 as aprovados_count"),
+                    DB::raw("0 as soma_limite_aprovados"),
+                ])
+                ->orderBy('pf.filial_id')
                 ->get();
 
             return $rows->all();
@@ -787,12 +746,11 @@ class BolsaEstudosController extends Controller
     */
     private function getSolicitantesDoProcesso(int $empresaId, int $processoId): array
     {
-        $rows = DB::table('bolsa_estudos_solicitacoes as s')
+        $q = DB::table('bolsa_estudos_solicitacoes as s')
             ->where('s.empresa_id', $empresaId)
             ->where('s.processo_id', $processoId)
             ->whereNull('s.deleted_at')
             ->leftJoin('colaboradores as c', 'c.id', '=', 's.colaborador_id')
-            ->leftJoin('filiais as f', 'f.id', '=', 's.filial_id')
             ->leftJoin('bolsa_estudos_cursos as cu', 'cu.id', '=', 's.curso_id')
             ->leftJoin('bolsa_estudos_entidades as e', 'e.id', '=', 'cu.entidade_id')
             ->select([
@@ -803,14 +761,20 @@ class BolsaEstudosController extends Controller
                 's.valor_limite',
                 's.solicitacao_at',
                 'c.nome as colaborador_nome',
-                DB::raw("COALESCE(f.nome_fantasia, f.razao_social) as filial_nome_fantasia"),
                 'cu.nome as curso_nome',
                 'e.nome as entidade_nome',
             ])
-            ->orderByDesc('s.id')
-            ->get();
+            ->orderByDesc('s.id');
 
-        return $rows->all();
+        // filial da solicitação (se existir)
+        if ($this->hasColumn('bolsa_estudos_solicitacoes', 'filial_id')) {
+            $q->leftJoin('filiais as f', 'f.id', '=', 's.filial_id')
+              ->addSelect(DB::raw("COALESCE(f.nome_fantasia, f.razao_social) as filial_nome_fantasia"));
+        } else {
+            $q->addSelect(DB::raw("NULL as filial_nome_fantasia"));
+        }
+
+        return $q->get()->all();
     }
 
     /*
