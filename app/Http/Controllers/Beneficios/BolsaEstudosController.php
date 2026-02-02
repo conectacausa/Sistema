@@ -11,7 +11,7 @@ class BolsaEstudosController extends Controller
 {
     /*
     |--------------------------------------------------------------------------
-    | INDEX + GRID (busca dinâmica)
+    | INDEX + GRID
     |--------------------------------------------------------------------------
     */
     public function index(Request $request, string $sub)
@@ -64,10 +64,15 @@ class BolsaEstudosController extends Controller
             'edital'               => ['nullable', 'string'],
             'inscricoes_inicio_at' => ['nullable', 'date'],
             'inscricoes_fim_at'    => ['nullable', 'date'],
-            'orcamento_total'      => ['nullable', 'numeric', 'min:0'],
+            'status'               => ['nullable', 'integer', 'in:0,1,2'],
+
+            // financeiro
             'orcamento_mensal'     => ['nullable', 'numeric', 'min:0'],
             'meses_duracao'        => ['nullable', 'integer', 'min:0'],
-            'status'               => ['nullable', 'integer', 'in:0,1,2'],
+            'orcamento_total'      => ['nullable', 'numeric', 'min:0'],
+
+            // NOVO
+            'data_base'            => ['nullable', 'date'],
         ]);
 
         DB::beginTransaction();
@@ -78,15 +83,21 @@ class BolsaEstudosController extends Controller
                 'edital'               => $data['edital'] ?? null,
                 'inscricoes_inicio_at' => $data['inscricoes_inicio_at'] ?? null,
                 'inscricoes_fim_at'    => $data['inscricoes_fim_at'] ?? null,
+                'status'               => (int)($data['status'] ?? 0),
+
                 'orcamento_mensal'     => (float)($data['orcamento_mensal'] ?? 0),
                 'meses_duracao'        => (int)($data['meses_duracao'] ?? 0),
-                'status'               => (int)($data['status'] ?? 0),
+
                 'created_at'           => now(),
                 'updated_at'           => now(),
             ];
 
             if ($this->hasColumn('bolsa_estudos_processos', 'orcamento_total')) {
                 $insert['orcamento_total'] = (float)($data['orcamento_total'] ?? 0);
+            }
+
+            if ($this->hasColumn('bolsa_estudos_processos', 'data_base')) {
+                $insert['data_base'] = $data['data_base'] ?? null;
             }
 
             $processoId = (int) DB::table('bolsa_estudos_processos')->insertGetId($insert);
@@ -160,10 +171,14 @@ class BolsaEstudosController extends Controller
             'edital'               => ['nullable', 'string'],
             'inscricoes_inicio_at' => ['nullable', 'date'],
             'inscricoes_fim_at'    => ['nullable', 'date'],
-            'orcamento_total'      => ['nullable', 'numeric', 'min:0'],
+            'status'               => ['nullable', 'integer', 'in:0,1,2'],
+
             'orcamento_mensal'     => ['nullable', 'numeric', 'min:0'],
             'meses_duracao'        => ['nullable', 'integer', 'min:0'],
-            'status'               => ['nullable', 'integer', 'in:0,1,2'],
+            'orcamento_total'      => ['nullable', 'numeric', 'min:0'],
+
+            // NOVO
+            'data_base'            => ['nullable', 'date'],
         ]);
 
         DB::beginTransaction();
@@ -186,9 +201,11 @@ class BolsaEstudosController extends Controller
                 'edital'               => $data['edital'] ?? null,
                 'inscricoes_inicio_at' => $data['inscricoes_inicio_at'] ?? null,
                 'inscricoes_fim_at'    => $data['inscricoes_fim_at'] ?? null,
+                'status'               => (int)($data['status'] ?? 0),
+
                 'orcamento_mensal'     => (float)($data['orcamento_mensal'] ?? 0),
                 'meses_duracao'        => (int)($data['meses_duracao'] ?? 0),
-                'status'               => (int)($data['status'] ?? 0),
+
                 'updated_at'           => now(),
             ];
 
@@ -196,9 +213,14 @@ class BolsaEstudosController extends Controller
                 $update['orcamento_total'] = (float)($data['orcamento_total'] ?? 0);
             }
 
+            if ($this->hasColumn('bolsa_estudos_processos', 'data_base')) {
+                $update['data_base'] = $data['data_base'] ?? null;
+            }
+
             DB::table('bolsa_estudos_processos')
                 ->where('empresa_id', $empresaId)
                 ->where('id', $id)
+                ->whereNull('deleted_at')
                 ->update($update);
 
             DB::commit();
@@ -217,11 +239,19 @@ class BolsaEstudosController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | DESTROY (soft delete)
+    | DESTROY (soft delete) - COM TRAVA ANTI-EXCLUSÃO ACIDENTAL
     |--------------------------------------------------------------------------
     */
     public function destroy(Request $request, string $sub, int $id)
     {
+        // ✅ trava de segurança: só permite excluir se vier esse campo.
+        // Isso impede que "Salvar" dispare delete por bug de form aninhado.
+        if ((string)$request->input('_delete_intent', '0') !== '1') {
+            return redirect()
+                ->route('beneficios.bolsa.edit', ['sub' => $sub, 'id' => $id])
+                ->with('error', 'Ação de exclusão bloqueada por segurança (intenção de delete ausente).');
+        }
+
         $empresaId = (int) (auth()->user()->empresa_id ?? 0);
 
         $updated = DB::table('bolsa_estudos_processos')
@@ -301,6 +331,11 @@ class BolsaEstudosController extends Controller
 
     public function destroyUnidade(Request $request, string $sub, int $id, int $vinculo_id)
     {
+        // ✅ trava (mesma ideia do destroy principal)
+        if ((string)$request->input('_delete_intent', '0') !== '1') {
+            return back()->with('error', 'Exclusão bloqueada por segurança (intenção de delete ausente).');
+        }
+
         $empresaId = (int) (auth()->user()->empresa_id ?? 0);
 
         if (!$this->tableExists('bolsa_estudos_processo_filiais')) {
@@ -384,7 +419,7 @@ class BolsaEstudosController extends Controller
 
         DB::beginTransaction();
         try {
-            // ENTIDADE: usa id se veio; senão cria/acha por nome
+            // ENTIDADE
             $entidadeId = (int)($data['entidade_id'] ?? 0);
             $entNome = trim((string)$data['entidade_nome']);
 
@@ -411,7 +446,7 @@ class BolsaEstudosController extends Controller
                 }
             }
 
-            // CURSO: usa id se veio; senão cria/acha por nome+entidade
+            // CURSO
             $cursoId = (int)($data['curso_id'] ?? 0);
             $curNome = trim((string)$data['curso_nome']);
 
@@ -447,13 +482,12 @@ class BolsaEstudosController extends Controller
                 'valor_total_mensalidade' => $data['valor_total_mensalidade'],
                 'valor_concessao'         => null,
                 'valor_limite'            => null,
-                'status'                  => 0,     // 0=Digitação
+                'status'                  => 0,
                 'solicitacao_at'          => now(),
                 'created_at'              => now(),
                 'updated_at'              => now(),
             ];
 
-            // filial_id em solicitações (se existir)
             if ($this->hasColumn('bolsa_estudos_solicitacoes', 'filial_id')) {
                 $insertSolic['filial_id'] = (int)$data['filial_id'];
             }
@@ -471,6 +505,10 @@ class BolsaEstudosController extends Controller
 
     public function destroySolicitante(Request $request, string $sub, int $id, int $solicitacao_id)
     {
+        if ((string)$request->input('_delete_intent', '0') !== '1') {
+            return back()->with('error', 'Exclusão bloqueada por segurança (intenção de delete ausente).');
+        }
+
         $empresaId = (int) (auth()->user()->empresa_id ?? 0);
 
         if (!$this->tableExists('bolsa_estudos_solicitacoes')) {
@@ -518,7 +556,7 @@ class BolsaEstudosController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | AJAX: colaborador por matrícula (preenche nome + filial)
+    | AJAX: colaborador por matrícula
     |--------------------------------------------------------------------------
     */
     public function colaboradorPorMatricula(Request $request, string $sub)
@@ -540,7 +578,6 @@ class BolsaEstudosController extends Controller
             ->select(['id', 'nome', 'filial_id'])
             ->first();
 
-        // fallback: se digitarem um número e não tiver matrícula cadastrada, tenta por ID
         if (!$col && ctype_digit($matricula)) {
             $col = DB::table('colaboradores')
                 ->where('empresa_id', $empresaId)
@@ -568,11 +605,8 @@ class BolsaEstudosController extends Controller
 
         return response()->json([
             'ok' => true,
-            'colaborador' => [
-                'id'   => (int)$col->id,
-                'nome' => (string)$col->nome,
-            ],
-            'filial' => $filial,
+            'colaborador' => ['id' => (int)$col->id, 'nome' => (string)$col->nome],
+            'filial'      => $filial,
         ]);
     }
 
@@ -651,6 +685,10 @@ class BolsaEstudosController extends Controller
             ])
             ->orderByDesc('p.id');
 
+        if ($this->hasColumn('bolsa_estudos_processos', 'data_base')) {
+            $base->addSelect('p.data_base');
+        }
+
         if ($hasSolicitacoes) {
             return $base
                 ->leftJoin('bolsa_estudos_solicitacoes as s', function ($join) {
@@ -695,7 +733,6 @@ class BolsaEstudosController extends Controller
             return $rows->all();
         }
 
-        // Se ainda não existe s.filial_id, não quebra a tela: retorna sem métricas
         if (!$this->hasColumn('bolsa_estudos_solicitacoes', 'filial_id')) {
             $rows = DB::table('bolsa_estudos_processo_filiais as pf')
                 ->join('filiais as f', 'f.id', '=', 'pf.filial_id')
@@ -766,7 +803,6 @@ class BolsaEstudosController extends Controller
             ])
             ->orderByDesc('s.id');
 
-        // filial da solicitação (se existir)
         if ($this->hasColumn('bolsa_estudos_solicitacoes', 'filial_id')) {
             $q->leftJoin('filiais as f', 'f.id', '=', 's.filial_id')
               ->addSelect(DB::raw("COALESCE(f.nome_fantasia, f.razao_social) as filial_nome_fantasia"));
