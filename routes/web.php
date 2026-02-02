@@ -211,6 +211,10 @@ Route::domain('{sub}.conecttarh.com.br')
             Route::get('/beneficios/bolsa', [BolsaEstudosController::class, 'index'])
                 ->middleware('screen:12')
                 ->name('beneficios.bolsa.index');
+
+            Route::get('/beneficios/bolsa/grid', [BolsaEstudosController::class, 'grid'])
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.grid');
             
             Route::get('/beneficios/bolsa/novo', [BolsaEstudosController::class, 'create'])
                 ->middleware('screen:12')
