@@ -24,15 +24,12 @@
 <div class="wrapper">
   <div id="loader"></div>
 
-  {{-- Header/Menu/Footer conforme padrão existente do projeto --}}
   @include('partials.header')
   @include('partials.menu')
 
-  <!-- Content Wrapper. Contains page content -->
   <div class="content-wrapper">
     <div class="container-full">
 
-      <!-- Content Header (Page header) -->
       <div class="content-header">
         <div class="d-flex align-items-center">
           <div class="me-auto">
@@ -59,10 +56,8 @@
         </div>
       </div>
 
-      <!-- Main content -->
       <section class="content">
 
-        {{-- Alerts --}}
         @if(session('success'))
           <div class="alert alert-success">{{ session('success') }}</div>
         @endif
@@ -70,7 +65,7 @@
           <div class="alert alert-danger">{{ session('error') }}</div>
         @endif
 
-        <!-- Filtros -->
+        <!-- Filtros (sem botões) -->
         <div class="row">
           <div class="col-12">
             <div class="box">
@@ -79,154 +74,19 @@
               </div>
 
               <div class="box-body">
-                <form method="GET" action="{{ route('beneficios.bolsa.index', ['sub' => $sub]) }}">
-                  <div class="row">
-                    <div class="col-md-12">
-                      <div class="form-group">
-                        <label class="form-label">Titulo / Ciclo</label>
-                        <input type="text"
-                               name="q"
-                               class="form-control"
-                               placeholder="Titulo / Ciclo"
-                               value="{{ request('q') }}">
-                      </div>
-                    </div>
-
-                    <div class="col-12 d-flex gap-2">
-                      <button type="submit" class="btn btn-primary">
-                        Filtrar
-                      </button>
-
-                      <a href="{{ route('beneficios.bolsa.index', ['sub' => $sub]) }}"
-                         class="btn btn-outline-secondary">
-                        Limpar
-                      </a>
+                <div class="row">
+                  <div class="col-md-12">
+                    <div class="form-group">
+                      <label class="form-label">Titulo / Ciclo</label>
+                      <input type="text"
+                             id="q"
+                             name="q"
+                             class="form-control"
+                             placeholder="Digite para buscar..."
+                             value="{{ request('q') }}">
+                      <small class="text-muted">A lista atualiza automaticamente.</small>
                     </div>
                   </div>
-                </form>
-              </div>
-
-            </div>
-          </div>
-        </div>
-
-        <!--Tabela Bolsa -->
-        <div class="row">
-          <div class="col-12">
-            <div class="box">
-              <div class="box-header with-border">
-                <h4 class="box-title">Bolsa de Estudos</h4>
-              </div>
-
-              <div class="box-body">
-                <div class="table-responsive">
-                  <table class="table">
-                    <thead class="bg-primary">
-                      <tr>
-                        <th>Nome / Ciclo</th>
-                        <th>Situação</th>
-                        <th>Contemplados</th>
-                        <th>Orçamento</th>
-                        <th class="text-end">Ações</th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      @forelse($processos as $p)
-                        @php
-                          // status: 0=rascunho/inativo, 1=ativo, 2=encerrado
-                          $statusLabel = match ((int)$p->status) {
-                            1 => ['Ativo', 'badge badge-success'],
-                            2 => ['Encerrado', 'badge badge-dark'],
-                            default => ['Rascunho', 'badge badge-secondary'],
-                          };
-
-                          $orcamento = (float)($p->orcamento_mensal ?? 0);
-                          $orcamentoBRL = 'R$ ' . number_format($orcamento, 2, ',', '.');
-
-                          $cont = (int)($p->contemplados_count ?? 0);
-                          $pend = (int)($p->pendentes_count ?? 0);
-                        @endphp
-
-                        <tr>
-                          <td>
-                            <div class="fw-600">
-                              {{ $p->edital ?: 'Bolsa de Estudos' }}
-                            </div>
-                            <div class="text-muted">
-                              {{ $p->ciclo }}
-                            </div>
-                          </td>
-
-                          <td>
-                            <span class="{{ $statusLabel[1] }}">{{ $statusLabel[0] }}</span>
-                          </td>
-
-                          <td>
-                            {{ $cont }}
-                            @if($pend > 0)
-                              <span class="ms-1 badge badge-warning">+{{ $pend }} pendente(s)</span>
-                            @endif
-                          </td>
-
-                          <td>{{ $orcamentoBRL }}</td>
-
-                          <td class="text-end">
-                            <div class="d-inline-flex gap-1">
-
-                              {{-- Botão Aprovações: aparece se tiver pendente --}}
-                              @if($pend > 0)
-                                <a href="{{ route('beneficios.bolsa.aprovacoes', ['sub' => $sub, 'id' => $p->id]) }}"
-                                   class="btn btn-warning btn-sm"
-                                   title="Aprovações pendentes">
-                                  <i data-feather="users"></i>
-                                </a>
-                              @endif
-
-                              {{-- Editar --}}
-                              <a href="{{ route('beneficios.bolsa.edit', ['sub' => $sub, 'id' => $p->id]) }}"
-                                 class="btn btn-primary btn-sm"
-                                 title="Editar">
-                                <i data-feather="edit"></i>
-                              </a>
-
-                              {{-- Excluir (padrão Sweatalert do projeto) --}}
-                              <form method="POST"
-                                    action="{{ route('beneficios.bolsa.destroy', ['sub' => $sub, 'id' => $p->id]) }}"
-                                    class="d-inline js-form-delete">
-                                @csrf
-                                @method('DELETE')
-
-                                <button type="button"
-                                        class="btn btn-danger btn-sm js-btn-delete"
-                                        data-title="Confirmar exclusão"
-                                        data-text="Deseja realmente excluir este registro?"
-                                        data-confirm="Sim, excluir"
-                                        data-cancel="Cancelar"
-                                        title="Excluir">
-                                  <i data-feather="trash-2"></i>
-                                </button>
-                              </form>
-
-                            </div>
-                          </td>
-                        </tr>
-                      @empty
-                        <tr>
-                          <td colspan="5" class="text-center text-muted py-4">
-                            Nenhum ciclo encontrado.
-                          </td>
-                        </tr>
-                      @endforelse
-                    </tbody>
-                  </table>
-
-                  @if(method_exists($processos, 'links'))
-                    <div class="mt-3">
-                      {{ $processos->appends(request()->query())->links() }}
-                    </div>
-                  @endif
-
                 </div>
               </div>
 
@@ -234,31 +94,89 @@
           </div>
         </div>
 
+        <!-- Tabela (carregada por AJAX ao digitar) -->
+        <div id="js-processos-table">
+          @include('beneficios.bolsa.partials._table', ['sub' => $sub, 'processos' => $processos])
+        </div>
+
       </section>
-      <!-- /.content -->
 
     </div>
   </div>
-  <!-- /.content-wrapper -->
 
   @include('partials.footer')
 </div>
-<!-- ./wrapper -->
 
-<!-- Vendor JS -->
 <script src="{{ asset('assets/js/vendors.min.js') }}"></script>
 <script src="{{ asset('assets/js/pages/chat-popup.js') }}"></script>
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
-
-<!-- Coup Admin App -->
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
-{{-- JS global de confirmação de exclusão (Sweatalert) --}}
 <script src="{{ asset('assets/js/app-delete-confirm.js') }}"></script>
 
 <script>
   if (window.feather) feather.replace();
+
+  (function () {
+    const input = document.getElementById('q');
+    const target = document.getElementById('js-processos-table');
+
+    if (!input || !target) return;
+
+    let timer = null;
+    let lastQuery = input.value || '';
+    let controller = null;
+
+    function buildUrl(q) {
+      const base = @json(route('beneficios.bolsa.grid', ['sub' => $sub]));
+      const url = new URL(base, window.location.origin);
+      if (q && q.trim() !== '') url.searchParams.set('q', q.trim());
+      return url.toString();
+    }
+
+    async function fetchGrid(q) {
+      const value = (q || '').trim();
+
+      if (value === lastQuery.trim()) return;
+      lastQuery = value;
+
+      // cancela request anterior
+      if (controller) controller.abort();
+      controller = new AbortController();
+
+      try {
+        const res = await fetch(buildUrl(value), {
+          method: 'GET',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          signal: controller.signal
+        });
+
+        if (!res.ok) throw new Error('Falha ao buscar registros');
+        const html = await res.text();
+
+        target.innerHTML = html;
+
+        if (window.feather) feather.replace();
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        // fallback silencioso (não trava a tela)
+        console.error(e);
+      }
+    }
+
+    function debounceFetch() {
+      clearTimeout(timer);
+      timer = setTimeout(() => fetchGrid(input.value), 300);
+    }
+
+    input.addEventListener('input', debounceFetch);
+
+    // opcional: se veio com query na URL, já carrega
+    if ((input.value || '').trim() !== '') {
+      fetchGrid(input.value);
+    }
+  })();
 </script>
 
 </body>
