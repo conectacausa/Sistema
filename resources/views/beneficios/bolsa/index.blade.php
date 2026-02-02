@@ -24,11 +24,9 @@
 <div class="wrapper">
   <div id="loader"></div>
 
-  {{-- Incluir aqui o arquivo de header --}}
-  @include('layouts.header')
-
-  {{-- Incluir menu aqui --}}
-  @include('layouts.menu')
+  {{-- Header/Menu/Footer conforme padrão existente do projeto --}}
+  @include('partials.header')
+  @include('partials.menu')
 
   <!-- Content Wrapper. Contains page content -->
   <div class="content-wrapper">
@@ -243,8 +241,7 @@
   </div>
   <!-- /.content-wrapper -->
 
-  {{-- Incluir footer aqui --}}
-  @include('layouts.footer')
+  @include('partials.footer')
 </div>
 <!-- ./wrapper -->
 
