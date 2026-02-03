@@ -363,6 +363,14 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->middleware('screen:12')
                 ->name('beneficios.bolsa.documentos.store');
 
+            Route::get('/beneficios/bolsa/entidades/search', [BolsaEstudosController::class, 'entidadesSearch'])
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.entidades.search');
+            
+            Route::get('/beneficios/bolsa/cursos/search', [BolsaEstudosController::class, 'cursosSearch'])
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.cursos.search');
+
             
             /*
             |--------------------------------------------------------------------------
