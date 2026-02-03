@@ -469,8 +469,16 @@
             <label class="form-label">Unidade (Filial)</label>
             <select name="filial_id" class="form-control" required>
               <option value="">Selecione...</option>
-              @foreach($filiaisDisponiveis as $f)
-                <option value="{{ $f->id }}">{{ $f->nome_fantasia ?: $f->razao_social }}</option>
+            
+              @foreach($filiaisEmpresa as $f)
+                @php
+                  $nome = $f->nome_fantasia ?: $f->razao_social;
+                  $isVinc = in_array((int)$f->id, $filiaisVinculadasIds ?? [], true);
+                @endphp
+            
+                <option value="{{ $f->id }}" {{ $isVinc ? 'disabled' : '' }}>
+                  {{ $nome }}{{ $isVinc ? ' (já vinculada)' : '' }}
+                </option>
               @endforeach
             </select>
           </div>
@@ -588,6 +596,8 @@
                 <select name="tipo" class="form-control" required>
                   <option value="2">Documento</option>
                   <option value="1">Comprovante</option>
+                  <option value="3">Atestado de Matrícula</option>
+                  <option value="4">Contrato</option>
                 </select>
               </div>
             </div>
