@@ -339,6 +339,30 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->middleware('screen:12')
                 ->name('beneficios.bolsa.colaborador_por_matricula');
 
+            // GRID dos documentos (AJAX)
+            Route::get('/beneficios/bolsa/{id}/documentos-grid', [BolsaEstudosController::class, 'documentosGrid'])
+                ->whereNumber('id')
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.documentos_grid');
+            
+            // Adicionar unidade ao processo
+            Route::post('/beneficios/bolsa/{id}/unidades', [BolsaEstudosController::class, 'addUnidade'])
+                ->whereNumber('id')
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.unidades.store');
+            
+            // Adicionar solicitante ao processo
+            Route::post('/beneficios/bolsa/{id}/solicitantes', [BolsaEstudosController::class, 'addSolicitante'])
+                ->whereNumber('id')
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.solicitantes.store');
+            
+            // Adicionar documento ao processo (modal)
+            Route::post('/beneficios/bolsa/{id}/documentos', [BolsaEstudosController::class, 'addDocumento'])
+                ->whereNumber('id')
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.documentos.store');
+
             
             /*
             |--------------------------------------------------------------------------
