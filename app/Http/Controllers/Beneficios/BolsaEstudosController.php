@@ -120,10 +120,10 @@ class BolsaEstudosController extends Controller
 
         $unidades = $unidadesQ->get();
 
-        // ✅ IDs já vinculados
+        // IDs vinculados
         $filiaisVinculadasIds = $unidades->pluck('filial_id')->map(fn($x) => (int)$x)->all();
 
-        // ✅ TODAS as filiais da empresa (para o modal mostrar sempre)
+        // TODAS filiais para modal
         $filiaisEmpresa = DB::table('filiais')
             ->where('empresa_id', $empresaId)
             ->when($this->hasColumn('filiais', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
@@ -160,6 +160,16 @@ class BolsaEstudosController extends Controller
             ->orderByDesc('s.id')
             ->get();
 
+        // ✅ lista simples para modal Documentos (colaborador já vinculado)
+        $solicitantesParaDocs = $solicitantes->map(function ($s) {
+            return (object)[
+                'id' => (int)$s->id,
+                'nome' => (string)$s->colaborador_nome,
+                'filial' => (string)($s->filial_nome ?? ''),
+                'curso' => (string)($s->curso_nome ?? ''),
+            ];
+        });
+
         // ✅ Documentos
         $docQ      = trim((string)$request->get('doc_q', ''));
         $docStatus = trim((string)$request->get('doc_status', ''));
@@ -169,24 +179,25 @@ class BolsaEstudosController extends Controller
             ->paginate(10, ['*'], 'docs_page');
 
         return view('beneficios.bolsa.edit', [
-            'sub'                => $sub,
-            'processo'           => $processo,
+            'sub'                  => $sub,
+            'processo'             => $processo,
 
-            'unidades'           => $unidades,
-            'filiaisEmpresa'     => $filiaisEmpresa,
-            'filiaisVinculadasIds'=> $filiaisVinculadasIds,
+            'unidades'             => $unidades,
+            'filiaisEmpresa'       => $filiaisEmpresa,
+            'filiaisVinculadasIds' => $filiaisVinculadasIds,
 
-            'solicitantes'       => $solicitantes,
+            'solicitantes'         => $solicitantes,
+            'solicitantesParaDocs' => $solicitantesParaDocs,
 
-            'documentos'         => $documentos,
-            'docQ'               => $docQ,
-            'docStatus'          => $docStatus,
+            'documentos'           => $documentos,
+            'docQ'                 => $docQ,
+            'docStatus'            => $docStatus,
         ]);
     }
 
     /*
     |--------------------------------------------------------------------------
-    | UPDATE (não deleta)
+    | UPDATE
     |--------------------------------------------------------------------------
     */
     public function update(Request $request, string $sub, int $id)
@@ -273,6 +284,66 @@ class BolsaEstudosController extends Controller
 
     /*
     |--------------------------------------------------------------------------
+    | AJAX: Entidades Search (Select2)
+    |--------------------------------------------------------------------------
+    */
+    public function entidadesSearch(Request $request, string $sub)
+    {
+        $empresaId = (int)(auth()->user()->empresa_id ?? 0);
+        $term = trim((string)$request->get('q', ''));
+
+        $q = DB::table('bolsa_estudos_entidades')
+            ->where('empresa_id', $empresaId)
+            ->when($this->hasColumn('bolsa_estudos_entidades', 'deleted_at'), fn($qq) => $qq->whereNull('deleted_at'));
+
+        if ($term !== '') {
+            $q->where('nome', 'ILIKE', "%{$term}%");
+        }
+
+        $rows = $q->orderBy('nome', 'asc')
+            ->limit(20)
+            ->get(['id', 'nome']);
+
+        $results = $rows->map(fn($r) => ['id' => (string)$r->id, 'text' => (string)$r->nome])->values();
+
+        return response()->json(['results' => $results]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | AJAX: Cursos Search (Select2) - filtra por entidade_id
+    |--------------------------------------------------------------------------
+    */
+    public function cursosSearch(Request $request, string $sub)
+    {
+        $empresaId = (int)(auth()->user()->empresa_id ?? 0);
+        $term = trim((string)$request->get('q', ''));
+        $entidadeId = (int)$request->get('entidade_id', 0);
+
+        if ($entidadeId <= 0) {
+            return response()->json(['results' => []]);
+        }
+
+        $q = DB::table('bolsa_estudos_cursos')
+            ->where('empresa_id', $empresaId)
+            ->where('entidade_id', $entidadeId)
+            ->when($this->hasColumn('bolsa_estudos_cursos', 'deleted_at'), fn($qq) => $qq->whereNull('deleted_at'));
+
+        if ($term !== '') {
+            $q->where('nome', 'ILIKE', "%{$term}%");
+        }
+
+        $rows = $q->orderBy('nome', 'asc')
+            ->limit(20)
+            ->get(['id', 'nome']);
+
+        $results = $rows->map(fn($r) => ['id' => (string)$r->id, 'text' => (string)$r->nome])->values();
+
+        return response()->json(['results' => $results]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
     | POST: adicionar unidade ao processo
     |--------------------------------------------------------------------------
     */
@@ -331,7 +402,7 @@ class BolsaEstudosController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | POST: adicionar solicitante (mantido)
+    | POST: adicionar solicitante (entidade/curso podem ser ID ou texto)
     |--------------------------------------------------------------------------
     */
     public function addSolicitante(Request $request, string $sub, int $id)
@@ -340,8 +411,8 @@ class BolsaEstudosController extends Controller
 
         $data = $request->validate([
             'colaborador_id'           => ['required', 'integer'],
-            'entidade_nome'            => ['required', 'string', 'max:255'],
-            'curso_nome'               => ['required', 'string', 'max:255'],
+            'entidade_nome'            => ['required', 'string', 'max:255'], // pode vir "12" (id) ou "Universidade X"
+            'curso_nome'               => ['required', 'string', 'max:255'], // pode vir "34" (id) ou "Engenharia"
             'valor_total_mensalidade'  => ['required', 'string'],
         ]);
 
@@ -365,49 +436,78 @@ class BolsaEstudosController extends Controller
 
         if (!$col) return back()->with('error', 'Colaborador inválido.');
 
-        // Entidade
-        $entNome = trim($data['entidade_nome']);
-        $ent = DB::table('bolsa_estudos_entidades')
-            ->where('empresa_id', $empresaId)
-            ->whereRaw('LOWER(nome) = LOWER(?)', [$entNome])
-            ->when($this->hasColumn('bolsa_estudos_entidades', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
-            ->first();
+        // ENTIDADE: se numeric => usar ID; senão => criar se não existir
+        $entidadeVal = trim((string)$data['entidade_nome']);
+        $entId = 0;
 
-        if (!$ent) {
-            $insert = [
-                'empresa_id' => $empresaId,
-                'nome'       => $entNome,
-                'cnpj'       => null,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ];
-            if ($this->hasColumn('bolsa_estudos_entidades', 'aprovado')) $insert['aprovado'] = 0;
-            $entId = DB::table('bolsa_estudos_entidades')->insertGetId($insert);
+        if (ctype_digit($entidadeVal)) {
+            $entId = (int)$entidadeVal;
+            $ent = DB::table('bolsa_estudos_entidades')
+                ->where('empresa_id', $empresaId)
+                ->where('id', $entId)
+                ->when($this->hasColumn('bolsa_estudos_entidades', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
+                ->first();
+            if (!$ent) return back()->with('error', 'Entidade inválida.');
         } else {
-            $entId = (int)$ent->id;
+            $entNome = $entidadeVal;
+
+            $ent = DB::table('bolsa_estudos_entidades')
+                ->where('empresa_id', $empresaId)
+                ->whereRaw('LOWER(nome) = LOWER(?)', [$entNome])
+                ->when($this->hasColumn('bolsa_estudos_entidades', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
+                ->first();
+
+            if (!$ent) {
+                $insert = [
+                    'empresa_id' => $empresaId,
+                    'nome'       => $entNome,
+                    'cnpj'       => null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+                if ($this->hasColumn('bolsa_estudos_entidades', 'aprovado')) $insert['aprovado'] = 0;
+                $entId = (int)DB::table('bolsa_estudos_entidades')->insertGetId($insert);
+            } else {
+                $entId = (int)$ent->id;
+            }
         }
 
-        // Curso
-        $cursoNome = trim($data['curso_nome']);
-        $curso = DB::table('bolsa_estudos_cursos')
-            ->where('empresa_id', $empresaId)
-            ->where('entidade_id', $entId)
-            ->whereRaw('LOWER(nome) = LOWER(?)', [$cursoNome])
-            ->when($this->hasColumn('bolsa_estudos_cursos', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
-            ->first();
+        // CURSO: se numeric => validar pertencimento; senão => criar para entidade selecionada
+        $cursoVal = trim((string)$data['curso_nome']);
+        $cursoId = 0;
 
-        if (!$curso) {
-            $insert = [
-                'empresa_id'  => $empresaId,
-                'entidade_id' => $entId,
-                'nome'        => $cursoNome,
-                'created_at'  => now(),
-                'updated_at'  => now(),
-            ];
-            if ($this->hasColumn('bolsa_estudos_cursos', 'aprovado')) $insert['aprovado'] = 0;
-            $cursoId = DB::table('bolsa_estudos_cursos')->insertGetId($insert);
+        if (ctype_digit($cursoVal)) {
+            $cursoId = (int)$cursoVal;
+            $curso = DB::table('bolsa_estudos_cursos')
+                ->where('empresa_id', $empresaId)
+                ->where('id', $cursoId)
+                ->where('entidade_id', $entId)
+                ->when($this->hasColumn('bolsa_estudos_cursos', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
+                ->first();
+            if (!$curso) return back()->with('error', 'Curso inválido para a entidade selecionada.');
         } else {
-            $cursoId = (int)$curso->id;
+            $cursoNome = $cursoVal;
+
+            $curso = DB::table('bolsa_estudos_cursos')
+                ->where('empresa_id', $empresaId)
+                ->where('entidade_id', $entId)
+                ->whereRaw('LOWER(nome) = LOWER(?)', [$cursoNome])
+                ->when($this->hasColumn('bolsa_estudos_cursos', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
+                ->first();
+
+            if (!$curso) {
+                $insert = [
+                    'empresa_id'  => $empresaId,
+                    'entidade_id' => $entId,
+                    'nome'        => $cursoNome,
+                    'created_at'  => now(),
+                    'updated_at'  => now(),
+                ];
+                if ($this->hasColumn('bolsa_estudos_cursos', 'aprovado')) $insert['aprovado'] = 0;
+                $cursoId = (int)DB::table('bolsa_estudos_cursos')->insertGetId($insert);
+            } else {
+                $cursoId = (int)$curso->id;
+            }
         }
 
         $valorMens = $this->toDecimal($data['valor_total_mensalidade']);
@@ -420,7 +520,7 @@ class BolsaEstudosController extends Controller
             'valor_total_mensalidade'  => $valorMens,
             'valor_concessao'          => null,
             'valor_limite'             => null,
-            'status'                   => 3,
+            'status'                   => 3, // em análise
             'aprovador_id'             => null,
             'aprovacao_at'             => null,
             'aprovacao_ip'             => null,
@@ -440,7 +540,7 @@ class BolsaEstudosController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | POST: adicionar documento (agora com 4 tipos)
+    | POST: adicionar documento (agora permite selecionar solicitacao_id)
     |--------------------------------------------------------------------------
     */
     public function addDocumento(Request $request, string $sub, int $id)
@@ -448,10 +548,11 @@ class BolsaEstudosController extends Controller
         $empresaId = (int)(auth()->user()->empresa_id ?? 0);
 
         $data = $request->validate([
-            'tipo'       => ['required', 'in:1,2,3,4'], // ✅ agora 4 tipos
-            'titulo'     => ['required', 'string', 'max:255'],
-            'expira_em'  => ['nullable', 'date'],
-            'arquivo'    => ['nullable', 'file', 'max:10240'],
+            'solicitacao_id' => ['nullable', 'integer'],
+            'tipo'           => ['required', 'in:1,2,3,4'],
+            'titulo'         => ['required', 'string', 'max:255'],
+            'expira_em'      => ['nullable', 'date'],
+            'arquivo'        => ['nullable', 'file', 'max:10240'],
         ]);
 
         $procQ = DB::table('bolsa_estudos_processos')
@@ -465,6 +566,24 @@ class BolsaEstudosController extends Controller
         $processo = $procQ->first();
         if (!$processo) return back()->with('error', 'Processo não encontrado.');
 
+        $solicitacaoId = $data['solicitacao_id'] ?? null;
+
+        // valida solicitacao pertence ao processo/empresa (se informado)
+        if (!empty($solicitacaoId)) {
+            $sq = DB::table('bolsa_estudos_solicitacoes')
+                ->where('empresa_id', $empresaId)
+                ->where('processo_id', $id)
+                ->where('id', (int)$solicitacaoId);
+
+            if ($this->hasColumn('bolsa_estudos_solicitacoes', 'deleted_at')) {
+                $sq->whereNull('deleted_at');
+            }
+
+            if (!$sq->exists()) {
+                return back()->with('error', 'Solicitante inválido para este processo.');
+            }
+        }
+
         $path = null;
         if ($request->hasFile('arquivo')) {
             $path = $request->file('arquivo')->store("public/bolsa_documentos/{$empresaId}/{$id}");
@@ -473,7 +592,7 @@ class BolsaEstudosController extends Controller
         DB::table('bolsa_estudos_documentos')->insert([
             'empresa_id'     => $empresaId,
             'processo_id'    => $id,
-            'solicitacao_id' => null,
+            'solicitacao_id' => $solicitacaoId,
             'competencia_id' => null,
             'tipo'           => (int)$data['tipo'],
             'titulo'         => $data['titulo'],
