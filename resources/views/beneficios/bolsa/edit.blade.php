@@ -23,6 +23,13 @@
       .vtabs { display:block; }
       .vtabs > .nav.tabs-vertical { min-width:100%; flex:0 0 auto; }
     }
+
+    /* Select2 encaixar bem no tema */
+    .select2-container { width: 100% !important; }
+    .select2-container--default .select2-selection--single { height: 38px; }
+    .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 38px; }
+    .select2-container--default .select2-selection--single .select2-selection__arrow { height: 36px; }
+    .select2-container--default .select2-selection--multiple { min-height: 38px; }
   </style>
 
   <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -469,13 +476,12 @@
             <label class="form-label">Unidade (Filial)</label>
             <select name="filial_id" class="form-control" required>
               <option value="">Selecione...</option>
-            
+
               @foreach($filiaisEmpresa as $f)
                 @php
                   $nome = $f->nome_fantasia ?: $f->razao_social;
                   $isVinc = in_array((int)$f->id, $filiaisVinculadasIds ?? [], true);
                 @endphp
-            
                 <option value="{{ $f->id }}" {{ $isVinc ? 'disabled' : '' }}>
                   {{ $nome }}{{ $isVinc ? ' (já vinculada)' : '' }}
                 </option>
@@ -537,14 +543,17 @@
             <div class="col-md-6 col-12">
               <div class="form-group">
                 <label class="form-label">Entidade</label>
-                <input type="text" name="entidade_nome" id="sol_entidade" class="form-control" placeholder="Digite a entidade" required>
+                {{-- ✅ Select2 com busca + criação --}}
+                <select name="entidade_nome" id="sol_entidade_select" class="form-control" required></select>
               </div>
             </div>
 
             <div class="col-md-6 col-12">
               <div class="form-group">
                 <label class="form-label">Curso</label>
-                <input type="text" name="curso_nome" id="sol_curso" class="form-control" placeholder="Digite o curso" required>
+                {{-- ✅ Select2 com busca por entidade + criação --}}
+                <select name="curso_nome" id="sol_curso_select" class="form-control" required disabled></select>
+                <small class="text-muted">Selecione a entidade primeiro.</small>
               </div>
             </div>
           </div>
@@ -590,7 +599,21 @@
         <div class="modal-body">
 
           <div class="row">
-            <div class="col-md-4 col-12">
+            <div class="col-md-6 col-12">
+              <div class="form-group">
+                <label class="form-label">Colaborador (vinculado)</label>
+                <select name="solicitacao_id" class="form-control">
+                  <option value="">(Documento do Processo / Geral)</option>
+                  @foreach($solicitantesParaDocs as $sd)
+                    <option value="{{ $sd->id }}">
+                      {{ $sd->nome }}{{ $sd->filial ? ' - '.$sd->filial : '' }}{{ $sd->curso ? ' - '.$sd->curso : '' }}
+                    </option>
+                  @endforeach
+                </select>
+              </div>
+            </div>
+
+            <div class="col-md-6 col-12">
               <div class="form-group">
                 <label class="form-label">Tipo</label>
                 <select name="tipo" class="form-control" required>
@@ -601,24 +624,26 @@
                 </select>
               </div>
             </div>
+          </div>
 
+          <div class="row">
             <div class="col-md-8 col-12">
               <div class="form-group">
                 <label class="form-label">Título</label>
                 <input type="text" name="titulo" class="form-control" required>
               </div>
             </div>
-          </div>
 
-          <div class="row">
             <div class="col-md-4 col-12">
               <div class="form-group">
                 <label class="form-label">Expira em</label>
                 <input type="date" name="expira_em" class="form-control">
               </div>
             </div>
+          </div>
 
-            <div class="col-md-8 col-12">
+          <div class="row">
+            <div class="col-12">
               <div class="form-group">
                 <label class="form-label">Arquivo (opcional)</label>
                 <input type="file" name="arquivo" class="form-control">
@@ -714,7 +739,6 @@
   // Modal solicitante: matrícula -> preencher nome/filial
   // ----------------------------
   window.CON_COLAB_URL = @json(route('beneficios.bolsa.colaborador_por_matricula', ['sub' => request()->route('sub')]));
-
   let solTimer = null;
   const $mat = document.getElementById('sol_matricula');
   const $msg = document.getElementById('sol_matricula_msg');
@@ -757,7 +781,105 @@
   });
 
   // ----------------------------
-  // Documentos: filtro automático via AJAX (sem botão)
+  // Select2 (Entidade + Curso)
+  // ----------------------------
+  window.CON_ENTIDADES_SEARCH = @json(route('beneficios.bolsa.entidades.search', ['sub'=>request()->route('sub')]));
+  window.CON_CURSOS_SEARCH    = @json(route('beneficios.bolsa.cursos.search', ['sub'=>request()->route('sub')]));
+
+  function isNumericString(v){ return /^[0-9]+$/.test(String(v||'')); }
+
+  function initSelect2IfAvailable(){
+    if (!window.jQuery || !jQuery.fn || !jQuery.fn.select2) return;
+
+    const $ent = jQuery('#sol_entidade_select');
+    const $cur = jQuery('#sol_curso_select');
+
+    // ENTIDADE
+    $ent.select2({
+      theme: "default",
+      placeholder: "Digite para buscar ou cadastrar...",
+      allowClear: true,
+      tags: true, // ✅ permite criar
+      ajax: {
+        url: window.CON_ENTIDADES_SEARCH,
+        dataType: 'json',
+        delay: 250,
+        data: function (params) { return { q: params.term || '' }; },
+        processResults: function (data) { return data; },
+        cache: true
+      }
+    });
+
+    // CURSO (inicia vazio)
+    function enableCurso(entidadeId){
+      $cur.prop('disabled', false);
+
+      $cur.select2('destroy');
+      $cur.select2({
+        theme: "default",
+        placeholder: "Digite para buscar ou cadastrar...",
+        allowClear: true,
+        tags: true, // ✅ permite criar
+        ajax: {
+          url: window.CON_CURSOS_SEARCH,
+          dataType: 'json',
+          delay: 250,
+          data: function (params) {
+            return { q: params.term || '', entidade_id: entidadeId };
+          },
+          processResults: function (data) { return data; },
+          cache: true
+        }
+      });
+    }
+
+    function disableCurso(){
+      $cur.val(null).trigger('change');
+      $cur.prop('disabled', true);
+    }
+
+    disableCurso();
+
+    // quando entidade muda, refaz curso
+    $ent.on('change', function(){
+      const val = $ent.val();
+
+      if (!val) {
+        disableCurso();
+        return;
+      }
+
+      // Se for ID existente, buscamos cursos por entidade_id
+      if (isNumericString(val)) {
+        enableCurso(parseInt(val, 10));
+        $cur.val(null).trigger('change');
+        return;
+      }
+
+      // Se for texto novo (tag), deixa curso habilitado só como tags (sem buscar)
+      $cur.prop('disabled', false);
+      $cur.select2('destroy');
+      $cur.select2({
+        theme: "default",
+        placeholder: "Digite o curso para cadastrar...",
+        allowClear: true,
+        tags: true
+      });
+      $cur.val(null).trigger('change');
+    });
+
+    // quando abrir modal, garante seleção limpa
+    jQuery('#modalAddSolicitante').on('shown.bs.modal', function(){
+      // mantém como está (não apaga matrícula/nome/filial), mas limpa selects caso queira:
+      // $ent.val(null).trigger('change');
+      // disableCurso();
+    });
+  }
+
+  initSelect2IfAvailable();
+
+  // ----------------------------
+  // Documentos: filtro automático via AJAX
   // ----------------------------
   window.CON_DOCS_GRID_URL = @json(route('beneficios.bolsa.documentos_grid', ['sub'=>request()->route('sub'), 'id'=>$processo->id]));
 
@@ -792,7 +914,6 @@
   docInput?.addEventListener('input', scheduleDocsReload);
   docSelect?.addEventListener('change', scheduleDocsReload);
 
-  // Paginação via AJAX
   document.addEventListener('click', function(e){
     const a = e.target?.closest('#docsWrapper a');
     if (!a) return;
@@ -802,6 +923,9 @@
     e.preventDefault();
     loadDocsGrid(buildDocsUrl(href));
   });
+
+  // feather após render AJAX (padrão)
+  if (window.feather) feather.replace();
 </script>
 
 </body>
