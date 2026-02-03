@@ -87,17 +87,15 @@ class BolsaEstudosController extends Controller
                 ->with('error', 'Processo não encontrado.');
         }
 
-        // ✅ Unidades vinculadas (SEM pf.deleted_at quando não existir)
+        // ✅ Unidades vinculadas
         $unidadesQ = DB::table('bolsa_estudos_processo_filiais as pf')
             ->where('pf.processo_id', $id)
             ->join('filiais as f', 'f.id', '=', 'pf.filial_id')
             ->where('f.empresa_id', $empresaId);
 
-        // pf.deleted_at é opcional
         if ($this->hasColumn('bolsa_estudos_processo_filiais', 'deleted_at')) {
             $unidadesQ->whereNull('pf.deleted_at');
         }
-        // filiais deleted_at é opcional
         if ($this->hasColumn('filiais', 'deleted_at')) {
             $unidadesQ->whereNull('f.deleted_at');
         }
@@ -122,13 +120,13 @@ class BolsaEstudosController extends Controller
 
         $unidades = $unidadesQ->get();
 
-        // filiais disponíveis para o modal
+        // ✅ IDs já vinculados
         $filiaisVinculadasIds = $unidades->pluck('filial_id')->map(fn($x) => (int)$x)->all();
 
-        $filiaisDisponiveis = DB::table('filiais')
+        // ✅ TODAS as filiais da empresa (para o modal mostrar sempre)
+        $filiaisEmpresa = DB::table('filiais')
             ->where('empresa_id', $empresaId)
             ->when($this->hasColumn('filiais', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
-            ->when(count($filiaisVinculadasIds) > 0, fn($q) => $q->whereNotIn('id', $filiaisVinculadasIds))
             ->orderByRaw('COALESCE(nome_fantasia, razao_social) asc')
             ->get(['id', 'nome_fantasia', 'razao_social']);
 
@@ -171,17 +169,18 @@ class BolsaEstudosController extends Controller
             ->paginate(10, ['*'], 'docs_page');
 
         return view('beneficios.bolsa.edit', [
-            'sub'               => $sub,
-            'processo'          => $processo,
+            'sub'                => $sub,
+            'processo'           => $processo,
 
-            'unidades'          => $unidades,
-            'filiaisDisponiveis'=> $filiaisDisponiveis,
+            'unidades'           => $unidades,
+            'filiaisEmpresa'     => $filiaisEmpresa,
+            'filiaisVinculadasIds'=> $filiaisVinculadasIds,
 
-            'solicitantes'      => $solicitantes,
+            'solicitantes'       => $solicitantes,
 
-            'documentos'        => $documentos,
-            'docQ'              => $docQ,
-            'docStatus'         => $docStatus,
+            'documentos'         => $documentos,
+            'docQ'               => $docQ,
+            'docStatus'          => $docStatus,
         ]);
     }
 
@@ -317,9 +316,7 @@ class BolsaEstudosController extends Controller
             $existsQ->whereNull('deleted_at');
         }
 
-        $exists = $existsQ->exists();
-
-        if (!$exists) {
+        if (!$existsQ->exists()) {
             DB::table('bolsa_estudos_processo_filiais')->insert([
                 'empresa_id' => $empresaId,
                 'processo_id'=> $id,
@@ -443,7 +440,7 @@ class BolsaEstudosController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | POST: adicionar documento (mantido)
+    | POST: adicionar documento (agora com 4 tipos)
     |--------------------------------------------------------------------------
     */
     public function addDocumento(Request $request, string $sub, int $id)
@@ -451,7 +448,7 @@ class BolsaEstudosController extends Controller
         $empresaId = (int)(auth()->user()->empresa_id ?? 0);
 
         $data = $request->validate([
-            'tipo'       => ['required', 'in:1,2'],
+            'tipo'       => ['required', 'in:1,2,3,4'], // ✅ agora 4 tipos
             'titulo'     => ['required', 'string', 'max:255'],
             'expira_em'  => ['nullable', 'date'],
             'arquivo'    => ['nullable', 'file', 'max:10240'],
@@ -488,61 +485,6 @@ class BolsaEstudosController extends Controller
         ]);
 
         return back()->with('success', 'Documento incluído com sucesso.');
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | AJAX: colaborador por matrícula
-    |--------------------------------------------------------------------------
-    */
-    public function colaboradorPorMatricula(Request $request, string $sub)
-    {
-        $empresaId = (int) (auth()->user()->empresa_id ?? 0);
-        $matricula = trim((string)$request->get('matricula', ''));
-
-        if ($matricula === '') {
-            return response()->json(['ok' => false, 'message' => 'Matrícula inválida.'], 422);
-        }
-
-        $q = DB::table('colaboradores as c')
-            ->select([
-                'c.id',
-                'c.nome',
-                DB::raw($this->hasColumn('colaboradores', 'matricula') ? 'c.matricula' : "NULL as matricula"),
-                DB::raw($this->hasColumn('colaboradores', 'filial_id') ? 'c.filial_id' : "NULL as filial_id"),
-            ])
-            ->when($this->hasColumn('colaboradores', 'deleted_at'), fn($qq) => $qq->whereNull('c.deleted_at'));
-
-        if ($this->hasColumn('colaboradores', 'empresa_id') && $this->hasColumn('colaboradores', 'matricula')) {
-            $q->where('c.empresa_id', $empresaId)->where('c.matricula', $matricula);
-        } else {
-            if ($this->hasColumn('colaboradores', 'filial_id')) {
-                $q->leftJoin('filiais as f', 'f.id', '=', 'c.filial_id')
-                  ->where('f.empresa_id', $empresaId);
-
-                if ($this->hasColumn('filiais', 'deleted_at')) $q->whereNull('f.deleted_at');
-
-                if ($this->hasColumn('colaboradores', 'matricula')) $q->where('c.matricula', $matricula);
-                else $q->where('c.id', (int)$matricula);
-
-                $q->addSelect(DB::raw("COALESCE(f.nome_fantasia, f.razao_social) as filial_nome"));
-            } else {
-                return response()->json(['ok'=>false,'message'=>'colaboradores sem filial_id/empresa_id.'], 500);
-            }
-        }
-
-        $col = $q->first();
-        if (!$col) return response()->json(['ok'=>false,'message'=>'Colaborador não encontrado.'], 404);
-
-        return response()->json([
-            'ok' => true,
-            'data' => [
-                'id'          => (int)$col->id,
-                'nome'        => (string)$col->nome,
-                'filial_id'   => !empty($col->filial_id) ? (int)$col->filial_id : null,
-                'filial_nome' => (string)($col->filial_nome ?? ''),
-            ]
-        ]);
     }
 
     /*
