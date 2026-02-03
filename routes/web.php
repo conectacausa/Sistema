@@ -10,6 +10,7 @@ use App\Http\Controllers\Config\UsuariosController;
 use App\Http\Controllers\Config\GrupoPermissaoController;
 use App\Http\Controllers\Config\FiliaisController;
 use App\Http\Controllers\Beneficios\BolsaEstudosController;
+use App\Http\Controllers\Beneficios\BolsaDocumentosController;
 
 Route::domain('{sub}.conecttarh.com.br')
     ->middleware(['web', 'tenant'])
@@ -295,6 +296,35 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->whereNumber('solicitacao_id')
                 ->middleware('screen:12')
                 ->name('beneficios.bolsa.aprovacoes.reprovar');
+
+            Route::get('/beneficios/bolsa/{processo_id}/documentos', [BolsaDocumentosController::class, 'index'])
+                ->whereNumber('processo_id')
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.documentos.index');
+            
+            Route::get('/beneficios/bolsa/{processo_id}/documentos/{doc_id}', [BolsaDocumentosController::class, 'show'])
+                ->whereNumber('processo_id')
+                ->whereNumber('doc_id')
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.documentos.show');
+            
+            Route::post('/beneficios/bolsa/{processo_id}/documentos/{doc_id}/aprovar', [BolsaDocumentosController::class, 'aprovar'])
+                ->whereNumber('processo_id')
+                ->whereNumber('doc_id')
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.documentos.aprovar');
+            
+            Route::post('/beneficios/bolsa/{processo_id}/documentos/{doc_id}/reprovar', [BolsaDocumentosController::class, 'reprovar'])
+                ->whereNumber('processo_id')
+                ->whereNumber('doc_id')
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.documentos.reprovar');
+            
+            Route::post('/beneficios/bolsa/{processo_id}/competencias/{competencia_id}/pagar', [BolsaDocumentosController::class, 'pagar'])
+                ->whereNumber('processo_id')
+                ->whereNumber('competencia_id')
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.competencias.pagar');
 
             
             /*
