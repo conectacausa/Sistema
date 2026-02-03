@@ -13,9 +13,17 @@
     <tbody>
       @forelse($documentos as $d)
         @php
-          $tipo = ((int)$d->tipo === 1) ? 'Comprovante' : 'Documento';
+          $tipo = match((int)$d->tipo) {
+            1 => 'Comprovante',
+            2 => 'Documento',
+            3 => 'Atestado de Matrícula',
+            4 => 'Contrato',
+            default => '—'
+          };
+
           $exp  = !empty($d->expira_em) ? \Carbon\Carbon::parse($d->expira_em)->format('d/m/Y') : '—';
           $env  = !empty($d->created_at) ? \Carbon\Carbon::parse($d->created_at)->format('d/m/Y H:i') : '—';
+
           $stLabel = match((int)$d->status) {
             0 => 'Aguardando',
             1 => 'Reprovado',
@@ -23,6 +31,7 @@
             default => (string)$d->status
           };
         @endphp
+
         <tr>
           <td>{{ $d->titulo }}</td>
           <td>{{ $tipo }}</td>
@@ -33,7 +42,9 @@
         </tr>
       @empty
         <tr>
-          <td colspan="6" class="text-center text-muted py-4">Nenhum documento encontrado.</td>
+          <td colspan="6" class="text-center text-muted py-4">
+            Nenhum documento encontrado.
+          </td>
         </tr>
       @endforelse
     </tbody>
