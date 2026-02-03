@@ -335,6 +335,10 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->middleware('screen:12')
                 ->name('beneficios.bolsa.relatorios.export_pagamentos');
 
+            Route::get('/beneficios/bolsa/ajax/colaborador-por-matricula', [BolsaEstudosController::class, 'colaboradorPorMatricula'])
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.colaborador_por_matricula');
+
             
             /*
             |--------------------------------------------------------------------------
