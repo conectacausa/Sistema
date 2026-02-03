@@ -783,23 +783,46 @@
   // ----------------------------
   // Select2 (Entidade + Curso)
   // ----------------------------
+  // ----------------------------
+  // Select2 (Entidade + Curso) - busca + cria no salvar
+  // ----------------------------
   window.CON_ENTIDADES_SEARCH = @json(route('beneficios.bolsa.entidades.search', ['sub'=>request()->route('sub')]));
   window.CON_CURSOS_SEARCH    = @json(route('beneficios.bolsa.cursos.search', ['sub'=>request()->route('sub')]));
 
   function isNumericString(v){ return /^[0-9]+$/.test(String(v||'')); }
 
+  function getSelect2TypedTerm($select){
+    // pega o texto que está no campo de busca do select2 aberto
+    // (funciona mesmo quando o usuário digitou e não selecionou nada)
+    try {
+      const $container = $select.data('select2')?.$container;
+      const $input = $container ? $container.find('.select2-search__field') : null;
+      const term = $input && $input.length ? String($input.val() || '').trim() : '';
+      return term;
+    } catch(e){
+      return '';
+    }
+  }
+
+  function setSelectValueAsText($select, text){
+    // cria uma option com value = texto e seleciona
+    const opt = new Option(text, text, true, true);
+    $select.append(opt).trigger('change');
+  }
+
   function initSelect2IfAvailable(){
     if (!window.jQuery || !jQuery.fn || !jQuery.fn.select2) return;
 
-    const $ent = jQuery('#sol_entidade_select');
-    const $cur = jQuery('#sol_curso_select');
+    const $form = jQuery('#modalAddSolicitante form');
+    const $ent  = jQuery('#sol_entidade_select');
+    const $cur  = jQuery('#sol_curso_select');
 
-    // ENTIDADE
+    // ENTIDADE: select com busca AJAX (sem tags)
     $ent.select2({
       theme: "default",
-      placeholder: "Digite para buscar ou cadastrar...",
+      placeholder: "Digite para buscar...",
       allowClear: true,
-      tags: true, // ✅ permite criar
+      minimumInputLength: 1,
       ajax: {
         url: window.CON_ENTIDADES_SEARCH,
         dataType: 'json',
@@ -810,16 +833,29 @@
       }
     });
 
-    // CURSO (inicia vazio)
-    function enableCurso(entidadeId){
-      $cur.prop('disabled', false);
+    function destroyCurso(){
+      try { $cur.select2('destroy'); } catch(e) {}
+      $cur.empty();
+    }
 
-      $cur.select2('destroy');
+    function disableCurso(msg=true){
+      destroyCurso();
+      $cur.prop('disabled', true);
+      if (msg){
+        $cur.closest('.form-group')?.find('small.text-muted')?.text('Selecione a entidade primeiro.');
+      }
+    }
+
+    function enableCursoAjax(entidadeId){
+      destroyCurso();
+      $cur.prop('disabled', false);
+      $cur.closest('.form-group')?.find('small.text-muted')?.text('');
+
       $cur.select2({
         theme: "default",
-        placeholder: "Digite para buscar ou cadastrar...",
+        placeholder: "Digite para buscar...",
         allowClear: true,
-        tags: true, // ✅ permite criar
+        minimumInputLength: 1,
         ajax: {
           url: window.CON_CURSOS_SEARCH,
           dataType: 'json',
@@ -833,46 +869,66 @@
       });
     }
 
-    function disableCurso(){
-      $cur.val(null).trigger('change');
-      $cur.prop('disabled', true);
+    function enableCursoFreeText(){
+      // quando entidade for texto novo, não dá pra buscar cursos; deixa digitar
+      destroyCurso();
+      $cur.prop('disabled', false);
+      $cur.closest('.form-group')?.find('small.text-muted')?.text('Digite o curso e clique em Salvar.');
+
+      $cur.select2({
+        theme: "default",
+        placeholder: "Digite o curso...",
+        allowClear: true,
+        minimumInputLength: 1,
+        data: [] // sem ajax
+      });
     }
 
     disableCurso();
 
-    // quando entidade muda, refaz curso
+    // entidade mudou => reset curso e decide modo
     $ent.on('change', function(){
-      const val = $ent.val();
+      const entVal = $ent.val();
 
-      if (!val) {
+      if (!entVal) {
         disableCurso();
         return;
       }
 
-      // Se for ID existente, buscamos cursos por entidade_id
-      if (isNumericString(val)) {
-        enableCurso(parseInt(val, 10));
-        $cur.val(null).trigger('change');
-        return;
+      if (isNumericString(entVal)) {
+        enableCursoAjax(parseInt(entVal, 10));
+      } else {
+        // entidade nova (texto)
+        enableCursoFreeText();
       }
 
-      // Se for texto novo (tag), deixa curso habilitado só como tags (sem buscar)
-      $cur.prop('disabled', false);
-      $cur.select2('destroy');
-      $cur.select2({
-        theme: "default",
-        placeholder: "Digite o curso para cadastrar...",
-        allowClear: true,
-        tags: true
-      });
       $cur.val(null).trigger('change');
     });
 
-    // quando abrir modal, garante seleção limpa
+    // ✅ NO SUBMIT: se usuário digitou e não selecionou, cria o registro
+    $form.on('submit', function(e){
+      // ENTIDADE
+      const entVal = $ent.val();
+      if (!entVal) {
+        const term = getSelect2TypedTerm($ent);
+        if (term) setSelectValueAsText($ent, term);
+      }
+
+      // CURSO
+      const curVal = $cur.val();
+      if (!curVal) {
+        const term = getSelect2TypedTerm($cur);
+        if (term) setSelectValueAsText($cur, term);
+      }
+
+      // se ainda assim não tiver, deixa o backend validar
+    });
+
+    // quando abrir o modal, garante estado inicial
     jQuery('#modalAddSolicitante').on('shown.bs.modal', function(){
-      // mantém como está (não apaga matrícula/nome/filial), mas limpa selects caso queira:
-      // $ent.val(null).trigger('change');
-      // disableCurso();
+      // opcional: focar na matrícula
+      const el = document.getElementById('sol_matricula');
+      if (el) el.focus();
     });
   }
 
