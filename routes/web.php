@@ -11,6 +11,7 @@ use App\Http\Controllers\Config\GrupoPermissaoController;
 use App\Http\Controllers\Config\FiliaisController;
 use App\Http\Controllers\Beneficios\BolsaEstudosController;
 use App\Http\Controllers\Beneficios\BolsaDocumentosController;
+use App\Http\Controllers\Beneficios\BolsaRelatoriosController;
 
 Route::domain('{sub}.conecttarh.com.br')
     ->middleware(['web', 'tenant'])
@@ -325,6 +326,14 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->whereNumber('competencia_id')
                 ->middleware('screen:12')
                 ->name('beneficios.bolsa.competencias.pagar');
+
+            Route::get('/beneficios/bolsa/relatorios', [BolsaRelatoriosController::class, 'index'])
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.relatorios.index');
+            
+            Route::get('/beneficios/bolsa/relatorios/export-pagamentos', [BolsaRelatoriosController::class, 'exportPagamentosExcel'])
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.relatorios.export_pagamentos');
 
             
             /*
