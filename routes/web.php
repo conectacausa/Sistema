@@ -273,6 +273,29 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->middleware('screen:12')
                 ->name('beneficios.bolsa.cursos.search');
 
+            Route::get('/beneficios/bolsa/{processo_id}/aprovacoes', [BolsaAprovacoesController::class, 'index'])
+                ->whereNumber('processo_id')
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.aprovacoes.index');
+            
+            Route::get('/beneficios/bolsa/{processo_id}/aprovacoes/{solicitacao_id}', [BolsaAprovacoesController::class, 'show'])
+                ->whereNumber('processo_id')
+                ->whereNumber('solicitacao_id')
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.aprovacoes.show');
+            
+            Route::post('/beneficios/bolsa/{processo_id}/aprovacoes/{solicitacao_id}/aprovar', [BolsaAprovacoesController::class, 'aprovar'])
+                ->whereNumber('processo_id')
+                ->whereNumber('solicitacao_id')
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.aprovacoes.aprovar');
+            
+            Route::post('/beneficios/bolsa/{processo_id}/aprovacoes/{solicitacao_id}/reprovar', [BolsaAprovacoesController::class, 'reprovar'])
+                ->whereNumber('processo_id')
+                ->whereNumber('solicitacao_id')
+                ->middleware('screen:12')
+                ->name('beneficios.bolsa.aprovacoes.reprovar');
+
             
             /*
             |--------------------------------------------------------------------------
