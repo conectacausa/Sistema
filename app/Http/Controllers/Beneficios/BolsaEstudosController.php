@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 
 class BolsaEstudosController extends Controller
 {
@@ -21,11 +20,17 @@ class BolsaEstudosController extends Controller
         $q = trim((string) $request->get('q', ''));
 
         $grid = DB::table('bolsa_estudos_processos as p')
-            ->where('p.empresa_id', $empresaId)
-            ->whereNull('p.deleted_at')
-            ->leftJoin('bolsa_estudos_solicitacoes as s', function ($join) {
-                $join->on('s.processo_id', '=', 'p.id')
-                     ->whereNull('s.deleted_at');
+            ->where('p.empresa_id', $empresaId);
+
+        if ($this->hasColumn('bolsa_estudos_processos', 'deleted_at')) {
+            $grid->whereNull('p.deleted_at');
+        }
+
+        $grid->leftJoin('bolsa_estudos_solicitacoes as s', function ($join) {
+                $join->on('s.processo_id', '=', 'p.id');
+                if ($this->hasColumn('bolsa_estudos_solicitacoes', 'deleted_at')) {
+                    $join->whereNull('s.deleted_at');
+                }
             })
             ->select([
                 'p.id',
@@ -67,55 +72,76 @@ class BolsaEstudosController extends Controller
     {
         $empresaId = (int) (auth()->user()->empresa_id ?? 0);
 
-        $processo = DB::table('bolsa_estudos_processos')
+        $procQ = DB::table('bolsa_estudos_processos')
             ->where('empresa_id', $empresaId)
-            ->where('id', $id)
-            ->whereNull('deleted_at')
-            ->first();
+            ->where('id', $id);
+
+        if ($this->hasColumn('bolsa_estudos_processos', 'deleted_at')) {
+            $procQ->whereNull('deleted_at');
+        }
+
+        $processo = $procQ->first();
 
         if (!$processo) {
             return redirect()->route('beneficios.bolsa.index', ['sub' => $sub])
                 ->with('error', 'Processo não encontrado.');
         }
 
-        // ✅ Unidades vinculadas
-        $unidades = DB::table('bolsa_estudos_processo_filiais as pf')
+        // ✅ Unidades vinculadas (SEM pf.deleted_at quando não existir)
+        $unidadesQ = DB::table('bolsa_estudos_processo_filiais as pf')
             ->where('pf.processo_id', $id)
-            ->whereNull('pf.deleted_at')
             ->join('filiais as f', 'f.id', '=', 'pf.filial_id')
-            ->where('f.empresa_id', $empresaId)
-            ->leftJoin('bolsa_estudos_solicitacoes as s', function ($join) use ($id) {
-                $join->on('s.processo_id', '=', 'pf.processo_id')
-                     ->whereNull('s.deleted_at');
+            ->where('f.empresa_id', $empresaId);
+
+        // pf.deleted_at é opcional
+        if ($this->hasColumn('bolsa_estudos_processo_filiais', 'deleted_at')) {
+            $unidadesQ->whereNull('pf.deleted_at');
+        }
+        // filiais deleted_at é opcional
+        if ($this->hasColumn('filiais', 'deleted_at')) {
+            $unidadesQ->whereNull('f.deleted_at');
+        }
+
+        $unidadesQ->leftJoin('bolsa_estudos_solicitacoes as s', function ($join) {
+                $join->on('s.processo_id', '=', 'pf.processo_id');
+                if ($this->hasColumn('bolsa_estudos_solicitacoes', 'deleted_at')) {
+                    $join->whereNull('s.deleted_at');
+                }
             })
             ->leftJoin('colaboradores as c', 'c.id', '=', 's.colaborador_id')
-            // filial do solicitante: tenta s.filial_id se existir, senão c.filial_id
             ->select([
                 'pf.id as vinculo_id',
                 'pf.filial_id',
                 DB::raw("COALESCE(f.nome_fantasia, f.razao_social) as filial_nome"),
-                DB::raw("COALESCE(COUNT(s.id) FILTER (WHERE " . $this->sqlFilialMatch('pf', 's', 'c') . "), 0) as inscritos_count"),
-                DB::raw("COALESCE(COUNT(s.id) FILTER (WHERE s.status = 2 AND " . $this->sqlFilialMatch('pf', 's', 'c') . "), 0) as aprovados_count"),
-                DB::raw("COALESCE(SUM(s.valor_limite) FILTER (WHERE s.status = 2 AND " . $this->sqlFilialMatch('pf', 's', 'c') . "), 0) as soma_limite_aprovados"),
+                DB::raw("COALESCE(COUNT(s.id) FILTER (WHERE {$this->sqlFilialMatch('pf','s','c')}), 0) as inscritos_count"),
+                DB::raw("COALESCE(COUNT(s.id) FILTER (WHERE s.status = 2 AND {$this->sqlFilialMatch('pf','s','c')}), 0) as aprovados_count"),
+                DB::raw("COALESCE(SUM(s.valor_limite) FILTER (WHERE s.status = 2 AND {$this->sqlFilialMatch('pf','s','c')}), 0) as soma_limite_aprovados"),
             ])
             ->groupBy('pf.id', 'pf.filial_id', 'f.nome_fantasia', 'f.razao_social')
-            ->orderBy('pf.filial_id', 'asc')
-            ->get();
+            ->orderBy('pf.filial_id', 'asc');
 
-        // filiais disponíveis (para modal adicionar unidade)
+        $unidades = $unidadesQ->get();
+
+        // filiais disponíveis para o modal
         $filiaisVinculadasIds = $unidades->pluck('filial_id')->map(fn($x) => (int)$x)->all();
+
         $filiaisDisponiveis = DB::table('filiais')
             ->where('empresa_id', $empresaId)
-            ->whereNull('deleted_at')
+            ->when($this->hasColumn('filiais', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
             ->when(count($filiaisVinculadasIds) > 0, fn($q) => $q->whereNotIn('id', $filiaisVinculadasIds))
             ->orderByRaw('COALESCE(nome_fantasia, razao_social) asc')
             ->get(['id', 'nome_fantasia', 'razao_social']);
 
         // ✅ Solicitantes
-        $solicitantes = DB::table('bolsa_estudos_solicitacoes as s')
+        $solQ = DB::table('bolsa_estudos_solicitacoes as s')
             ->where('s.empresa_id', $empresaId)
-            ->where('s.processo_id', $id)
-            ->whereNull('s.deleted_at')
+            ->where('s.processo_id', $id);
+
+        if ($this->hasColumn('bolsa_estudos_solicitacoes', 'deleted_at')) {
+            $solQ->whereNull('s.deleted_at');
+        }
+
+        $solicitantes = $solQ
             ->join('colaboradores as c', 'c.id', '=', 's.colaborador_id')
             ->leftJoin('bolsa_estudos_cursos as cu', 'cu.id', '=', 's.curso_id')
             ->leftJoin('bolsa_estudos_entidades as e', 'e.id', '=', 'cu.entidade_id')
@@ -136,7 +162,7 @@ class BolsaEstudosController extends Controller
             ->orderByDesc('s.id')
             ->get();
 
-        // ✅ Documentos (primeira carga da tab)
+        // ✅ Documentos
         $docQ      = trim((string)$request->get('doc_q', ''));
         $docStatus = trim((string)$request->get('doc_status', ''));
 
@@ -168,12 +194,15 @@ class BolsaEstudosController extends Controller
     {
         $empresaId = (int) (auth()->user()->empresa_id ?? 0);
 
-        $processo = DB::table('bolsa_estudos_processos')
+        $procQ = DB::table('bolsa_estudos_processos')
             ->where('empresa_id', $empresaId)
-            ->where('id', $id)
-            ->whereNull('deleted_at')
-            ->first();
+            ->where('id', $id);
 
+        if ($this->hasColumn('bolsa_estudos_processos', 'deleted_at')) {
+            $procQ->whereNull('deleted_at');
+        }
+
+        $processo = $procQ->first();
         if (!$processo) {
             return redirect()->route('beneficios.bolsa.index', ['sub' => $sub])
                 ->with('error', 'Processo não encontrado.');
@@ -200,7 +229,6 @@ class BolsaEstudosController extends Controller
         DB::table('bolsa_estudos_processos')
             ->where('empresa_id', $empresaId)
             ->where('id', $id)
-            ->whereNull('deleted_at')
             ->update([
                 'ciclo'               => $data['ciclo'],
                 'edital'              => $data['edital'] ?? null,
@@ -257,33 +285,39 @@ class BolsaEstudosController extends Controller
             'filial_id' => ['required', 'integer'],
         ]);
 
-        $processo = DB::table('bolsa_estudos_processos')
+        $procQ = DB::table('bolsa_estudos_processos')
             ->where('empresa_id', $empresaId)
-            ->where('id', $id)
-            ->whereNull('deleted_at')
-            ->first();
+            ->where('id', $id);
 
-        if (!$processo) {
-            return back()->with('error', 'Processo não encontrado.');
+        if ($this->hasColumn('bolsa_estudos_processos', 'deleted_at')) {
+            $procQ->whereNull('deleted_at');
         }
+
+        $processo = $procQ->first();
+        if (!$processo) return back()->with('error', 'Processo não encontrado.');
 
         $filialId = (int)$request->filial_id;
 
-        $filial = DB::table('filiais')
+        $filialQ = DB::table('filiais')
             ->where('empresa_id', $empresaId)
-            ->where('id', $filialId)
-            ->whereNull('deleted_at')
-            ->first();
+            ->where('id', $filialId);
 
-        if (!$filial) {
-            return back()->with('error', 'Filial inválida.');
+        if ($this->hasColumn('filiais', 'deleted_at')) {
+            $filialQ->whereNull('deleted_at');
         }
 
-        $exists = DB::table('bolsa_estudos_processo_filiais')
+        $filial = $filialQ->first();
+        if (!$filial) return back()->with('error', 'Filial inválida.');
+
+        $existsQ = DB::table('bolsa_estudos_processo_filiais')
             ->where('processo_id', $id)
-            ->where('filial_id', $filialId)
-            ->whereNull('deleted_at')
-            ->exists();
+            ->where('filial_id', $filialId);
+
+        if ($this->hasColumn('bolsa_estudos_processo_filiais', 'deleted_at')) {
+            $existsQ->whereNull('deleted_at');
+        }
+
+        $exists = $existsQ->exists();
 
         if (!$exists) {
             DB::table('bolsa_estudos_processo_filiais')->insert([
@@ -300,7 +334,7 @@ class BolsaEstudosController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | POST: adicionar solicitante
+    | POST: adicionar solicitante (mantido)
     |--------------------------------------------------------------------------
     */
     public function addSolicitante(Request $request, string $sub, int $id)
@@ -314,29 +348,32 @@ class BolsaEstudosController extends Controller
             'valor_total_mensalidade'  => ['required', 'string'],
         ]);
 
-        $processo = DB::table('bolsa_estudos_processos')
+        $procQ = DB::table('bolsa_estudos_processos')
             ->where('empresa_id', $empresaId)
-            ->where('id', $id)
-            ->whereNull('deleted_at')
-            ->first();
+            ->where('id', $id);
 
+        if ($this->hasColumn('bolsa_estudos_processos', 'deleted_at')) {
+            $procQ->whereNull('deleted_at');
+        }
+
+        $processo = $procQ->first();
         if (!$processo) return back()->with('error', 'Processo não encontrado.');
 
         $colId = (int)$data['colaborador_id'];
 
         $col = DB::table('colaboradores')
             ->where('id', $colId)
-            ->whereNull('deleted_at')
+            ->when($this->hasColumn('colaboradores', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
             ->first();
 
         if (!$col) return back()->with('error', 'Colaborador inválido.');
 
-        // Entidade: cria se não existir (aprovado=0 quando a coluna existir)
+        // Entidade
         $entNome = trim($data['entidade_nome']);
         $ent = DB::table('bolsa_estudos_entidades')
             ->where('empresa_id', $empresaId)
             ->whereRaw('LOWER(nome) = LOWER(?)', [$entNome])
-            ->whereNull('deleted_at')
+            ->when($this->hasColumn('bolsa_estudos_entidades', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
             ->first();
 
         if (!$ent) {
@@ -347,22 +384,19 @@ class BolsaEstudosController extends Controller
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
-            if ($this->hasColumn('bolsa_estudos_entidades', 'aprovado')) {
-                $insert['aprovado'] = 0;
-            }
-
+            if ($this->hasColumn('bolsa_estudos_entidades', 'aprovado')) $insert['aprovado'] = 0;
             $entId = DB::table('bolsa_estudos_entidades')->insertGetId($insert);
         } else {
             $entId = (int)$ent->id;
         }
 
-        // Curso: cria se não existir (aprovado=0 quando a coluna existir)
+        // Curso
         $cursoNome = trim($data['curso_nome']);
         $curso = DB::table('bolsa_estudos_cursos')
             ->where('empresa_id', $empresaId)
             ->where('entidade_id', $entId)
             ->whereRaw('LOWER(nome) = LOWER(?)', [$cursoNome])
-            ->whereNull('deleted_at')
+            ->when($this->hasColumn('bolsa_estudos_cursos', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
             ->first();
 
         if (!$curso) {
@@ -373,10 +407,7 @@ class BolsaEstudosController extends Controller
                 'created_at'  => now(),
                 'updated_at'  => now(),
             ];
-            if ($this->hasColumn('bolsa_estudos_cursos', 'aprovado')) {
-                $insert['aprovado'] = 0;
-            }
-
+            if ($this->hasColumn('bolsa_estudos_cursos', 'aprovado')) $insert['aprovado'] = 0;
             $cursoId = DB::table('bolsa_estudos_cursos')->insertGetId($insert);
         } else {
             $cursoId = (int)$curso->id;
@@ -392,7 +423,7 @@ class BolsaEstudosController extends Controller
             'valor_total_mensalidade'  => $valorMens,
             'valor_concessao'          => null,
             'valor_limite'             => null,
-            'status'                   => 3, // Em análise
+            'status'                   => 3,
             'aprovador_id'             => null,
             'aprovacao_at'             => null,
             'aprovacao_ip'             => null,
@@ -401,7 +432,6 @@ class BolsaEstudosController extends Controller
             'updated_at'               => now(),
         ];
 
-        // Se existir s.filial_id, gravamos
         if ($this->hasColumn('bolsa_estudos_solicitacoes', 'filial_id') && $this->hasColumn('colaboradores', 'filial_id')) {
             $insertSolic['filial_id'] = $col->filial_id ?? null;
         }
@@ -413,7 +443,7 @@ class BolsaEstudosController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | POST: adicionar documento via modal
+    | POST: adicionar documento (mantido)
     |--------------------------------------------------------------------------
     */
     public function addDocumento(Request $request, string $sub, int $id)
@@ -421,23 +451,25 @@ class BolsaEstudosController extends Controller
         $empresaId = (int)(auth()->user()->empresa_id ?? 0);
 
         $data = $request->validate([
-            'tipo'       => ['required', 'in:1,2'], // 1 comprovante, 2 documento
+            'tipo'       => ['required', 'in:1,2'],
             'titulo'     => ['required', 'string', 'max:255'],
             'expira_em'  => ['nullable', 'date'],
-            'arquivo'    => ['nullable', 'file', 'max:10240'], // até 10MB
+            'arquivo'    => ['nullable', 'file', 'max:10240'],
         ]);
 
-        $processo = DB::table('bolsa_estudos_processos')
+        $procQ = DB::table('bolsa_estudos_processos')
             ->where('empresa_id', $empresaId)
-            ->where('id', $id)
-            ->whereNull('deleted_at')
-            ->first();
+            ->where('id', $id);
 
+        if ($this->hasColumn('bolsa_estudos_processos', 'deleted_at')) {
+            $procQ->whereNull('deleted_at');
+        }
+
+        $processo = $procQ->first();
         if (!$processo) return back()->with('error', 'Processo não encontrado.');
 
         $path = null;
         if ($request->hasFile('arquivo')) {
-            // storage/app/public/bolsa_documentos/{empresa}/{processo}/...
             $path = $request->file('arquivo')->store("public/bolsa_documentos/{$empresaId}/{$id}");
         }
 
@@ -450,7 +482,7 @@ class BolsaEstudosController extends Controller
             'titulo'         => $data['titulo'],
             'arquivo_path'   => $path,
             'expira_em'      => $data['expira_em'] ?? null,
-            'status'         => 0, // aguardando aprovação
+            'status'         => 0,
             'created_at'     => now(),
             'updated_at'     => now(),
         ]);
@@ -460,7 +492,7 @@ class BolsaEstudosController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | AJAX: colaborador por matrícula (já corrigido)
+    | AJAX: colaborador por matrícula
     |--------------------------------------------------------------------------
     */
     public function colaboradorPorMatricula(Request $request, string $sub)
@@ -479,7 +511,7 @@ class BolsaEstudosController extends Controller
                 DB::raw($this->hasColumn('colaboradores', 'matricula') ? 'c.matricula' : "NULL as matricula"),
                 DB::raw($this->hasColumn('colaboradores', 'filial_id') ? 'c.filial_id' : "NULL as filial_id"),
             ])
-            ->whereNull('c.deleted_at');
+            ->when($this->hasColumn('colaboradores', 'deleted_at'), fn($qq) => $qq->whereNull('c.deleted_at'));
 
         if ($this->hasColumn('colaboradores', 'empresa_id') && $this->hasColumn('colaboradores', 'matricula')) {
             $q->where('c.empresa_id', $empresaId)->where('c.matricula', $matricula);
@@ -487,6 +519,8 @@ class BolsaEstudosController extends Controller
             if ($this->hasColumn('colaboradores', 'filial_id')) {
                 $q->leftJoin('filiais as f', 'f.id', '=', 'c.filial_id')
                   ->where('f.empresa_id', $empresaId);
+
+                if ($this->hasColumn('filiais', 'deleted_at')) $q->whereNull('f.deleted_at');
 
                 if ($this->hasColumn('colaboradores', 'matricula')) $q->where('c.matricula', $matricula);
                 else $q->where('c.id', (int)$matricula);
@@ -521,13 +555,19 @@ class BolsaEstudosController extends Controller
         $q = DB::table('bolsa_estudos_documentos as d')
             ->where('d.empresa_id', $empresaId)
             ->where('d.processo_id', $processoId)
-            ->whereNull('d.deleted_at')
+            ->when($this->hasColumn('bolsa_estudos_documentos', 'deleted_at'), fn($qq) => $qq->whereNull('d.deleted_at'))
             ->leftJoin('bolsa_estudos_solicitacoes as s', 's.id', '=', 'd.solicitacao_id')
             ->leftJoin('colaboradores as c', 'c.id', '=', 's.colaborador_id')
             ->select([
                 'd.id','d.tipo','d.titulo','d.status','d.created_at','d.expira_em','d.arquivo_path',
                 'c.nome as colaborador_nome',
             ]);
+
+        if ($this->hasColumn('bolsa_estudos_solicitacoes', 'deleted_at')) {
+            $q->where(function($w){
+                $w->whereNull('s.deleted_at')->orWhereNull('s.id');
+            });
+        }
 
         if ($docQ !== '') {
             $q->where(function ($w) use ($docQ) {
@@ -570,7 +610,6 @@ class BolsaEstudosController extends Controller
         return $n < 0 ? 0.0 : $n;
     }
 
-    // retorna expressão para COALESCE(s.filial_id, c.filial_id) apenas se s.filial_id existir
     private function sqlCoalesceFilialId(string $sAlias, string $cAlias): string
     {
         if ($this->hasColumn('bolsa_estudos_solicitacoes', 'filial_id')) {
@@ -579,7 +618,6 @@ class BolsaEstudosController extends Controller
         return "{$cAlias}.filial_id";
     }
 
-    // condição para contar somente solicitacoes da mesma filial do vínculo
     private function sqlFilialMatch(string $pfAlias, string $sAlias, string $cAlias): string
     {
         return "{$this->sqlCoalesceFilialId($sAlias, $cAlias)} = {$pfAlias}.filial_id";
