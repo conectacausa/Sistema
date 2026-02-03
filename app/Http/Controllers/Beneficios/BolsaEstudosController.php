@@ -11,6 +11,66 @@ class BolsaEstudosController extends Controller
 {
     /*
     |--------------------------------------------------------------------------
+    | INDEX (lista de ciclos/processos)
+    |--------------------------------------------------------------------------
+    */
+    public function index(Request $request, string $sub)
+    {
+        $empresaId = (int) (auth()->user()->empresa_id ?? 0);
+
+        $q = trim((string) $request->get('q', ''));
+
+        // Base do grid
+        $grid = DB::table('bolsa_estudos_processos as p')
+            ->where('p.empresa_id', $empresaId)
+            ->whereNull('p.deleted_at')
+            ->leftJoin('bolsa_estudos_solicitacoes as s', function ($join) {
+                $join->on('s.processo_id', '=', 'p.id')
+                     ->whereNull('s.deleted_at');
+            })
+            ->select([
+                'p.id',
+                'p.ciclo',
+                'p.edital',
+                'p.status',
+                'p.orcamento_mensal',
+                'p.meses_duracao',
+                'p.inscricoes_inicio_at',
+                'p.inscricoes_fim_at',
+                'p.created_at',
+                DB::raw("COALESCE(COUNT(s.id) FILTER (WHERE s.status = 2), 0) as contemplados_count"),
+                DB::raw("COALESCE(COUNT(s.id) FILTER (WHERE s.status = 3), 0) as pendentes_count"),
+            ])
+            ->groupBy('p.id');
+
+        if ($q !== '') {
+            $grid->where(function ($w) use ($q) {
+                $w->where('p.ciclo', 'ILIKE', "%{$q}%")
+                  ->orWhere('p.edital', 'ILIKE', "%{$q}%");
+            });
+        }
+
+        $processos = $grid
+            ->orderByDesc('p.id')
+            ->paginate(10);
+
+        // Se for request AJAX do filtro (tecla digitando), devolve só a tabela
+        if ($request->ajax()) {
+            return view('beneficios.bolsa.partials._table', [
+                'sub' => $sub,
+                'processos' => $processos,
+            ]);
+        }
+
+        return view('beneficios.bolsa.index', [
+            'sub' => $sub,
+            'processos' => $processos,
+            'q' => $q,
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
     | EDIT
     |--------------------------------------------------------------------------
     */
@@ -75,7 +135,7 @@ class BolsaEstudosController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | UPDATE (✅ NÃO DELETA MAIS)
+    | UPDATE (não deleta)
     |--------------------------------------------------------------------------
     */
     public function update(Request $request, string $sub, int $id)
@@ -101,18 +161,16 @@ class BolsaEstudosController extends Controller
             'status'              => ['required', 'integer', 'in:0,1,2'],
             'data_base'           => ['nullable', 'date'],
 
-            'valor_mensal'        => ['nullable', 'string'], // vem formatado "1.234,56"
+            'valor_mensal'        => ['nullable', 'string'],
             'meses_duracao'       => ['nullable', 'integer', 'min:0', 'max:120'],
 
-            // Configuração
             'lembrete_recibo_ativo'      => ['nullable', 'in:0,1'],
             'lembrete_recibo_dias_antes' => ['nullable', 'integer', 'min:0', 'max:365'],
         ]);
 
-        $valorMensal = $this->toDecimal($data['valor_mensal'] ?? null);
+        $valorMensal  = $this->toDecimal($data['valor_mensal'] ?? null);
         $mesesDuracao = (int)($data['meses_duracao'] ?? 0);
 
-        // ✅ Atualiza apenas campos do processo (NUNCA mexe em deleted_at)
         DB::table('bolsa_estudos_processos')
             ->where('empresa_id', $empresaId)
             ->where('id', $id)
@@ -125,11 +183,9 @@ class BolsaEstudosController extends Controller
                 'status'              => (int)$data['status'],
                 'data_base'           => $data['data_base'] ?? null,
 
-                // mantém compatível com o que você já tem no banco
                 'orcamento_mensal'    => $valorMensal,
                 'meses_duracao'       => $mesesDuracao,
 
-                // Configurações
                 'lembrete_recibo_ativo'      => (int)($data['lembrete_recibo_ativo'] ?? 0) === 1,
                 'lembrete_recibo_dias_antes' => $data['lembrete_recibo_dias_antes'] ?? null,
 
@@ -143,8 +199,7 @@ class BolsaEstudosController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | AJAX: COLABORADOR POR MATRÍCULA
-    | (✅ Corrige erro: colaboradores não tem empresa_id)
+    | AJAX: COLABORADOR POR MATRÍCULA (corrige empresa_id inexistente)
     |--------------------------------------------------------------------------
     */
     public function colaboradorPorMatricula(Request $request, string $sub)
@@ -165,12 +220,10 @@ class BolsaEstudosController extends Controller
             ])
             ->whereNull('c.deleted_at');
 
-        // Se tiver empresa_id na tabela colaboradores, usa direto
         if ($this->hasColumn('colaboradores', 'empresa_id')) {
             $q->where('c.empresa_id', $empresaId)
               ->where('c.matricula', $matricula);
         } else {
-            // ✅ Se NÃO tem empresa_id, filtra pela empresa via filial_id -> filiais.empresa_id
             if ($this->hasColumn('colaboradores', 'filial_id')) {
                 $q->leftJoin('filiais as f', 'f.id', '=', 'c.filial_id')
                   ->where('f.empresa_id', $empresaId);
@@ -178,7 +231,6 @@ class BolsaEstudosController extends Controller
                 if ($this->hasColumn('colaboradores', 'matricula')) {
                     $q->where('c.matricula', $matricula);
                 } else {
-                    // fallback (se não existir matricula na tabela, tenta comparar com id/string)
                     $q->where('c.id', (int)$matricula);
                 }
 
@@ -197,7 +249,6 @@ class BolsaEstudosController extends Controller
             return response()->json(['ok' => false, 'message' => 'Colaborador não encontrado.'], 404);
         }
 
-        // garantia de filial_nome se ainda não veio
         if (!property_exists($col, 'filial_nome')) {
             $filialNome = null;
             if (!empty($col->filial_id)) {
@@ -213,10 +264,10 @@ class BolsaEstudosController extends Controller
         return response()->json([
             'ok' => true,
             'data' => [
-                'id'         => (int)$col->id,
-                'nome'       => (string)$col->nome,
-                'filial_id'  => !empty($col->filial_id) ? (int)$col->filial_id : null,
-                'filial_nome'=> (string)($col->filial_nome ?? ''),
+                'id'          => (int)$col->id,
+                'nome'        => (string)$col->nome,
+                'filial_id'   => !empty($col->filial_id) ? (int)$col->filial_id : null,
+                'filial_nome' => (string)($col->filial_nome ?? ''),
             ]
         ]);
     }
@@ -240,7 +291,6 @@ class BolsaEstudosController extends Controller
         $v = trim((string)$value);
         if ($v === '') return 0.0;
 
-        // aceita "1.234,56" -> "1234.56"
         $v = str_replace(['R$', ' '], '', $v);
         $v = str_replace('.', '', $v);
         $v = str_replace(',', '.', $v);
