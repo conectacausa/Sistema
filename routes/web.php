@@ -57,6 +57,18 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->middleware('screen:13')
                 ->name('colaboradores.index');
 
+            Route::get('/colaboradores/importar', [\App\Http\Controllers\Colaboradores\ColaboradoresImportacaoController::class, 'index'])
+                ->middleware('screen:14')
+                ->name('colaboradores.importar.index');
+            
+            Route::post('/colaboradores/importar', [\App\Http\Controllers\Colaboradores\ColaboradoresImportacaoController::class, 'store'])
+                ->middleware('screen:14')
+                ->name('colaboradores.importar.store');
+            
+            Route::get('/colaboradores/importar/modelo', [\App\Http\Controllers\Colaboradores\ColaboradoresImportacaoController::class, 'downloadModelo'])
+                ->middleware('screen:14')
+                ->name('colaboradores.importar.modelo');
+
             /*
             |--------------------------------------------------------------------------
             | CONFIGURAÇÕES → FILIAIS
