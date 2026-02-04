@@ -212,22 +212,33 @@ class ImportarColaboradoresJob implements ShouldQueue
         } catch (\Throwable $e) {
             if ($imp) {
                 $this->failImport($imp, $e->getMessage());
+            } else {
+                Log::error('ImportarColaboradoresJob: erro ao processar XLSX (sem importacaoId)', [
+                    'empresa_id' => $empresaId,
+                    'file' => $fullPath,
+                    'error' => $e->getMessage(),
+                ]);
             }
-
-            Log::error('ImportarColaboradoresJob: erro ao processar XLSX', [
-                'empresa_id' => $empresaId,
-                'file' => $fullPath,
-                'error' => $e->getMessage(),
-            ]);
         }
     }
 
-    private function failImport(ColaboradoresImportacao $imp, string $msg): void
+    private function failImport(?ColaboradoresImportacao $imp, string $msg): void
     {
-        $imp->update([
-            'status' => 'failed',
-            'mensagem_erro' => $msg,
-            'finished_at' => now(),
+        if ($imp) {
+            $imp->update([
+                'status' => 'failed',
+                'mensagem_erro' => $msg,
+                'finished_at' => now(),
+            ]);
+            return;
+        }
+
+        // sem tracking (job antigo), só loga
+        Log::warning('ImportarColaboradoresJob: falha (sem importacaoId)', [
+            'importacao_id' => $this->importacaoId,
+            'empresa_id' => $this->empresaId,
+            'path' => $this->path,
+            'msg' => $msg,
         ]);
     }
 }
