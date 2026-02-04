@@ -113,6 +113,81 @@
           </div>
         </div>
 
+        <div class="row">
+          <div class="col-12">
+            <div class="box">
+              <div class="box-header with-border">
+                <h4 class="box-title">Últimas importações</h4>
+              </div>
+
+              <div class="box-body">
+                <div class="table-responsive">
+                  <table class="table table-hover table-striped align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Arquivo</th>
+                        <th>Status</th>
+                        <th>Total</th>
+                        <th>Importados</th>
+                        <th>Ignorados</th>
+                        <th>Início</th>
+                        <th>Fim</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @forelse(($importacoes ?? []) as $imp)
+                        <tr>
+                          <td>{{ $imp->id }}</td>
+                          <td>{{ $imp->arquivo_nome ?? basename($imp->arquivo_path) }}</td>
+                          <td>
+                            @php
+                              $s = $imp->status;
+                              $label = match($s) {
+                                'queued' => 'Na fila',
+                                'processing' => 'Processando',
+                                'done' => 'Concluída',
+                                'failed' => 'Falhou',
+                                default => $s
+                              };
+                            @endphp
+
+                            @if($s === 'failed')
+                              <span class="badge badge-danger">{{ $label }}</span>
+                              @if($imp->mensagem_erro)
+                                <div class="text-danger small mt-1">{{ $imp->mensagem_erro }}</div>
+                              @endif
+                            @elseif($s === 'done')
+                              <span class="badge badge-success">{{ $label }}</span>
+                            @elseif($s === 'processing')
+                              <span class="badge badge-warning">{{ $label }}</span>
+                            @else
+                              <span class="badge badge-info">{{ $label }}</span>
+                            @endif
+                          </td>
+                          <td>{{ $imp->total_linhas ?? '-' }}</td>
+                          <td>{{ $imp->importados ?? 0 }}</td>
+                          <td>{{ $imp->ignorados ?? 0 }}</td>
+                          <td>{{ $imp->started_at ? $imp->started_at->format('d/m/Y H:i') : '-' }}</td>
+                          <td>{{ $imp->finished_at ? $imp->finished_at->format('d/m/Y H:i') : '-' }}</td>
+                        </tr>
+                      @empty
+                        <tr>
+                          <td colspan="8" class="text-center py-4">Nenhuma importação encontrada.</td>
+                        </tr>
+                      @endforelse
+                    </tbody>
+                  </table>
+                </div>
+
+                <small class="text-muted d-block mt-2">
+                  Dica: se o status ficar “Na fila” por muito tempo, o worker da fila pode não estar rodando.
+                </small>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </section>
 
     </div>
@@ -129,6 +204,14 @@
 
 <script>
   if (window.feather) feather.replace();
+
+  // Atualiza a página automaticamente a cada 10s enquanto tiver "queued" ou "processing"
+  (function(){
+    const hasRunning = {!! json_encode(collect($importacoes ?? [])->contains(fn($i) => in_array($i->status, ['queued','processing']))) !!};
+    if (hasRunning) {
+      setTimeout(() => window.location.reload(), 10000);
+    }
+  })();
 </script>
 
 </body>
