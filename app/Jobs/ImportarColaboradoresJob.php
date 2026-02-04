@@ -24,6 +24,11 @@ class ImportarColaboradoresJob implements ShouldQueue
     public ?string $path = null;
     public ?int $userId = null;
 
+    /**
+     * Formatos aceitos:
+     * - novo: __construct(int $importacaoId)
+     * - antigo: __construct(int $empresaId, string $path, int $userId)
+     */
     public function __construct(...$args)
     {
         if (count($args) === 1) {
@@ -42,15 +47,18 @@ class ImportarColaboradoresJob implements ShouldQueue
             return;
         }
 
-        // tenta achar importação (novo formato)
+        // 1) tenta achar importação (novo formato) SEM scopes (worker não tem auth/request)
         $imp = null;
         if (!empty($this->importacaoId)) {
-            $imp = ColaboradoresImportacao::query()->find((int) $this->importacaoId);
+            $imp = ColaboradoresImportacao::query()
+                ->withoutGlobalScopes()
+                ->find((int) $this->importacaoId);
         }
 
-        // fallback para jobs antigos
+        // 2) fallback para jobs antigos (empresaId + path) SEM scopes
         if (!$imp && !empty($this->empresaId) && !empty($this->path)) {
             $imp = ColaboradoresImportacao::query()
+                ->withoutGlobalScopes()
                 ->where('empresa_id', (int) $this->empresaId)
                 ->where('arquivo_path', (string) $this->path)
                 ->orderByDesc('id')
@@ -68,7 +76,7 @@ class ImportarColaboradoresJob implements ShouldQueue
                 'mensagem_erro' => null,
             ]);
 
-            // ✅ aqui é o ponto crítico: respeitar root do disk local (storage/app/private)
+            // respeita root do disk local (no seu servidor: storage/app/private)
             $fullPath = Storage::disk('local')->path($path);
 
             if (!file_exists($fullPath)) {
@@ -109,7 +117,7 @@ class ImportarColaboradoresJob implements ShouldQueue
         try {
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fullPath);
 
-            // ✅ evita ler "Instrucoes"
+            // evita ler "Instrucoes"
             $sheet = $spreadsheet->getSheetByName('Colaboradores') ?? $spreadsheet->getActiveSheet();
 
             $highestRow = $sheet->getHighestRow();
@@ -142,7 +150,9 @@ class ImportarColaboradoresJob implements ShouldQueue
             }
 
             $totalLinhas = max(0, $highestRow - 1);
-            if ($imp) $imp->update(['total_linhas' => $totalLinhas]);
+            if ($imp) {
+                $imp->update(['total_linhas' => $totalLinhas]);
+            }
 
             $importados = 0;
             $ignorados  = 0;
@@ -178,6 +188,7 @@ class ImportarColaboradoresJob implements ShouldQueue
                     }
                 }
 
+                // Upsert por empresa + cpf
                 $colaborador = Colaborador::query()
                     ->where('empresa_id', $empresaId)
                     ->where('cpf', $cpf)
@@ -193,7 +204,9 @@ class ImportarColaboradoresJob implements ShouldQueue
 
                 if ($sexo) {
                     $sx = mb_strtoupper($sexo);
-                    if (in_array($sx, ['M', 'F'], true)) $colaborador->sexo = $sx;
+                    if (in_array($sx, ['M', 'F'], true)) {
+                        $colaborador->sexo = $sx;
+                    }
                 }
 
                 if ($matricula) $colaborador->matricula = $matricula;
