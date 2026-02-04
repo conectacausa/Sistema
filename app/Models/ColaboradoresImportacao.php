@@ -23,7 +23,12 @@ class ColaboradoresImportacao extends Model
     ];
 
     protected $casts = [
-        'started_at' => 'datetime',
-        'finished_at' => 'datetime',
+        'empresa_id'    => 'integer',
+        'user_id'       => 'integer',
+        'total_linhas'  => 'integer',
+        'importados'    => 'integer',
+        'ignorados'     => 'integer',
+        'started_at'    => 'datetime',
+        'finished_at'   => 'datetime',
     ];
 }
