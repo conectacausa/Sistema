@@ -2,14 +2,13 @@
 
 namespace App\Jobs;
 
-use App\Models\Colaborador;
-use App\Models\ColaboradoresImportacao;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
@@ -24,11 +23,6 @@ class ImportarColaboradoresJob implements ShouldQueue
     public ?string $path = null;
     public ?int $userId = null;
 
-    /**
-     * Formatos aceitos:
-     * - novo: __construct(int $importacaoId)
-     * - antigo: __construct(int $empresaId, string $path, int $userId)
-     */
     public function __construct(...$args)
     {
         if (count($args) === 1) {
@@ -43,54 +37,27 @@ class ImportarColaboradoresJob implements ShouldQueue
     public function handle(): void
     {
         if (!class_exists(\PhpOffice\PhpSpreadsheet\IOFactory::class)) {
-            $this->failImport(null, 'Dependência ausente: phpoffice/phpspreadsheet.');
+            $this->failImportDb($this->importacaoId, 'Dependência ausente: phpoffice/phpspreadsheet.');
             return;
         }
 
-        // 1) tenta achar importação (novo formato) SEM scopes (worker não tem auth/request)
+        // 1) Buscar importação por ID (tracking)
         $imp = null;
         if (!empty($this->importacaoId)) {
-            $imp = ColaboradoresImportacao::query()
-                ->withoutGlobalScopes()
-                ->find((int) $this->importacaoId);
+            $imp = DB::table('colaboradores_importacoes')->where('id', (int) $this->importacaoId)->first();
         }
 
-        // 2) fallback para jobs antigos (empresaId + path) SEM scopes
+        // 2) Fallback para payload antigo (empresaId + path)
         if (!$imp && !empty($this->empresaId) && !empty($this->path)) {
-            $imp = ColaboradoresImportacao::query()
-                ->withoutGlobalScopes()
+            $imp = DB::table('colaboradores_importacoes')
                 ->where('empresa_id', (int) $this->empresaId)
                 ->where('arquivo_path', (string) $this->path)
                 ->orderByDesc('id')
                 ->first();
         }
 
-        // com tracking
-        if ($imp) {
-            $empresaId = (int) $imp->empresa_id;
-            $path = (string) $imp->arquivo_path;
-
-            $imp->update([
-                'status' => 'processing',
-                'started_at' => now(),
-                'mensagem_erro' => null,
-            ]);
-
-            // respeita root do disk local (no seu servidor: storage/app/private)
-            $fullPath = Storage::disk('local')->path($path);
-
-            if (!file_exists($fullPath)) {
-                $this->failImport($imp, 'Arquivo não encontrado em disco: ' . $fullPath);
-                return;
-            }
-
-            $this->processarXlsx($empresaId, $fullPath, $imp);
-            return;
-        }
-
-        // sem tracking (job antigo)
-        if (empty($this->empresaId) || empty($this->path)) {
-            Log::warning('ImportarColaboradoresJob: payload inválido (sem tracking)', [
+        if (!$imp) {
+            Log::warning('ImportarColaboradoresJob: importação não encontrada (DB)', [
                 'importacao_id' => $this->importacaoId,
                 'empresa_id' => $this->empresaId,
                 'path' => $this->path,
@@ -98,26 +65,35 @@ class ImportarColaboradoresJob implements ShouldQueue
             return;
         }
 
-        $fullPath = Storage::disk('local')->path((string) $this->path);
+        $importacaoId = (int) $imp->id;
+        $empresaId = (int) $imp->empresa_id;
+        $path = (string) $imp->arquivo_path;
+
+        // ✅ marca processing (DB direto)
+        DB::table('colaboradores_importacoes')->where('id', $importacaoId)->update([
+            'status' => 'processing',
+            'started_at' => now(),
+            'mensagem_erro' => null,
+            'updated_at' => now(),
+        ]);
+
+        // ✅ respeita o root real do disk local (no seu servidor: storage/app/private)
+        $fullPath = Storage::disk('local')->path($path);
 
         if (!file_exists($fullPath)) {
-            Log::warning('ImportarColaboradoresJob: arquivo não encontrado (sem tracking)', [
-                'empresa_id' => $this->empresaId,
-                'path' => $this->path,
-                'full' => $fullPath,
-            ]);
+            $this->failImportDb($importacaoId, 'Arquivo não encontrado em disco: ' . $fullPath);
             return;
         }
 
-        $this->processarXlsx((int) $this->empresaId, $fullPath, null);
+        $this->processarXlsxDb($importacaoId, $empresaId, $fullPath);
     }
 
-    private function processarXlsx(int $empresaId, string $fullPath, ?ColaboradoresImportacao $imp): void
+    private function processarXlsxDb(int $importacaoId, int $empresaId, string $fullPath): void
     {
         try {
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fullPath);
 
-            // evita ler "Instrucoes"
+            // ✅ pega aba Colaboradores se existir
             $sheet = $spreadsheet->getSheetByName('Colaboradores') ?? $spreadsheet->getActiveSheet();
 
             $highestRow = $sheet->getHighestRow();
@@ -138,21 +114,16 @@ class ImportarColaboradoresJob implements ShouldQueue
             $iMat  = $idx('matricula');
 
             if ($iNome === null || $iCpf === null) {
-                if ($imp) {
-                    $this->failImport($imp, 'Cabeçalho inválido. Campos obrigatórios: nome, cpf.');
-                } else {
-                    Log::warning('ImportarColaboradoresJob: cabeçalho inválido (sem tracking)', [
-                        'empresa_id' => $empresaId,
-                        'headers' => $headers,
-                    ]);
-                }
+                $this->failImportDb($importacaoId, 'Cabeçalho inválido. Campos obrigatórios: nome, cpf.');
                 return;
             }
 
             $totalLinhas = max(0, $highestRow - 1);
-            if ($imp) {
-                $imp->update(['total_linhas' => $totalLinhas]);
-            }
+
+            DB::table('colaboradores_importacoes')->where('id', $importacaoId)->update([
+                'total_linhas' => $totalLinhas,
+                'updated_at' => now(),
+            ]);
 
             $importados = 0;
             $ignorados  = 0;
@@ -188,72 +159,87 @@ class ImportarColaboradoresJob implements ShouldQueue
                     }
                 }
 
-                // Upsert por empresa + cpf
-                $colaborador = Colaborador::query()
+                $sx = null;
+                if ($sexo) {
+                    $tmp = mb_strtoupper($sexo);
+                    if (in_array($tmp, ['M', 'F'], true)) $sx = $tmp;
+                }
+
+                // Upsert por empresa_id + cpf (DB direto)
+                $exists = DB::table('colaboradores')
                     ->where('empresa_id', $empresaId)
                     ->where('cpf', $cpf)
                     ->first();
 
-                if (!$colaborador) {
-                    $colaborador = new Colaborador();
-                    $colaborador->empresa_id = $empresaId;
-                    $colaborador->cpf = $cpf;
+                $now = now();
+
+                if ($exists) {
+                    DB::table('colaboradores')
+                        ->where('id', (int) $exists->id)
+                        ->update([
+                            'nome' => $nome,
+                            'sexo' => $sx ?? $exists->sexo,
+                            'matricula' => $matricula ?: $exists->matricula,
+                            'data_admissao' => $dataAdmissao ?: $exists->data_admissao,
+                            'updated_at' => $now,
+                        ]);
+                } else {
+                    DB::table('colaboradores')->insert([
+                        'empresa_id' => $empresaId,
+                        'cpf' => $cpf,
+                        'nome' => $nome,
+                        'sexo' => $sx,
+                        'matricula' => $matricula,
+                        'data_admissao' => $dataAdmissao,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ]);
                 }
 
-                $colaborador->nome = $nome;
-
-                if ($sexo) {
-                    $sx = mb_strtoupper($sexo);
-                    if (in_array($sx, ['M', 'F'], true)) {
-                        $colaborador->sexo = $sx;
-                    }
-                }
-
-                if ($matricula) $colaborador->matricula = $matricula;
-                if ($dataAdmissao) $colaborador->data_admissao = $dataAdmissao;
-
-                $colaborador->save();
                 $importados++;
 
-                if ($imp && (($importados + $ignorados) % 50 === 0)) {
-                    $imp->update(['importados' => $importados, 'ignorados' => $ignorados]);
+                if ((($importados + $ignorados) % 50) === 0) {
+                    DB::table('colaboradores_importacoes')->where('id', $importacaoId)->update([
+                        'importados' => $importados,
+                        'ignorados' => $ignorados,
+                        'updated_at' => $now,
+                    ]);
                 }
             }
 
-            if ($imp) {
-                $imp->update([
-                    'status' => 'done',
-                    'importados' => $importados,
-                    'ignorados' => $ignorados,
-                    'finished_at' => now(),
-                ]);
-            }
+            DB::table('colaboradores_importacoes')->where('id', $importacaoId)->update([
+                'status' => 'done',
+                'importados' => $importados,
+                'ignorados' => $ignorados,
+                'finished_at' => now(),
+                'updated_at' => now(),
+            ]);
 
         } catch (\Throwable $e) {
-            if ($imp) {
-                $this->failImport($imp, $e->getMessage());
-            } else {
-                Log::error('ImportarColaboradoresJob: erro ao processar XLSX (sem tracking)', [
-                    'empresa_id' => $empresaId,
-                    'file' => $fullPath,
-                    'error' => $e->getMessage(),
-                ]);
-            }
+            $this->failImportDb($importacaoId, $e->getMessage());
+
+            Log::error('ImportarColaboradoresJob: erro ao processar XLSX', [
+                'importacao_id' => $importacaoId,
+                'empresa_id' => $empresaId,
+                'file' => $fullPath,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
-    private function failImport(?ColaboradoresImportacao $imp, string $msg): void
+    private function failImportDb(?int $importacaoId, string $msg): void
     {
-        if ($imp) {
-            $imp->update([
+        if ($importacaoId) {
+            DB::table('colaboradores_importacoes')->where('id', (int) $importacaoId)->update([
                 'status' => 'failed',
                 'mensagem_erro' => $msg,
                 'finished_at' => now(),
+                'updated_at' => now(),
             ]);
             return;
         }
 
-        Log::warning('ImportarColaboradoresJob: falha (sem tracking)', [
+        Log::warning('ImportarColaboradoresJob: falha sem importacaoId', [
             'importacao_id' => $this->importacaoId,
             'empresa_id' => $this->empresaId,
             'path' => $this->path,
