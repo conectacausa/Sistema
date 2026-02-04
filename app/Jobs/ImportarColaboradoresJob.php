@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Colaborador;
+use App\Models\ColaboradoresImportacao;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -16,25 +17,37 @@ class ImportarColaboradoresJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $empresaId;
-    public string $path;
-    public int $userId;
+    public int $importacaoId;
 
-    public function __construct(int $empresaId, string $path, int $userId)
+    public function __construct(int $importacaoId)
     {
-        $this->empresaId = $empresaId;
-        $this->path = $path;
-        $this->userId = $userId;
+        $this->importacaoId = $importacaoId;
     }
 
     public function handle(): void
     {
-        $fullPath = Storage::path($this->path);
+        $imp = ColaboradoresImportacao::query()->find($this->importacaoId);
+
+        if (!$imp) {
+            Log::warning('ImportarColaboradoresJob: importação não encontrada', [
+                'importacao_id' => $this->importacaoId,
+            ]);
+            return;
+        }
+
+        $imp->update([
+            'status' => 'processing',
+            'started_at' => now(),
+            'mensagem_erro' => null,
+        ]);
+
+        $fullPath = Storage::path($imp->arquivo_path);
 
         if (!file_exists($fullPath)) {
-            Log::warning('ImportarColaboradoresJob: arquivo não encontrado', [
-                'empresa_id' => $this->empresaId,
-                'path' => $this->path,
+            $imp->update([
+                'status' => 'failed',
+                'mensagem_erro' => 'Arquivo não encontrado em disco.',
+                'finished_at' => now(),
             ]);
             return;
         }
@@ -46,11 +59,8 @@ class ImportarColaboradoresJob implements ShouldQueue
             $highestRow = $sheet->getHighestRow();
             $highestCol = $sheet->getHighestColumn();
 
-            // Lê cabeçalho (linha 1)
             $headerRow = $sheet->rangeToArray("A1:{$highestCol}1", null, true, false);
-            $headers = array_map(function ($h) {
-                return trim(mb_strtolower((string) $h));
-            }, $headerRow[0] ?? []);
+            $headers = array_map(fn($h) => trim(mb_strtolower((string) $h)), $headerRow[0] ?? []);
 
             $idx = function (string $name) use ($headers) {
                 $pos = array_search($name, $headers, true);
@@ -58,23 +68,26 @@ class ImportarColaboradoresJob implements ShouldQueue
             };
 
             $iNome = $idx('nome');
-            $iCpf = $idx('cpf');
+            $iCpf  = $idx('cpf');
             $iSexo = $idx('sexo');
             $iData = $idx('data_admissao');
-            $iMatricula = $idx('matricula');
+            $iMat  = $idx('matricula');
 
             if ($iNome === null || $iCpf === null) {
-                Log::warning('ImportarColaboradoresJob: cabeçalho inválido (nome/cpf obrigatórios)', [
-                    'empresa_id' => $this->empresaId,
-                    'headers' => $headers,
+                $imp->update([
+                    'status' => 'failed',
+                    'mensagem_erro' => 'Cabeçalho inválido. Campos obrigatórios: nome, cpf.',
+                    'finished_at' => now(),
                 ]);
                 return;
             }
 
-            $importados = 0;
-            $ignorados = 0;
+            $totalLinhas = max(0, $highestRow - 1);
+            $imp->update(['total_linhas' => $totalLinhas]);
 
-            // Processa a partir da linha 2
+            $importados = 0;
+            $ignorados  = 0;
+
             for ($row = 2; $row <= $highestRow; $row++) {
                 $values = $sheet->rangeToArray("A{$row}:{$highestCol}{$row}", null, true, false);
                 $line = $values[0] ?? [];
@@ -89,51 +102,43 @@ class ImportarColaboradoresJob implements ShouldQueue
                 }
 
                 $sexo = $iSexo !== null ? trim((string) ($line[$iSexo] ?? '')) : null;
-                $matricula = $iMatricula !== null ? trim((string) ($line[$iMatricula] ?? '')) : null;
+                $matricula = $iMat !== null ? trim((string) ($line[$iMat] ?? '')) : null;
 
                 $dataAdmissao = null;
                 if ($iData !== null) {
                     $cell = $line[$iData] ?? null;
-
-                    // Pode vir como texto "YYYY-MM-DD" ou como serial numérico do Excel
                     if (is_numeric($cell)) {
                         $dt = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float) $cell);
                         $dataAdmissao = Carbon::instance($dt)->format('Y-m-d');
                     } else {
                         $txt = trim((string) $cell);
                         if ($txt !== '') {
-                            try {
-                                $dataAdmissao = Carbon::parse($txt)->format('Y-m-d');
-                            } catch (\Throwable $e) {
-                                $dataAdmissao = null;
-                            }
+                            try { $dataAdmissao = Carbon::parse($txt)->format('Y-m-d'); } catch (\Throwable $e) {}
                         }
                     }
                 }
 
-                // Upsert por cpf + empresa_id
                 $colaborador = Colaborador::query()
-                    ->where('empresa_id', $this->empresaId)
+                    ->where('empresa_id', (int) $imp->empresa_id)
                     ->where('cpf', $cpf)
                     ->first();
 
                 if (!$colaborador) {
                     $colaborador = new Colaborador();
-                    $colaborador->empresa_id = $this->empresaId;
+                    $colaborador->empresa_id = (int) $imp->empresa_id;
                     $colaborador->cpf = $cpf;
                 }
 
                 $colaborador->nome = $nome;
 
-                // Normaliza sexo
-                if ($sexo !== null && $sexo !== '') {
+                if ($sexo) {
                     $sx = mb_strtoupper($sexo);
                     if (in_array($sx, ['M', 'F'], true)) {
                         $colaborador->sexo = $sx;
                     }
                 }
 
-                if ($matricula !== null && $matricula !== '') {
+                if ($matricula) {
                     $colaborador->matricula = $matricula;
                 }
 
@@ -143,21 +148,32 @@ class ImportarColaboradoresJob implements ShouldQueue
 
                 $colaborador->save();
                 $importados++;
+
+                // Atualiza progresso a cada 50 linhas (não pesa na fila)
+                if (($importados + $ignorados) % 50 === 0) {
+                    $imp->update([
+                        'importados' => $importados,
+                        'ignorados' => $ignorados,
+                    ]);
+                }
             }
 
-            Log::info('ImportarColaboradoresJob: finalizado', [
-                'empresa_id' => $this->empresaId,
-                'user_id' => $this->userId,
+            $imp->update([
+                'status' => 'done',
                 'importados' => $importados,
                 'ignorados' => $ignorados,
-                'path' => $this->path,
+                'finished_at' => now(),
             ]);
 
         } catch (\Throwable $e) {
+            $imp->update([
+                'status' => 'failed',
+                'mensagem_erro' => $e->getMessage(),
+                'finished_at' => now(),
+            ]);
+
             Log::error('ImportarColaboradoresJob: erro ao processar', [
-                'empresa_id' => $this->empresaId,
-                'user_id' => $this->userId,
-                'path' => $this->path,
+                'importacao_id' => $this->importacaoId,
                 'error' => $e->getMessage(),
             ]);
         }
