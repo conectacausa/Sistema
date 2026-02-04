@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\ImportarColaboradoresJob;
 use App\Models\ColaboradoresImportacao;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class ColaboradoresImportacaoController extends Controller
 {
@@ -42,7 +43,6 @@ class ColaboradoresImportacaoController extends Controller
         $filename = 'colaboradores_' . $empresaId . '_' . date('Ymd_His') . '_' . uniqid() . '.xlsx';
         $path = $file->storeAs($dir, $filename);
 
-        // cria registro de importação (para acompanhar status)
         $imp = ColaboradoresImportacao::create([
             'empresa_id' => $empresaId,
             'user_id' => (int) auth()->id(),
@@ -51,8 +51,28 @@ class ColaboradoresImportacaoController extends Controller
             'status' => 'queued',
         ]);
 
-        // Dispara Job na fila (passa o id da importação)
-        ImportarColaboradoresJob::dispatch($imp->id);
+        try {
+            // ✅ força conexão/fila corretas e garante insert em `jobs`
+            ImportarColaboradoresJob::dispatch($imp->id)
+                ->onConnection('database')
+                ->onQueue('default');
+        } catch (\Throwable $e) {
+            $imp->update([
+                'status' => 'failed',
+                'mensagem_erro' => 'Falha ao enfileirar job: ' . $e->getMessage(),
+                'finished_at' => now(),
+            ]);
+
+            Log::error('Falha ao enfileirar ImportarColaboradoresJob', [
+                'importacao_id' => $imp->id,
+                'empresa_id' => $empresaId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()
+                ->route('colaboradores.importar.index', ['sub' => $sub])
+                ->with('error', 'Falha ao enfileirar a importação. Verifique logs.');
+        }
 
         return redirect()
             ->route('colaboradores.importar.index', ['sub' => $sub])
@@ -61,7 +81,6 @@ class ColaboradoresImportacaoController extends Controller
 
     public function downloadModelo(Request $request, string $sub)
     {
-        // (mantém o mesmo método que você já tinha)
         $headers = ['nome', 'cpf', 'sexo', 'data_admissao', 'matricula'];
         $exemplo = [
             ['João da Silva', '12345678901', 'M', '2026-01-10', '1001'],
