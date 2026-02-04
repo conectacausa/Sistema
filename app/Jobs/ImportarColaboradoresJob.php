@@ -17,10 +17,10 @@ class ImportarColaboradoresJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    // ✅ IMPORTANTÍSSIMO: default inicializado (evita "must not be accessed before initialization")
+    // ✅ inicializado para evitar typed property error
     public ?int $importacaoId = null;
 
-    // ✅ compatibilidade (jobs antigos)
+    // ✅ compatibilidade com jobs antigos
     public ?int $empresaId = null;
     public ?string $path = null;
     public ?int $userId = null;
@@ -43,21 +43,31 @@ class ImportarColaboradoresJob implements ShouldQueue
 
     public function handle(): void
     {
+        // ✅ garante que a lib existe
         if (!class_exists(\PhpOffice\PhpSpreadsheet\IOFactory::class)) {
             $this->failImport(null, 'Dependência ausente: phpoffice/phpspreadsheet.');
             return;
         }
 
-        // --- NOVO FORMATO (com tracking) ---
+        // 1) tenta achar importação (novo formato)
+        $imp = null;
         if (!empty($this->importacaoId)) {
             $imp = ColaboradoresImportacao::query()->find((int) $this->importacaoId);
+        }
 
-            if (!$imp) {
-                Log::warning('ImportarColaboradoresJob: importação não encontrada', [
-                    'importacao_id' => $this->importacaoId,
-                ]);
-                return;
-            }
+        // 2) fallback para jobs antigos (empresaId + path)
+        if (!$imp && !empty($this->empresaId) && !empty($this->path)) {
+            $imp = ColaboradoresImportacao::query()
+                ->where('empresa_id', (int) $this->empresaId)
+                ->where('arquivo_path', (string) $this->path)
+                ->orderByDesc('id')
+                ->first();
+        }
+
+        // Se encontrou importação, usa ela como fonte oficial
+        if ($imp) {
+            $empresaId = (int) $imp->empresa_id;
+            $path = (string) $imp->arquivo_path;
 
             $imp->update([
                 'status' => 'processing',
@@ -65,8 +75,6 @@ class ImportarColaboradoresJob implements ShouldQueue
                 'mensagem_erro' => null,
             ]);
 
-            $empresaId = (int) $imp->empresa_id;
-            $path = (string) $imp->arquivo_path;
             $fullPath = Storage::path($path);
 
             if (!file_exists($fullPath)) {
@@ -78,9 +86,9 @@ class ImportarColaboradoresJob implements ShouldQueue
             return;
         }
 
-        // --- FORMATO ANTIGO (sem tracking) ---
+        // Sem tracking: processa somente se tiver empresaId+path (job antigo)
         if (empty($this->empresaId) || empty($this->path)) {
-            Log::warning('ImportarColaboradoresJob: payload inválido (sem importacaoId e sem empresaId/path)', [
+            Log::warning('ImportarColaboradoresJob: payload inválido (sem tracking)', [
                 'importacao_id' => $this->importacaoId,
                 'empresa_id' => $this->empresaId,
                 'path' => $this->path,
@@ -91,7 +99,7 @@ class ImportarColaboradoresJob implements ShouldQueue
         $fullPath = Storage::path((string) $this->path);
 
         if (!file_exists($fullPath)) {
-            Log::warning('ImportarColaboradoresJob: arquivo não encontrado (formato antigo)', [
+            Log::warning('ImportarColaboradoresJob: arquivo não encontrado (sem tracking)', [
                 'empresa_id' => $this->empresaId,
                 'path' => $this->path,
                 'full' => $fullPath,
@@ -106,7 +114,9 @@ class ImportarColaboradoresJob implements ShouldQueue
     {
         try {
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fullPath);
-            $sheet = $spreadsheet->getActiveSheet();
+
+            // ✅ pega aba "Colaboradores" se existir (evita ler "Instrucoes")
+            $sheet = $spreadsheet->getSheetByName('Colaboradores') ?? $spreadsheet->getActiveSheet();
 
             $highestRow = $sheet->getHighestRow();
             $highestCol = $sheet->getHighestColumn();
@@ -127,12 +137,21 @@ class ImportarColaboradoresJob implements ShouldQueue
             $iMat  = $idx('matricula');
 
             if ($iNome === null || $iCpf === null) {
-                if ($imp) $this->failImport($imp, 'Cabeçalho inválido. Campos obrigatórios: nome, cpf.');
+                if ($imp) {
+                    $this->failImport($imp, 'Cabeçalho inválido. Campos obrigatórios: nome, cpf.');
+                } else {
+                    Log::warning('ImportarColaboradoresJob: cabeçalho inválido (sem tracking)', [
+                        'empresa_id' => $empresaId,
+                        'headers' => $headers,
+                    ]);
+                }
                 return;
             }
 
             $totalLinhas = max(0, $highestRow - 1);
-            if ($imp) $imp->update(['total_linhas' => $totalLinhas]);
+            if ($imp) {
+                $imp->update(['total_linhas' => $totalLinhas]);
+            }
 
             $importados = 0;
             $ignorados  = 0;
@@ -168,6 +187,7 @@ class ImportarColaboradoresJob implements ShouldQueue
                     }
                 }
 
+                // Upsert por empresa + cpf
                 $colaborador = Colaborador::query()
                     ->where('empresa_id', $empresaId)
                     ->where('cpf', $cpf)
@@ -213,7 +233,7 @@ class ImportarColaboradoresJob implements ShouldQueue
             if ($imp) {
                 $this->failImport($imp, $e->getMessage());
             } else {
-                Log::error('ImportarColaboradoresJob: erro ao processar XLSX (sem importacaoId)', [
+                Log::error('ImportarColaboradoresJob: erro ao processar XLSX (sem tracking)', [
                     'empresa_id' => $empresaId,
                     'file' => $fullPath,
                     'error' => $e->getMessage(),
@@ -233,8 +253,7 @@ class ImportarColaboradoresJob implements ShouldQueue
             return;
         }
 
-        // sem tracking (job antigo), só loga
-        Log::warning('ImportarColaboradoresJob: falha (sem importacaoId)', [
+        Log::warning('ImportarColaboradoresJob: falha (sem tracking)', [
             'importacao_id' => $this->importacaoId,
             'empresa_id' => $this->empresaId,
             'path' => $this->path,
