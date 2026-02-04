@@ -17,19 +17,13 @@ class ImportarColaboradoresJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    // ✅ inicializado para evitar typed property error
     public ?int $importacaoId = null;
 
-    // ✅ compatibilidade com jobs antigos
+    // compatibilidade com jobs antigos
     public ?int $empresaId = null;
     public ?string $path = null;
     public ?int $userId = null;
 
-    /**
-     * Formatos aceitos:
-     * - novo: __construct(int $importacaoId)
-     * - antigo: __construct(int $empresaId, string $path, int $userId)
-     */
     public function __construct(...$args)
     {
         if (count($args) === 1) {
@@ -43,19 +37,18 @@ class ImportarColaboradoresJob implements ShouldQueue
 
     public function handle(): void
     {
-        // ✅ garante que a lib existe
         if (!class_exists(\PhpOffice\PhpSpreadsheet\IOFactory::class)) {
             $this->failImport(null, 'Dependência ausente: phpoffice/phpspreadsheet.');
             return;
         }
 
-        // 1) tenta achar importação (novo formato)
+        // tenta achar importação (novo formato)
         $imp = null;
         if (!empty($this->importacaoId)) {
             $imp = ColaboradoresImportacao::query()->find((int) $this->importacaoId);
         }
 
-        // 2) fallback para jobs antigos (empresaId + path)
+        // fallback para jobs antigos
         if (!$imp && !empty($this->empresaId) && !empty($this->path)) {
             $imp = ColaboradoresImportacao::query()
                 ->where('empresa_id', (int) $this->empresaId)
@@ -64,7 +57,7 @@ class ImportarColaboradoresJob implements ShouldQueue
                 ->first();
         }
 
-        // Se encontrou importação, usa ela como fonte oficial
+        // com tracking
         if ($imp) {
             $empresaId = (int) $imp->empresa_id;
             $path = (string) $imp->arquivo_path;
@@ -75,7 +68,8 @@ class ImportarColaboradoresJob implements ShouldQueue
                 'mensagem_erro' => null,
             ]);
 
-            $fullPath = Storage::path($path);
+            // ✅ aqui é o ponto crítico: respeitar root do disk local (storage/app/private)
+            $fullPath = Storage::disk('local')->path($path);
 
             if (!file_exists($fullPath)) {
                 $this->failImport($imp, 'Arquivo não encontrado em disco: ' . $fullPath);
@@ -86,7 +80,7 @@ class ImportarColaboradoresJob implements ShouldQueue
             return;
         }
 
-        // Sem tracking: processa somente se tiver empresaId+path (job antigo)
+        // sem tracking (job antigo)
         if (empty($this->empresaId) || empty($this->path)) {
             Log::warning('ImportarColaboradoresJob: payload inválido (sem tracking)', [
                 'importacao_id' => $this->importacaoId,
@@ -96,7 +90,7 @@ class ImportarColaboradoresJob implements ShouldQueue
             return;
         }
 
-        $fullPath = Storage::path((string) $this->path);
+        $fullPath = Storage::disk('local')->path((string) $this->path);
 
         if (!file_exists($fullPath)) {
             Log::warning('ImportarColaboradoresJob: arquivo não encontrado (sem tracking)', [
@@ -115,13 +109,12 @@ class ImportarColaboradoresJob implements ShouldQueue
         try {
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fullPath);
 
-            // ✅ pega aba "Colaboradores" se existir (evita ler "Instrucoes")
+            // ✅ evita ler "Instrucoes"
             $sheet = $spreadsheet->getSheetByName('Colaboradores') ?? $spreadsheet->getActiveSheet();
 
             $highestRow = $sheet->getHighestRow();
             $highestCol = $sheet->getHighestColumn();
 
-            // Cabeçalho
             $headerRow = $sheet->rangeToArray("A1:{$highestCol}1", null, true, false);
             $headers = array_map(fn($h) => trim(mb_strtolower((string) $h)), $headerRow[0] ?? []);
 
@@ -149,9 +142,7 @@ class ImportarColaboradoresJob implements ShouldQueue
             }
 
             $totalLinhas = max(0, $highestRow - 1);
-            if ($imp) {
-                $imp->update(['total_linhas' => $totalLinhas]);
-            }
+            if ($imp) $imp->update(['total_linhas' => $totalLinhas]);
 
             $importados = 0;
             $ignorados  = 0;
@@ -187,7 +178,6 @@ class ImportarColaboradoresJob implements ShouldQueue
                     }
                 }
 
-                // Upsert por empresa + cpf
                 $colaborador = Colaborador::query()
                     ->where('empresa_id', $empresaId)
                     ->where('cpf', $cpf)
@@ -203,9 +193,7 @@ class ImportarColaboradoresJob implements ShouldQueue
 
                 if ($sexo) {
                     $sx = mb_strtoupper($sexo);
-                    if (in_array($sx, ['M', 'F'], true)) {
-                        $colaborador->sexo = $sx;
-                    }
+                    if (in_array($sx, ['M', 'F'], true)) $colaborador->sexo = $sx;
                 }
 
                 if ($matricula) $colaborador->matricula = $matricula;
@@ -214,7 +202,6 @@ class ImportarColaboradoresJob implements ShouldQueue
                 $colaborador->save();
                 $importados++;
 
-                // progresso a cada 50 linhas
                 if ($imp && (($importados + $ignorados) % 50 === 0)) {
                     $imp->update(['importados' => $importados, 'ignorados' => $ignorados]);
                 }
