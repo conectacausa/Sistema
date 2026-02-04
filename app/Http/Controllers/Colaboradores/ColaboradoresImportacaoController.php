@@ -4,14 +4,24 @@ namespace App\Http\Controllers\Colaboradores;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\ImportarColaboradoresJob;
+use App\Models\ColaboradoresImportacao;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class ColaboradoresImportacaoController extends Controller
 {
     public function index(Request $request, string $sub)
     {
-        return view('colaboradores.importar');
+        $empresaId = (int) (auth()->user()->empresa_id ?? 0);
+
+        $importacoes = ColaboradoresImportacao::query()
+            ->where('empresa_id', $empresaId)
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get();
+
+        return view('colaboradores.importar', [
+            'importacoes' => $importacoes,
+        ]);
     }
 
     public function store(Request $request, string $sub)
@@ -30,11 +40,19 @@ class ColaboradoresImportacaoController extends Controller
 
         $dir = 'imports/colaboradores';
         $filename = 'colaboradores_' . $empresaId . '_' . date('Ymd_His') . '_' . uniqid() . '.xlsx';
-
         $path = $file->storeAs($dir, $filename);
 
-        // Dispara Job na fila
-        ImportarColaboradoresJob::dispatch($empresaId, $path, (int) auth()->id());
+        // cria registro de importação (para acompanhar status)
+        $imp = ColaboradoresImportacao::create([
+            'empresa_id' => $empresaId,
+            'user_id' => (int) auth()->id(),
+            'arquivo_path' => $path,
+            'arquivo_nome' => $file->getClientOriginalName(),
+            'status' => 'queued',
+        ]);
+
+        // Dispara Job na fila (passa o id da importação)
+        ImportarColaboradoresJob::dispatch($imp->id);
 
         return redirect()
             ->route('colaboradores.importar.index', ['sub' => $sub])
@@ -43,16 +61,8 @@ class ColaboradoresImportacaoController extends Controller
 
     public function downloadModelo(Request $request, string $sub)
     {
-        // Gera um Excel simples via PhpSpreadsheet
-        // (normalmente já vem no projeto por dependência do ecossistema de Excel)
-        $headers = [
-            'nome',
-            'cpf',
-            'sexo',
-            'data_admissao',
-            'matricula',
-        ];
-
+        // (mantém o mesmo método que você já tinha)
+        $headers = ['nome', 'cpf', 'sexo', 'data_admissao', 'matricula'];
         $exemplo = [
             ['João da Silva', '12345678901', 'M', '2026-01-10', '1001'],
             ['Maria Souza',   '98765432100', 'F', '2025-11-05', '1002'],
@@ -63,14 +73,12 @@ class ColaboradoresImportacaoController extends Controller
             $sheet = $spreadsheet->getActiveSheet();
             $sheet->setTitle('Colaboradores');
 
-            // Cabeçalhos
             $col = 1;
             foreach ($headers as $h) {
                 $sheet->setCellValueByColumnAndRow($col, 1, $h);
                 $col++;
             }
 
-            // Linhas exemplo
             $row = 2;
             foreach ($exemplo as $line) {
                 $col = 1;
@@ -81,7 +89,6 @@ class ColaboradoresImportacaoController extends Controller
                 $row++;
             }
 
-            // Ajuste largura
             foreach (range('A', 'E') as $c) {
                 $sheet->getColumnDimension($c)->setAutoSize(true);
             }
