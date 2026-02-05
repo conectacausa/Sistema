@@ -6,10 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Jobs\ImportarColaboradoresJob;
 use App\Models\ColaboradoresImportacao;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class ColaboradoresImportacaoController extends Controller
 {
+    /**
+     * Tela: Colaboradores > Importar
+     * Slug: colaboradores/importar
+     * Tela ID: 14
+     */
     public function index(Request $request, string $sub)
     {
         $empresaId = (int) (auth()->user()->empresa_id ?? 0);
@@ -17,105 +22,103 @@ class ColaboradoresImportacaoController extends Controller
         $importacoes = ColaboradoresImportacao::query()
             ->where('empresa_id', $empresaId)
             ->orderByDesc('id')
-            ->limit(20)
-            ->get();
+            ->paginate(10);
 
         return view('colaboradores.importar', [
             'importacoes' => $importacoes,
         ]);
     }
 
+    /**
+     * Download do modelo Excel
+     * Sugestão: manter em storage/app/private/templates/
+     */
+    public function downloadModelo(Request $request, string $sub)
+    {
+        $path = 'templates/modelo_importacao_colaboradores.xlsx';
+
+        if (!Storage::disk('local')->exists($path)) {
+            return back()->with('error', 'Modelo de importação não encontrado no servidor.');
+        }
+
+        return Storage::disk('local')->download($path, 'modelo_importacao_colaboradores.xlsx');
+    }
+
+    /**
+     * Upload e enfileiramento do Job
+     */
     public function store(Request $request, string $sub)
     {
         $empresaId = (int) (auth()->user()->empresa_id ?? 0);
+        $userId    = (int) (auth()->id() ?? 0);
 
         $request->validate([
-            'arquivo' => ['required', 'file', 'mimes:xlsx', 'max:20480'], // 20MB
+            'arquivo' => ['required', 'file', 'mimes:xlsx,xls', 'max:20480'], // 20MB
         ]);
-
-        if ($empresaId <= 0) {
-            return back()->with('error', 'Empresa inválida para importação.');
-        }
 
         $file = $request->file('arquivo');
 
         $dir = 'imports/colaboradores';
-        $filename = 'colaboradores_' . $empresaId . '_' . date('Ymd_His') . '_' . uniqid() . '.xlsx';
-        $path = $file->storeAs($dir, $filename);
+        $ext = $file->getClientOriginalExtension() ?: 'xlsx';
+
+        $nomeOriginal = $file->getClientOriginalName() ?: 'importacao.xlsx';
+
+        $filename = 'colaboradores_' . $empresaId . '_' . now()->format('Ymd_His') . '_' . substr(md5(uniqid('', true)), 0, 12) . '.' . $ext;
+
+        // ✅ salva explicitamente no disk local (no seu servidor: storage/app/private)
+        $path = $file->storeAs($dir, $filename, 'local');
+
+        // ✅ valida se gravou em disco mesmo
+        $fullPath = Storage::disk('local')->path($path);
+        if (!file_exists($fullPath)) {
+            return back()->with('error', 'Falha ao salvar o arquivo de importação no servidor.');
+        }
 
         $imp = ColaboradoresImportacao::create([
             'empresa_id' => $empresaId,
-            'user_id' => (int) auth()->id(),
+            'user_id' => $userId,
             'arquivo_path' => $path,
-            'arquivo_nome' => $file->getClientOriginalName(),
+            'arquivo_nome' => $nomeOriginal,
             'status' => 'queued',
+            'total_linhas' => null,
+            'importados' => 0,
+            'ignorados' => 0,
+            'rejeitados_count' => 0,
+            'rejeitados_path' => null,
+            'mensagem_erro' => null,
+            'started_at' => null,
+            'finished_at' => null,
         ]);
 
-        try {
-            // ✅ força conexão/fila corretas e garante insert em `jobs`
-            ImportarColaboradoresJob::dispatch($imp->id)
-                ->onConnection('database')
-                ->onQueue('default');
-        } catch (\Throwable $e) {
-            $imp->update([
-                'status' => 'failed',
-                'mensagem_erro' => 'Falha ao enfileirar job: ' . $e->getMessage(),
-                'finished_at' => now(),
-            ]);
-
-            Log::error('Falha ao enfileirar ImportarColaboradoresJob', [
-                'importacao_id' => $imp->id,
-                'empresa_id' => $empresaId,
-                'error' => $e->getMessage(),
-            ]);
-
-            return redirect()
-                ->route('colaboradores.importar.index', ['sub' => $sub])
-                ->with('error', 'Falha ao enfileirar a importação. Verifique logs.');
-        }
+        ImportarColaboradoresJob::dispatch($imp->id)
+            ->onConnection('database')
+            ->onQueue('default');
 
         return redirect()
             ->route('colaboradores.importar.index', ['sub' => $sub])
-            ->with('success', 'Arquivo enviado! A importação foi colocada na fila para processamento.');
+            ->with('success', 'Importação enviada para processamento.');
     }
 
-    public function downloadModelo(Request $request, string $sub)
+    /**
+     * Download do CSV de rejeitados
+     */
+    public function downloadRejeitados(Request $request, string $sub, int $id)
     {
-        $headers = ['nome', 'cpf', 'sexo', 'data_admissao', 'matricula'];
-        $exemplo = [
-            ['João da Silva', '12345678901', 'M', '2026-01-10', '1001'],
-            ['Maria Souza',   '98765432100', 'F', '2025-11-05', '1002'],
-        ];
+        $empresaId = (int) (auth()->user()->empresa_id ?? 0);
 
-        return response()->streamDownload(function () use ($headers, $exemplo) {
-            $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-            $sheet = $spreadsheet->getActiveSheet();
-            $sheet->setTitle('Colaboradores');
+        $imp = ColaboradoresImportacao::query()
+            ->where('empresa_id', $empresaId)
+            ->where('id', $id)
+            ->firstOrFail();
 
-            $col = 1;
-            foreach ($headers as $h) {
-                $sheet->setCellValueByColumnAndRow($col, 1, $h);
-                $col++;
-            }
+        if (empty($imp->rejeitados_path) || !Storage::disk('local')->exists($imp->rejeitados_path)) {
+            return back()->with('error', 'Arquivo de rejeitados não encontrado para esta importação.');
+        }
 
-            $row = 2;
-            foreach ($exemplo as $line) {
-                $col = 1;
-                foreach ($line as $val) {
-                    $sheet->setCellValueByColumnAndRow($col, $row, $val);
-                    $col++;
-                }
-                $row++;
-            }
+        $filename = 'rejeitados_importacao_' . $imp->id . '.csv';
 
-            foreach (range('A', 'E') as $c) {
-                $sheet->getColumnDimension($c)->setAutoSize(true);
-            }
-
-            $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-            $writer->save('php://output');
-        }, 'modelo_importacao_colaboradores.xlsx', [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        return Storage::disk('local')->download($imp->rejeitados_path, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
         ]);
     }
 }
