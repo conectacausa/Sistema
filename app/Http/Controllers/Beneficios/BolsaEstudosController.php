@@ -66,7 +66,7 @@ class BolsaEstudosController extends Controller
         if ($q !== '') {
             $query->where(function ($w) use ($q) {
                 $w->whereRaw('LOWER(p.ciclo) LIKE ?', ['%' . mb_strtolower($q) . '%'])
-                  ->orWhereRaw('CAST(p.id AS TEXT) LIKE ?', ['%' . $q . '%']);
+                    ->orWhereRaw('CAST(p.id AS TEXT) LIKE ?', ['%' . $q . '%']);
             });
         }
 
@@ -110,7 +110,7 @@ class BolsaEstudosController extends Controller
         if ($q !== '') {
             $query->where(function ($w) use ($q) {
                 $w->whereRaw('LOWER(p.ciclo) LIKE ?', ['%' . mb_strtolower($q) . '%'])
-                  ->orWhereRaw('CAST(p.id AS TEXT) LIKE ?', ['%' . $q . '%']);
+                    ->orWhereRaw('CAST(p.id AS TEXT) LIKE ?', ['%' . $q . '%']);
             });
         }
 
@@ -138,16 +138,16 @@ class BolsaEstudosController extends Controller
         $empresaId = $this->empresaId();
 
         $v = Validator::make($request->all(), [
-            'ciclo' => ['required','string','max:160'],
-            'edital' => ['nullable','string'],
+            'ciclo' => ['required', 'string', 'max:160'],
+            'edital' => ['nullable', 'string'],
             'inscricoes_inicio_at' => ['nullable'],
             'inscricoes_fim_at' => ['nullable'],
-            'status' => ['nullable','integer'],
-            'data_base' => ['nullable','date'],
+            'status' => ['nullable', 'integer'],
+            'data_base' => ['nullable', 'date'],
             'valor_mensal' => ['nullable'],
-            'meses_duracao' => ['nullable','integer','min:0','max:120'],
-            'lembrete_recibo_ativo' => ['nullable','integer','in:0,1'],
-            'lembrete_recibo_dias_antes' => ['nullable','integer','min:0','max:365'],
+            'meses_duracao' => ['nullable', 'integer', 'min:0', 'max:120'],
+            'lembrete_recibo_ativo' => ['nullable', 'integer', 'in:0,1'],
+            'lembrete_recibo_dias_antes' => ['nullable', 'integer', 'min:0', 'max:365'],
         ]);
 
         if ($v->fails()) {
@@ -196,12 +196,11 @@ class BolsaEstudosController extends Controller
                 ->with('error', 'Processo não encontrado.');
         }
 
-        // Filiais empresa (modal unidades)
         $filiaisEmpresa = DB::table('filiais')
             ->where('empresa_id', $empresaId)
             ->when($this->hasColumn('filiais', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
             ->orderBy('id')
-            ->get(['id','nome_fantasia','razao_social']);
+            ->get(['id', 'nome_fantasia', 'razao_social']);
 
         $filiaisVinculadasIds = DB::table('bolsa_estudos_processo_filiais')
             ->where('processo_id', $id)
@@ -210,7 +209,6 @@ class BolsaEstudosController extends Controller
             ->map(fn($v) => (int)$v)
             ->toArray();
 
-        // Unidades grid
         $unidades = DB::table('bolsa_estudos_processo_filiais as pf')
             ->select([
                 'pf.id as vinculo_id',
@@ -221,7 +219,7 @@ class BolsaEstudosController extends Controller
                 DB::raw("COALESCE(SUM(s.valor_limite) FILTER (WHERE s.status = 2 AND COALESCE(s.filial_id, c.filial_id) = pf.filial_id), 0) as soma_limite_aprovados"),
             ])
             ->join('filiais as f', 'f.id', '=', 'pf.filial_id')
-            ->leftJoin('bolsa_estudos_solicitacoes as s', function($j){
+            ->leftJoin('bolsa_estudos_solicitacoes as s', function ($j) {
                 $j->on('s.processo_id', '=', 'pf.processo_id');
                 if ($this->hasColumn('bolsa_estudos_solicitacoes', 'deleted_at')) {
                     $j->whereNull('s.deleted_at');
@@ -231,17 +229,10 @@ class BolsaEstudosController extends Controller
             ->where('pf.processo_id', $id)
             ->where('f.empresa_id', $empresaId)
             ->when($this->hasColumn('bolsa_estudos_processo_filiais', 'deleted_at'), fn($q) => $q->whereNull('pf.deleted_at'))
-            ->groupBy('pf.id','pf.filial_id','f.nome_fantasia','f.razao_social')
+            ->groupBy('pf.id', 'pf.filial_id', 'f.nome_fantasia', 'f.razao_social')
             ->orderBy('pf.filial_id')
             ->get();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Solicitantes (CORRIGIDO)
-        | - Se existir s.entidade_id: usa direto
-        | - Se NÃO existir: entidade vem por cu.entidade_id
-        |--------------------------------------------------------------------------
-        */
         $hasEntidadeId = $this->hasColumn('bolsa_estudos_solicitacoes', 'entidade_id');
 
         $solicitantesQ = DB::table('bolsa_estudos_solicitacoes as s')
@@ -257,7 +248,7 @@ class BolsaEstudosController extends Controller
                 DB::raw("e.nome as entidade_nome"),
             ])
             ->join('colaboradores as c', 'c.id', '=', 's.colaborador_id')
-            ->leftJoin('filiais as f', function($j){
+            ->leftJoin('filiais as f', function ($j) {
                 $j->on('f.id', '=', DB::raw('COALESCE(s.filial_id, c.filial_id)'));
             })
             ->leftJoin('bolsa_estudos_cursos as cu', 'cu.id', '=', 's.curso_id');
@@ -275,7 +266,6 @@ class BolsaEstudosController extends Controller
             ->orderByDesc('s.id')
             ->get();
 
-        // Documentos (tab)
         $docQ = trim((string)$request->get('doc_q', ''));
         $docStatus = trim((string)$request->get('doc_status', ''));
 
@@ -283,7 +273,6 @@ class BolsaEstudosController extends Controller
             ->paginate(10)
             ->appends(['doc_q' => $docQ, 'doc_status' => $docStatus]);
 
-        // Select de solicitantes para docs (modal)
         $solicitantesParaDocs = DB::table('bolsa_estudos_solicitacoes as s')
             ->select([
                 's.id',
@@ -292,7 +281,7 @@ class BolsaEstudosController extends Controller
                 'cu.nome as curso',
             ])
             ->join('colaboradores as c', 'c.id', '=', 's.colaborador_id')
-            ->leftJoin('filiais as f', function($j){
+            ->leftJoin('filiais as f', function ($j) {
                 $j->on('f.id', '=', DB::raw('COALESCE(s.filial_id, c.filial_id)'));
             })
             ->leftJoin('bolsa_estudos_cursos as cu', 'cu.id', '=', 's.curso_id')
@@ -331,16 +320,16 @@ class BolsaEstudosController extends Controller
         }
 
         $v = Validator::make($request->all(), [
-            'ciclo' => ['required','string','max:160'],
-            'edital' => ['nullable','string'],
+            'ciclo' => ['required', 'string', 'max:160'],
+            'edital' => ['nullable', 'string'],
             'inscricoes_inicio_at' => ['nullable'],
             'inscricoes_fim_at' => ['nullable'],
-            'status' => ['nullable','integer'],
-            'data_base' => ['nullable','date'],
+            'status' => ['nullable', 'integer'],
+            'data_base' => ['nullable', 'date'],
             'valor_mensal' => ['nullable'],
-            'meses_duracao' => ['nullable','integer','min:0','max:120'],
-            'lembrete_recibo_ativo' => ['nullable','integer','in:0,1'],
-            'lembrete_recibo_dias_antes' => ['nullable','integer','min:0','max:365'],
+            'meses_duracao' => ['nullable', 'integer', 'min:0', 'max:120'],
+            'lembrete_recibo_ativo' => ['nullable', 'integer', 'in:0,1'],
+            'lembrete_recibo_dias_antes' => ['nullable', 'integer', 'min:0', 'max:365'],
         ]);
 
         if ($v->fails()) {
@@ -399,7 +388,7 @@ class BolsaEstudosController extends Controller
         $empresaId = $this->empresaId();
 
         $v = Validator::make($request->all(), [
-            'filial_id' => ['required','integer'],
+            'filial_id' => ['required', 'integer'],
         ]);
 
         if ($v->fails()) {
@@ -473,7 +462,7 @@ class BolsaEstudosController extends Controller
         $empresaId = $this->empresaId();
 
         $v = Validator::make($request->all(), [
-            'colaborador_id' => ['required','integer'],
+            'colaborador_id' => ['required', 'integer'],
             'entidade_nome' => ['required'],
             'curso_nome' => ['required'],
             'valor_total_mensalidade' => ['required'],
@@ -488,7 +477,7 @@ class BolsaEstudosController extends Controller
         $col = DB::table('colaboradores')
             ->where('id', $colId)
             ->when($this->hasColumn('colaboradores', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
-            ->first(['id','filial_id','nome']);
+            ->first(['id', 'filial_id', 'nome']);
 
         if (!$col) {
             return redirect()->back()->with('error', 'Colaborador não encontrado.');
@@ -511,12 +500,10 @@ class BolsaEstudosController extends Controller
             'updated_at' => now(),
         ];
 
-        // ✅ só grava filial_id se existir
         if ($this->hasColumn('bolsa_estudos_solicitacoes', 'filial_id')) {
             $data['filial_id'] = $col->filial_id ? (int)$col->filial_id : null;
         }
 
-        // ✅ só grava entidade_id se existir
         if ($this->hasColumn('bolsa_estudos_solicitacoes', 'entidade_id')) {
             $data['entidade_id'] = $entidadeId ?: null;
         }
@@ -546,56 +533,96 @@ class BolsaEstudosController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | Lookup colaborador por matrícula (modal)
+    | Lookup colaborador por matrícula OU busca por nome (live search)
+    |--------------------------------------------------------------------------
+    | - ?matricula=3747  => ok=true,data{...}
+    | - ?q=joao          => ok=true,results[{id,text,matricula,filial_nome}]
     |--------------------------------------------------------------------------
     */
     public function colaboradorPorMatricula(Request $request, string $sub)
     {
         $empresaId = $this->empresaId();
 
-        $matricula = trim((string)$request->get('matricula', ''));
-        if ($matricula === '') {
-            return response()->json(['ok' => false, 'data' => null]);
-        }
-
-        $matriculaNorm = preg_replace('/\s+/', '', $matricula);
-
         if (!$this->hasColumn('colaboradores', 'matricula')) {
-            return response()->json(['ok' => false, 'data' => null]);
+            return response()->json(['ok' => false, 'data' => null, 'results' => []]);
         }
 
-        $colQ = DB::table('colaboradores as c')
+        $matricula = trim((string)$request->get('matricula', ''));
+        $qNome = trim((string)($request->get('q', $request->get('nome', ''))));
+
+        // ----------------------------
+        // 1) LIVE SEARCH por nome
+        // ----------------------------
+        if ($matricula === '' && $qNome !== '') {
+            $term = mb_strtolower($qNome);
+
+            $rows = DB::table('colaboradores as c')
+                ->select([
+                    'c.id',
+                    'c.nome',
+                    'c.filial_id',
+                    DB::raw('TRIM(CAST(c.matricula AS TEXT)) as matricula_txt'),
+                    DB::raw("COALESCE(f.nome_fantasia, f.razao_social) as filial_nome"),
+                ])
+                ->leftJoin('filiais as f', function ($j) use ($empresaId) {
+                    $j->on('f.id', '=', 'c.filial_id')
+                      ->where('f.empresa_id', '=', $empresaId);
+                    if ($this->hasColumn('filiais', 'deleted_at')) {
+                        $j->whereNull('f.deleted_at');
+                    }
+                })
+                ->whereRaw('LOWER(c.nome) LIKE ?', ['%' . $term . '%'])
+                ->when($this->hasColumn('colaboradores', 'deleted_at'), fn($qq) => $qq->whereNull('c.deleted_at'))
+                ->orderBy('c.nome')
+                ->limit(20)
+                ->get();
+
+            $results = $rows->map(function ($r) {
+                return [
+                    'id' => (int)$r->id,
+                    'text' => (string)$r->nome,
+                    'nome' => (string)$r->nome,
+                    'matricula' => (string)($r->matricula_txt ?? ''),
+                    'filial_id' => $r->filial_id ? (int)$r->filial_id : null,
+                    'filial_nome' => $r->filial_nome ?: null,
+                ];
+            })->values();
+
+            return response()->json([
+                'ok' => true,
+                'results' => $results,
+            ]);
+        }
+
+        // ----------------------------
+        // 2) Busca EXATA por matrícula
+        // ----------------------------
+        $matriculaNorm = preg_replace('/\s+/', '', $matricula);
+        if ($matriculaNorm === '') {
+            return response()->json(['ok' => false, 'data' => null, 'results' => []]);
+        }
+
+        $col = DB::table('colaboradores as c')
             ->select([
                 'c.id',
                 'c.nome',
                 'c.filial_id',
-                DB::raw('CAST(c.matricula AS TEXT) as matricula_txt'),
+                DB::raw('TRIM(CAST(c.matricula AS TEXT)) as matricula_txt'),
+                DB::raw("COALESCE(f.nome_fantasia, f.razao_social) as filial_nome"),
             ])
-            ->whereRaw("TRIM(CAST(c.matricula AS TEXT)) = ?", [$matriculaNorm]);
-
-        if ($this->hasColumn('colaboradores', 'deleted_at')) {
-            $colQ->whereNull('c.deleted_at');
-        }
-
-        $col = $colQ->first();
+            ->leftJoin('filiais as f', function ($j) use ($empresaId) {
+                $j->on('f.id', '=', 'c.filial_id')
+                  ->where('f.empresa_id', '=', $empresaId);
+                if ($this->hasColumn('filiais', 'deleted_at')) {
+                    $j->whereNull('f.deleted_at');
+                }
+            })
+            ->whereRaw("TRIM(CAST(c.matricula AS TEXT)) = ?", [$matriculaNorm])
+            ->when($this->hasColumn('colaboradores', 'deleted_at'), fn($qq) => $qq->whereNull('c.deleted_at'))
+            ->first();
 
         if (!$col) {
-            return response()->json(['ok' => false, 'data' => null]);
-        }
-
-        $filialNome = null;
-        $filialId = (int)($col->filial_id ?? 0);
-
-        if ($filialId > 0) {
-            $fil = DB::table('filiais')
-                ->where('id', $filialId)
-                ->where('empresa_id', $empresaId)
-                ->when($this->hasColumn('filiais', 'deleted_at'), fn($q) => $q->whereNull('deleted_at'))
-                ->first(['nome_fantasia', 'razao_social']);
-
-            if ($fil) {
-                $filialNome = $fil->nome_fantasia ?: $fil->razao_social;
-            }
+            return response()->json(['ok' => false, 'data' => null, 'results' => []]);
         }
 
         return response()->json([
@@ -603,9 +630,11 @@ class BolsaEstudosController extends Controller
             'data' => [
                 'id' => (int)$col->id,
                 'nome' => (string)$col->nome,
-                'filial_id' => $filialId ?: null,
-                'filial_nome' => $filialNome,
+                'matricula' => (string)($col->matricula_txt ?? ''),
+                'filial_id' => $col->filial_id ? (int)$col->filial_id : null,
+                'filial_nome' => $col->filial_nome ?: null,
             ],
+            'results' => [],
         ]);
     }
 
@@ -630,7 +659,7 @@ class BolsaEstudosController extends Controller
             $query->whereRaw('LOWER(nome) LIKE ?', ['%' . mb_strtolower($q) . '%']);
         }
 
-        $items = $query->orderBy('nome')->limit(20)->get(['id','nome']);
+        $items = $query->orderBy('nome')->limit(20)->get(['id', 'nome']);
 
         return response()->json([
             'results' => $items->map(fn($i) => ['id' => (string)$i->id, 'text' => $i->nome])->values()
@@ -658,7 +687,7 @@ class BolsaEstudosController extends Controller
             $query->whereRaw('LOWER(nome) LIKE ?', ['%' . mb_strtolower($q) . '%']);
         }
 
-        $items = $query->orderBy('nome')->limit(20)->get(['id','nome']);
+        $items = $query->orderBy('nome')->limit(20)->get(['id', 'nome']);
 
         return response()->json([
             'results' => $items->map(fn($i) => ['id' => (string)$i->id, 'text' => $i->nome])->values()
@@ -706,9 +735,9 @@ class BolsaEstudosController extends Controller
         }
 
         if ($q !== '') {
-            $query->where(function($w) use ($q){
-                $w->whereRaw('LOWER(d.titulo) LIKE ?', ['%'.mb_strtolower($q).'%'])
-                  ->orWhereRaw('LOWER(COALESCE(c.nome, \'\')) LIKE ?', ['%'.mb_strtolower($q).'%']);
+            $query->where(function ($w) use ($q) {
+                $w->whereRaw('LOWER(d.titulo) LIKE ?', ['%' . mb_strtolower($q) . '%'])
+                    ->orWhereRaw('LOWER(COALESCE(c.nome, \'\')) LIKE ?', ['%' . mb_strtolower($q) . '%']);
             });
         }
 
