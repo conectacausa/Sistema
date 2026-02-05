@@ -9,6 +9,7 @@
   <title>{{ config('app.name', 'ConecttaRH') }} | Bolsa de Estudos</title>
 
   <link rel="stylesheet" href="{{ asset('assets/css/vendors_css.css') }}">
+  <link rel="stylesheet" href="{{ asset('assets/vendor_plugins/select2/select2.min.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
 
@@ -527,12 +528,8 @@
             <div class="col-md-4 col-12">
               <div class="form-group">
                 <label class="form-label">Nome</label>
-
-                {{-- ✅ Nome com busca (Select2) --}}
                 <select id="sol_nome_select" class="form-control"></select>
-
-                {{-- Campo só para exibir (mantém seu visual atual) --}}
-                <input type="text" id="sol_nome" class="form-control mt-2" disabled>
+                <small id="sol_nome_msg" class="text-danger d-none">Colaborador não encontrado.</small>
               </div>
             </div>
 
@@ -667,6 +664,7 @@
 </div>
 
 <script src="{{ asset('assets/js/vendors.min.js') }}"></script>
+<script src="{{ asset('assets/vendor_plugins/select2/select2.full.js') }}"></script>
 <script src="{{ asset('assets/js/pages/chat-popup.js') }}"></script>
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
 
@@ -739,49 +737,145 @@
   recalcTotal();
 
   // ----------------------------
-  // Modal solicitante: matrícula -> preencher nome/filial
-  // ----------------------------
-  window.CON_COLAB_URL = @json(route('beneficios.bolsa.colaborador_por_matricula', ['sub' => request()->route('sub')]));
-  let solTimer = null;
-  const $mat = document.getElementById('sol_matricula');
-  const $msg = document.getElementById('sol_matricula_msg');
-  const $cid = document.getElementById('sol_colaborador_id');
-  const $nome = document.getElementById('sol_nome');
-  const $filial = document.getElementById('sol_filial');
+// Modal solicitante: matrícula OU nome -> preencher id/matricula/filial
+// ----------------------------
+window.CON_COLAB_URL = @json(route('beneficios.bolsa.colaborador_por_matricula', ['sub' => request()->route('sub')]));
 
-  function solSetNotFound(){
-    $msg?.classList.remove('d-none');
-    if ($cid) $cid.value = '';
-    if ($nome) $nome.value = '';
-    if ($filial) $filial.value = '';
+let solTimer = null;
+const $mat = document.getElementById('sol_matricula');
+const $msgMat = document.getElementById('sol_matricula_msg');
+const $msgNome = document.getElementById('sol_nome_msg');
+const $cid = document.getElementById('sol_colaborador_id');
+const $filial = document.getElementById('sol_filial');
+
+function solClear(){
+  if ($cid) $cid.value = '';
+  if ($filial) $filial.value = '';
+}
+
+function solSetNotFound(origin){
+  solClear();
+  if (origin === 'mat') {
+    $msgMat?.classList.remove('d-none');
+    $msgNome?.classList.add('d-none');
+  } else {
+    $msgNome?.classList.remove('d-none');
+    $msgMat?.classList.add('d-none');
   }
-  function solSetFound(data){
-    $msg?.classList.add('d-none');
-    if ($cid) $cid.value = data.id || '';
-    if ($nome) $nome.value = data.nome || '';
-    if ($filial) $filial.value = data.filial_nome || '';
+}
+
+function solSetFound(data){
+  $msgMat?.classList.add('d-none');
+  $msgNome?.classList.add('d-none');
+
+  if ($cid) $cid.value = data.id || '';
+  if ($filial) $filial.value = data.filial_nome || '';
+
+  if ($mat && data.matricula !== undefined && data.matricula !== null) {
+    $mat.value = String(data.matricula);
   }
 
-  $mat?.addEventListener('input', function(){
-    clearTimeout(solTimer);
-    const matricula = this.value.trim();
-    if (!matricula) { solSetNotFound(); $msg?.classList.add('d-none'); return; }
+  // Atualiza o select2 de nome para mostrar o selecionado
+  if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
+    const $sel = jQuery('#sol_nome_select');
+    const opt = new Option(data.nome || '', String(data.id || ''), true, true);
+    $sel.append(opt).trigger('change');
+  }
+}
 
-    solTimer = setTimeout(async () => {
-      try{
-        const url = new URL(window.CON_COLAB_URL, window.location.origin);
-        url.searchParams.set('matricula', matricula);
+// ✅ Digitar MATRÍCULA => busca e preenche Nome/Filial
+$mat?.addEventListener('input', function(){
+  clearTimeout(solTimer);
+  const matricula = this.value.trim();
 
-        const res = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-        const json = await res.json();
+  // se limpou, limpa tudo e esconde msg
+  if (!matricula) {
+    solClear();
+    $msgMat?.classList.add('d-none');
+    return;
+  }
 
-        if (json && json.ok) solSetFound(json.data);
-        else solSetNotFound();
-      }catch(e){
-        solSetNotFound();
+  solTimer = setTimeout(async () => {
+    try{
+      const url = new URL(window.CON_COLAB_URL, window.location.origin);
+      url.searchParams.set('matricula', matricula);
+
+      const res = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const json = await res.json();
+
+      if (json && json.ok && json.data) {
+        solSetFound(json.data);
+      } else {
+        solSetNotFound('mat');
       }
-    }, 350);
+    }catch(e){
+      solSetNotFound('mat');
+    }
+  }, 300);
+});
+
+// ✅ Nome com Select2 (live search) => selecionou => preenche Matrícula/Filial/ID
+(function initNomeSelect2(){
+  if (!window.jQuery || !jQuery.fn || !jQuery.fn.select2) return;
+
+  const $nomeSel = jQuery('#sol_nome_select');
+
+  $nomeSel.select2({
+    width: '100%',
+    dropdownParent: jQuery('#modalAddSolicitante'),
+    placeholder: 'Digite para buscar por nome...',
+    allowClear: true,
+    minimumInputLength: 2,
+    ajax: {
+      url: window.CON_COLAB_URL,
+      dataType: 'json',
+      delay: 250,
+      data: function(params){
+        return { q: params.term || '' };
+      },
+      processResults: function(resp){
+        if (!resp || !resp.ok || !Array.isArray(resp.results)) return { results: [] };
+
+        return {
+          results: resp.results.map(function(r){
+            return {
+              id: r.id,
+              text: r.text || r.nome || '',
+              matricula: r.matricula || '',
+              filial_nome: r.filial_nome || ''
+            };
+          })
+        };
+      },
+      cache: true
+    }
   });
+
+  $nomeSel.on('select2:select', function(e){
+    const d = e.params && e.params.data ? e.params.data : null;
+    if (!d) return;
+
+    $msgNome?.classList.add('d-none');
+    $msgMat?.classList.add('d-none');
+
+    if ($cid) $cid.value = d.id || '';
+    if ($mat) $mat.value = String(d.matricula || '');
+    if ($filial) $filial.value = d.filial_nome || '';
+  });
+
+  $nomeSel.on('select2:clear', function(){
+    solClear();
+    $msgNome?.classList.add('d-none');
+    $msgMat?.classList.add('d-none');
+  });
+
+  // ao abrir modal: reset mensagens e não duplicar options antigas
+  jQuery('#modalAddSolicitante').on('shown.bs.modal', function(){
+    $msgNome?.classList.add('d-none');
+    $msgMat?.classList.add('d-none');
+  });
+})();
+
 
   // ----------------------------
   // Select2 (Entidade + Curso)
@@ -822,6 +916,8 @@
 
     // ENTIDADE: select com busca AJAX (sem tags)
     $ent.select2({
+      width: '100%',
+      dropdownParent: jQuery('#modalAddSolicitante'),
       theme: "default",
       placeholder: "Digite para buscar...",
       allowClear: true,
@@ -855,21 +951,23 @@
       $cur.closest('.form-group')?.find('small.text-muted')?.text('');
 
       $cur.select2({
-        theme: "default",
-        placeholder: "Digite para buscar...",
-        allowClear: true,
-        minimumInputLength: 1,
-        ajax: {
-          url: window.CON_CURSOS_SEARCH,
-          dataType: 'json',
-          delay: 250,
-          data: function (params) {
-            return { q: params.term || '', entidade_id: entidadeId };
-          },
-          processResults: function (data) { return data; },
-          cache: true
-        }
-      });
+      width: '100%',
+      dropdownParent: jQuery('#modalAddSolicitante'),
+      theme: "default",
+      placeholder: "Digite para buscar...",
+      allowClear: true,
+      minimumInputLength: 1,
+      ajax: {
+        url: window.CON_CURSOS_SEARCH,
+        dataType: 'json',
+        delay: 250,
+        data: function (params) {
+          return { q: params.term || '', entidade_id: entidadeId };
+        },
+        processResults: function (data) { return data; },
+        cache: true
+      }
+    });
     }
 
     function enableCursoFreeText(){
