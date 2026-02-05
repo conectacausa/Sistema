@@ -16,6 +16,7 @@ use App\Http\Controllers\Config\FiliaisController;
 
 // COLABORADORES
 use App\Http\Controllers\Colaboradores\ColaboradoresController;
+use App\Http\Controllers\Colaboradores\ColaboradoresImportacaoController;
 
 // BENEFÍCIOS
 use App\Http\Controllers\Beneficios\BolsaEstudosController;
@@ -68,6 +69,11 @@ Route::domain('{sub}.conecttarh.com.br')
             Route::get('/colaboradores/importar/modelo', [\App\Http\Controllers\Colaboradores\ColaboradoresImportacaoController::class, 'downloadModelo'])
                 ->middleware('screen:14')
                 ->name('colaboradores.importar.modelo');
+
+            Route::get('/colaboradores/importar/{id}/rejeitados', [ColaboradoresImportacaoController::class, 'downloadRejeitados'])
+                ->whereNumber('id')
+                ->middleware('screen:14')
+                ->name('colaboradores.importar.rejeitados');
 
             /*
             |--------------------------------------------------------------------------
