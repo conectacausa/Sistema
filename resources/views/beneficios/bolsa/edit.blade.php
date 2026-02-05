@@ -527,7 +527,12 @@
             <div class="col-md-4 col-12">
               <div class="form-group">
                 <label class="form-label">Nome</label>
-                <input type="text" id="sol_nome" class="form-control" disabled>
+
+                {{-- ✅ Nome com busca (Select2) --}}
+                <select id="sol_nome_select" class="form-control"></select>
+
+                {{-- Campo só para exibir (mantém seu visual atual) --}}
+                <input type="text" id="sol_nome" class="form-control mt-2" disabled>
               </div>
             </div>
 
@@ -543,7 +548,6 @@
             <div class="col-md-6 col-12">
               <div class="form-group">
                 <label class="form-label">Entidade</label>
-                {{-- ✅ Select2 com busca + criação --}}
                 <select name="entidade_nome" id="sol_entidade_select" class="form-control" required></select>
               </div>
             </div>
@@ -551,7 +555,6 @@
             <div class="col-md-6 col-12">
               <div class="form-group">
                 <label class="form-label">Curso</label>
-                {{-- ✅ Select2 com busca por entidade + criação --}}
                 <select name="curso_nome" id="sol_curso_select" class="form-control" required disabled></select>
                 <small class="text-muted">Selecione a entidade primeiro.</small>
               </div>
