@@ -134,6 +134,11 @@ class ImportarColaboradoresJob implements ShouldQueue
                 $cpfRaw = (string) ($line[$iCpf] ?? '');
                 $cpf = preg_replace('/\D+/', '', $cpfRaw);
 
+                // ✅ Se veio numérico e perdeu zero à esquerda, completa até 11
+                if ($cpf !== '' && strlen($cpf) < 11) {
+                    $cpf = str_pad($cpf, 11, '0', STR_PAD_LEFT);
+                }
+
                 $motivo = null;
 
                 if ($nome === '') {
