@@ -35,7 +35,6 @@
                       <i class="mdi mdi-home-outline"></i>
                     </a>
                   </li>
-                  <li class="breadcrumb-item">Cadastros</li>
                   <li class="breadcrumb-item">Colaboradores</li>
                   <li class="breadcrumb-item" aria-current="page">Importar</li>
                 </ol>
@@ -44,8 +43,8 @@
           </div>
 
           <a href="{{ route('colaboradores.importar.modelo', ['sub' => request()->route('sub')]) }}"
-             class="waves-effect waves-light btn mb-5 bg-gradient-info">
-            Baixar Modelo Excel
+             class="waves-effect waves-light btn mb-5 bg-gradient-primary">
+            Baixar Modelo
           </a>
         </div>
       </div>
@@ -80,35 +79,35 @@
           <div class="col-12">
             <div class="box">
               <div class="box-header with-border">
-                <h4 class="box-title">Arquivo de Importação</h4>
+                <h4 class="box-title">Enviar arquivo</h4>
               </div>
 
-              <form method="POST"
-                    action="{{ route('colaboradores.importar.store', ['sub' => request()->route('sub')]) }}"
-                    enctype="multipart/form-data">
-                @csrf
+              <div class="box-body">
+                <form method="POST"
+                      action="{{ route('colaboradores.importar.store', ['sub' => request()->route('sub')]) }}"
+                      enctype="multipart/form-data">
+                  @csrf
 
-                <div class="box-body">
                   <div class="row">
-                    <div class="col-12">
+                    <div class="col-12 col-lg-8">
                       <div class="form-group">
-                        <label class="form-label">Selecione o arquivo (.xlsx)</label>
-                        <input type="file" name="arquivo" class="form-control" accept=".xlsx" required>
+                        <label class="form-label">Arquivo Excel (.xlsx)</label>
+                        <input type="file" name="arquivo" class="form-control" accept=".xlsx,.xls" required>
                         <small class="text-muted">
-                          Use o modelo. Campos mínimos: <b>nome</b> e <b>cpf</b>.
+                          Campos esperados: <strong>nome</strong>, <strong>cpf</strong>, (opcionais: sexo, data_admissao, matricula)
                         </small>
                       </div>
                     </div>
+
+                    <div class="col-12 col-lg-4 d-flex align-items-end">
+                      <button type="submit" class="btn btn-success w-100">
+                        Enviar para Importação
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                <div class="box-footer text-end">
-                  <button type="submit" class="waves-effect waves-light btn bg-gradient-primary">
-                    Enviar para Importação
-                  </button>
-                </div>
-              </form>
-
+                </form>
+              </div>
             </div>
           </div>
         </div>
@@ -117,72 +116,95 @@
           <div class="col-12">
             <div class="box">
               <div class="box-header with-border">
-                <h4 class="box-title">Últimas importações</h4>
+                <h4 class="box-title">Histórico de Importações</h4>
               </div>
 
               <div class="box-body">
+
                 <div class="table-responsive">
-                  <table class="table table-hover table-striped align-middle mb-0">
+                  <table class="table table-bordered table-striped align-middle mb-0">
                     <thead>
                       <tr>
-                        <th>#</th>
+                        <th style="width: 80px;">ID</th>
                         <th>Arquivo</th>
-                        <th>Status</th>
-                        <th>Total</th>
-                        <th>Importados</th>
-                        <th>Ignorados</th>
-                        <th>Início</th>
-                        <th>Fim</th>
+                        <th style="width: 140px;">Status</th>
+                        <th style="width: 120px;" class="text-center">Linhas</th>
+                        <th style="width: 120px;" class="text-center">Importados</th>
+                        <th style="width: 120px;" class="text-center">Ignorados</th>
+                        <th style="width: 120px;" class="text-center">Rejeitados</th>
+                        <th style="width: 170px;">Início</th>
+                        <th style="width: 170px;">Fim</th>
+                        <th style="width: 170px;">Ações</th>
                       </tr>
                     </thead>
+
                     <tbody>
-                      @forelse(($importacoes ?? []) as $imp)
+                      @forelse($importacoes as $imp)
                         <tr>
                           <td>{{ $imp->id }}</td>
-                          <td>{{ $imp->arquivo_nome ?? basename($imp->arquivo_path) }}</td>
+                          <td>
+                            <div class="fw-600">{{ $imp->arquivo_nome ?? 'Arquivo' }}</div>
+                            <small class="text-muted">{{ $imp->arquivo_path }}</small>
+                          </td>
+
                           <td>
                             @php
-                              $s = $imp->status;
-                              $label = match($s) {
-                                'queued' => 'Na fila',
-                                'processing' => 'Processando',
-                                'done' => 'Concluída',
-                                'failed' => 'Falhou',
-                                default => $s
-                              };
+                              $st = (string) ($imp->status ?? '');
                             @endphp
 
-                            @if($s === 'failed')
-                              <span class="badge badge-danger">{{ $label }}</span>
-                              @if($imp->mensagem_erro)
-                                <div class="text-danger small mt-1">{{ $imp->mensagem_erro }}</div>
-                              @endif
-                            @elseif($s === 'done')
-                              <span class="badge badge-success">{{ $label }}</span>
-                            @elseif($s === 'processing')
-                              <span class="badge badge-warning">{{ $label }}</span>
+                            @if($st === 'queued')
+                              <span class="badge badge-pill badge-info">Fila</span>
+                            @elseif($st === 'processing')
+                              <span class="badge badge-pill badge-warning">Processando</span>
+                            @elseif($st === 'done')
+                              <span class="badge badge-pill badge-success">Concluído</span>
+                            @elseif($st === 'failed')
+                              <span class="badge badge-pill badge-danger">Falhou</span>
                             @else
-                              <span class="badge badge-info">{{ $label }}</span>
+                              <span class="badge badge-pill badge-secondary">{{ $st ?: 'N/D' }}</span>
+                            @endif
+
+                            @if(!empty($imp->mensagem_erro))
+                              <div class="mt-1">
+                                <small class="text-danger">{{ $imp->mensagem_erro }}</small>
+                              </div>
                             @endif
                           </td>
-                          <td>{{ $imp->total_linhas ?? '-' }}</td>
-                          <td>{{ $imp->importados ?? 0 }}</td>
-                          <td>{{ $imp->ignorados ?? 0 }}</td>
-                          <td>{{ $imp->started_at ? $imp->started_at->format('d/m/Y H:i') : '-' }}</td>
-                          <td>{{ $imp->finished_at ? $imp->finished_at->format('d/m/Y H:i') : '-' }}</td>
+
+                          <td class="text-center">{{ (int) ($imp->total_linhas ?? 0) }}</td>
+                          <td class="text-center">{{ (int) ($imp->importados ?? 0) }}</td>
+                          <td class="text-center">{{ (int) ($imp->ignorados ?? 0) }}</td>
+                          <td class="text-center">{{ (int) ($imp->rejeitados_count ?? 0) }}</td>
+
+                          <td>{{ $imp->started_at ? \Carbon\Carbon::parse($imp->started_at)->format('d/m/Y H:i') : '-' }}</td>
+                          <td>{{ $imp->finished_at ? \Carbon\Carbon::parse($imp->finished_at)->format('d/m/Y H:i') : '-' }}</td>
+
+                          <td>
+                            @if(!empty($imp->rejeitados_path) && (int)($imp->rejeitados_count ?? 0) > 0)
+                              <a href="{{ route('colaboradores.importar.rejeitados', ['sub' => request()->route('sub'), 'id' => $imp->id]) }}"
+                                 class="btn btn-sm btn-outline-danger">
+                                Baixar rejeitados
+                              </a>
+                            @else
+                              <span class="text-muted">-</span>
+                            @endif
+                          </td>
                         </tr>
                       @empty
                         <tr>
-                          <td colspan="8" class="text-center py-4">Nenhuma importação encontrada.</td>
+                          <td colspan="10" class="text-center text-muted">
+                            Nenhuma importação encontrada.
+                          </td>
                         </tr>
                       @endforelse
                     </tbody>
                   </table>
                 </div>
 
-                <small class="text-muted d-block mt-2">
-                  Dica: se o status ficar “Na fila” por muito tempo, o worker da fila pode não estar rodando.
-                </small>
+                <div class="mt-3">
+                  {{ $importacoes->links() }}
+                </div>
+
               </div>
             </div>
           </div>
@@ -203,15 +225,9 @@
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
 <script>
-  if (window.feather) feather.replace();
-
-  // Atualiza a página automaticamente a cada 10s enquanto tiver "queued" ou "processing"
-  (function(){
-    const hasRunning = {!! json_encode(collect($importacoes ?? [])->contains(fn($i) => in_array($i->status, ['queued','processing']))) !!};
-    if (hasRunning) {
-      setTimeout(() => window.location.reload(), 10000);
-    }
-  })();
+(function(){
+  if (window.feather) window.feather.replace();
+})();
 </script>
 
 </body>
