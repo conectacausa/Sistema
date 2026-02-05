@@ -41,13 +41,12 @@ class ImportarColaboradoresJob implements ShouldQueue
             return;
         }
 
-        // 1) Buscar importação por ID (tracking)
         $imp = null;
+
         if (!empty($this->importacaoId)) {
             $imp = DB::table('colaboradores_importacoes')->where('id', (int) $this->importacaoId)->first();
         }
 
-        // 2) Fallback para payload antigo (empresaId + path)
         if (!$imp && !empty($this->empresaId) && !empty($this->path)) {
             $imp = DB::table('colaboradores_importacoes')
                 ->where('empresa_id', (int) $this->empresaId)
@@ -69,7 +68,6 @@ class ImportarColaboradoresJob implements ShouldQueue
         $empresaId = (int) $imp->empresa_id;
         $path = (string) $imp->arquivo_path;
 
-        // ✅ marca processing (DB direto)
         DB::table('colaboradores_importacoes')->where('id', $importacaoId)->update([
             'status' => 'processing',
             'started_at' => now(),
@@ -77,7 +75,6 @@ class ImportarColaboradoresJob implements ShouldQueue
             'updated_at' => now(),
         ]);
 
-        // ✅ respeita o root real do disk local (no seu servidor: storage/app/private)
         $fullPath = Storage::disk('local')->path($path);
 
         if (!file_exists($fullPath)) {
@@ -92,8 +89,6 @@ class ImportarColaboradoresJob implements ShouldQueue
     {
         try {
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fullPath);
-
-            // ✅ pega aba Colaboradores se existir
             $sheet = $spreadsheet->getSheetByName('Colaboradores') ?? $spreadsheet->getActiveSheet();
 
             $highestRow = $sheet->getHighestRow();
@@ -119,7 +114,6 @@ class ImportarColaboradoresJob implements ShouldQueue
             }
 
             $totalLinhas = max(0, $highestRow - 1);
-
             DB::table('colaboradores_importacoes')->where('id', $importacaoId)->update([
                 'total_linhas' => $totalLinhas,
                 'updated_at' => now(),
@@ -127,6 +121,10 @@ class ImportarColaboradoresJob implements ShouldQueue
 
             $importados = 0;
             $ignorados  = 0;
+
+            // ✅ rejeitados: vamos gravar CSV com (linha, motivo, nome, cpf_raw)
+            $rejeitados = [];
+            $rejeitados[] = ['linha', 'motivo', 'nome', 'cpf_raw'];
 
             for ($row = 2; $row <= $highestRow; $row++) {
                 $values = $sheet->rangeToArray("A{$row}:{$highestCol}{$row}", null, true, false);
@@ -136,8 +134,19 @@ class ImportarColaboradoresJob implements ShouldQueue
                 $cpfRaw = (string) ($line[$iCpf] ?? '');
                 $cpf = preg_replace('/\D+/', '', $cpfRaw);
 
-                if ($nome === '' || $cpf === '' || strlen($cpf) !== 11) {
+                $motivo = null;
+
+                if ($nome === '') {
+                    $motivo = 'Nome vazio';
+                } elseif ($cpf === '') {
+                    $motivo = 'CPF vazio';
+                } elseif (strlen($cpf) !== 11) {
+                    $motivo = 'CPF inválido (não tem 11 dígitos)';
+                }
+
+                if ($motivo) {
                     $ignorados++;
+                    $rejeitados[] = [(string)$row, $motivo, $nome, $cpfRaw];
                     continue;
                 }
 
@@ -165,7 +174,6 @@ class ImportarColaboradoresJob implements ShouldQueue
                     if (in_array($tmp, ['M', 'F'], true)) $sx = $tmp;
                 }
 
-                // Upsert por empresa_id + cpf (DB direto)
                 $exists = DB::table('colaboradores')
                     ->where('empresa_id', $empresaId)
                     ->where('cpf', $cpf)
@@ -207,17 +215,36 @@ class ImportarColaboradoresJob implements ShouldQueue
                 }
             }
 
+            // ✅ grava CSV rejeitados se existir mais do que cabeçalho
+            $rejeitadosCount = max(0, count($rejeitados) - 1);
+            $rejeitadosPath = null;
+
+            if ($rejeitadosCount > 0) {
+                $rejeitadosPath = "imports/colaboradores/rejeitados_{$importacaoId}.csv";
+
+                $fh = fopen('php://temp', 'w+');
+                foreach ($rejeitados as $r) {
+                    fputcsv($fh, $r, ';');
+                }
+                rewind($fh);
+                $csv = stream_get_contents($fh);
+                fclose($fh);
+
+                Storage::disk('local')->put($rejeitadosPath, $csv);
+            }
+
             DB::table('colaboradores_importacoes')->where('id', $importacaoId)->update([
                 'status' => 'done',
                 'importados' => $importados,
                 'ignorados' => $ignorados,
+                'rejeitados_count' => $rejeitadosCount,
+                'rejeitados_path' => $rejeitadosPath,
                 'finished_at' => now(),
                 'updated_at' => now(),
             ]);
 
         } catch (\Throwable $e) {
             $this->failImportDb($importacaoId, $e->getMessage());
-
             Log::error('ImportarColaboradoresJob: erro ao processar XLSX', [
                 'importacao_id' => $importacaoId,
                 'empresa_id' => $empresaId,
