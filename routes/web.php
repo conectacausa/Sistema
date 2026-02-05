@@ -302,7 +302,8 @@ Route::domain('{sub}.conecttarh.com.br')
                     Route::get('/colaborador-por-matricula', [BolsaEstudosController::class, 'colaboradorPorMatricula'])
                         ->name('beneficios.bolsa.colaborador.lookup');
 
-                    Route::get('/ajax/colaborador-por-matricula', [BolsaEstudosController::class, 'colaboradorPorMatricula'])
+                    Route::get('/beneficios/bolsa/colaborador-por-matricula', [BolsaEstudosController::class, 'colaboradorPorMatricula'])
+                        ->middleware('screen:12')
                         ->name('beneficios.bolsa.colaborador_por_matricula');
 
                     Route::get('/entidades/search', [BolsaEstudosController::class, 'entidadesSearch'])
