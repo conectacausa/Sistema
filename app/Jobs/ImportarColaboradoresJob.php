@@ -122,9 +122,9 @@ class ImportarColaboradoresJob implements ShouldQueue
             $importados = 0;
             $ignorados  = 0;
 
-            // ✅ rejeitados: vamos gravar CSV com (linha, motivo, nome, cpf_raw)
+            // CSV de rejeitados: linha, motivo, nome, cpf_raw, cpf_normalizado
             $rejeitados = [];
-            $rejeitados[] = ['linha', 'motivo', 'nome', 'cpf_raw'];
+            $rejeitados[] = ['linha', 'motivo', 'nome', 'cpf_raw', 'cpf_normalizado'];
 
             for ($row = 2; $row <= $highestRow; $row++) {
                 $values = $sheet->rangeToArray("A{$row}:{$highestCol}{$row}", null, true, false);
@@ -132,9 +132,11 @@ class ImportarColaboradoresJob implements ShouldQueue
 
                 $nome = trim((string) ($line[$iNome] ?? ''));
                 $cpfRaw = (string) ($line[$iCpf] ?? '');
+
+                // ✅ normaliza cpf
                 $cpf = preg_replace('/\D+/', '', $cpfRaw);
 
-                // ✅ Se veio numérico e perdeu zero à esquerda, completa até 11
+                // ✅ se excel comeu 0 à esquerda, completa até 11
                 if ($cpf !== '' && strlen($cpf) < 11) {
                     $cpf = str_pad($cpf, 11, '0', STR_PAD_LEFT);
                 }
@@ -151,7 +153,7 @@ class ImportarColaboradoresJob implements ShouldQueue
 
                 if ($motivo) {
                     $ignorados++;
-                    $rejeitados[] = [(string)$row, $motivo, $nome, $cpfRaw];
+                    $rejeitados[] = [(string) $row, $motivo, $nome, $cpfRaw, $cpf];
                     continue;
                 }
 
@@ -168,7 +170,11 @@ class ImportarColaboradoresJob implements ShouldQueue
                     } else {
                         $txt = trim((string) $cell);
                         if ($txt !== '') {
-                            try { $dataAdmissao = Carbon::parse($txt)->format('Y-m-d'); } catch (\Throwable $e) {}
+                            try {
+                                $dataAdmissao = Carbon::parse($txt)->format('Y-m-d');
+                            } catch (\Throwable $e) {
+                                // se vier inválido, mantém null
+                            }
                         }
                     }
                 }
@@ -176,7 +182,9 @@ class ImportarColaboradoresJob implements ShouldQueue
                 $sx = null;
                 if ($sexo) {
                     $tmp = mb_strtoupper($sexo);
-                    if (in_array($tmp, ['M', 'F'], true)) $sx = $tmp;
+                    if (in_array($tmp, ['M', 'F'], true)) {
+                        $sx = $tmp;
+                    }
                 }
 
                 $exists = DB::table('colaboradores')
@@ -220,7 +228,7 @@ class ImportarColaboradoresJob implements ShouldQueue
                 }
             }
 
-            // ✅ grava CSV rejeitados se existir mais do que cabeçalho
+            // grava CSV rejeitados (se houver)
             $rejeitadosCount = max(0, count($rejeitados) - 1);
             $rejeitadosPath = null;
 
@@ -247,7 +255,6 @@ class ImportarColaboradoresJob implements ShouldQueue
                 'finished_at' => now(),
                 'updated_at' => now(),
             ]);
-
         } catch (\Throwable $e) {
             $this->failImportDb($importacaoId, $e->getMessage());
             Log::error('ImportarColaboradoresJob: erro ao processar XLSX', [
