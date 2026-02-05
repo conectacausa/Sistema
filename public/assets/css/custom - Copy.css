@@ -1,0 +1,77 @@
+.save-date{
+    width: 140px;
+    height: 140px;
+    justify-content: end;
+}
+
+@media only screen and (max-width: 1366px) {
+  #visitors-chart-2 {
+    height: 310px;
+    align-content: end;
+  }
+}
+
+
+/*---------------------------index-2-------------------------*/
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Text:ital@0;1&display=swap');
+
+.profile-box{
+  background: url(../../images/gallery/wedding/profile.jpg);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: top;
+}
+.rtl .profile-box .box-body{
+  display: flex;
+  flex-direction: column;
+  align-items: end;
+}
+.rtl .profile-box .box-body p{
+  text-align: end;
+}
+
+.text-golden{
+  color: #d19f42 !important;
+  font-family: "DM Serif Text", serif;
+}
+.bg-golden{
+  background-color: #d19f42 !important;
+}
+
+/*.wedding-budget-box h1{
+ font-size: 70px;
+}*/
+
+#chart-container{
+  height:238px;
+}
+
+.custom-package{
+  height: 323px;
+}
+
+.custom-package {
+    background: url(../../images/gallery/wedding/custom.png);
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: top;
+}
+
+.rtl .custom-package .box-body{
+  display: flex;
+  flex-direction: column;
+  align-items: end;
+  justify-content: end;
+  text-align: end;
+}
+
+.due-week{
+  height: 159px;
+}
+
+@media only screen and (max-width: 1366px) {
+  .due-week{
+    height: 249px;
+  }
+}

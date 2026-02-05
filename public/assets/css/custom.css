@@ -1,0 +1,100 @@
+
+:root {
+  /* Light mode colors */
+  --color-range-0: #e6f0ff;
+  --color-range-1: #b3d1ff;
+  --color-range-2: #66a3ff;
+  --color-range-3: #1b84ff;
+  --color-range-4: #0f539e;
+
+  --background-color: #ffffff;
+  --text-color: #000000;
+}
+
+[data-theme="dark"] {
+  /* Dark mode colors */
+  --color-range-0: #153a70;
+  --color-range-1: #1b59b8;
+  --color-range-2: #1b84ff;
+  --color-range-3: #4da3ff;
+  --color-range-4: #80b8ff;
+
+  --background-color: #121212;
+  --text-color: #ffffff;
+}
+
+
+
+#chart-container{
+  height:300px;
+}
+#chart-selling{
+  height:433px;
+}
+
+.custom-package {
+    background: url(../../images/gallery/pharmacy.jpg);
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center bottom;
+    height: 390px;
+}
+
+.rtl .custom-package .box-body{
+  display: flex;
+  flex-direction: column;
+  align-items: end;
+  justify-content: end;
+  text-align: end;
+}
+
+.due-week{
+  height: 159px;
+}
+
+div.dataTables_wrapper div.dataTables_length label{
+  margin-bottom: 10px !important;
+}
+table.dataTable tbody th, table.dataTable tbody td{
+    padding: 10px 10px !important;
+}
+
+@media only screen and (max-width: 1400px) {
+  .custom-package{
+    height: 445px !important;
+  }
+  #chart-selling{
+    height:350px;
+  }
+}
+
+@media only screen and (max-width: 767px) {
+  div.dataTables_wrapper div.dataTables_filter{
+    text-align: left !important;
+  }
+  .dataTables_wrapper .dataTables_filter {
+    margin-top: 0em !important;
+  }
+  div.dataTables_wrapper div.dataTables_length label {
+    margin-bottom: 5px !important;
+  }
+  div.dataTables_wrapper div.dataTables_length, div.dataTables_wrapper div.dataTables_filter, div.dataTables_wrapper div.dataTables_info, div.dataTables_wrapper div.dataTables_paginate {
+    text-align: right;
+  }
+}
+
+
+
+/*----------------------------------index-2------------------------------------*/
+.review-box{
+  height: 305px;
+}
+#sale-container{
+  height:315px;
+}
+.last-weekchart{
+  height: 343.5px;
+}
+
+
+
