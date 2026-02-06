@@ -9,7 +9,7 @@
   <title>{{ config('app.name', 'ConecttaRH') }} | Bolsa de Estudos</title>
 
   <link rel="stylesheet" href="{{ asset('assets/css/vendors_css.css') }}">
-  <link rel="stylesheet" href="{{ asset('assets/vendor_plugins/select2/select2.min.css') }}">
+  <link rel="stylesheet" href="{{ asset('assets/vendor_components/select2/dist/css/select2.min.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
   <link rel="stylesheet" href="{{ asset('assets/css/skin_color.css') }}">
 
@@ -664,7 +664,7 @@
 </div>
 
 <script src="{{ asset('assets/js/vendors.min.js') }}"></script>
-<script src="{{ asset('assets/vendor_plugins/select2/select2.full.js') }}"></script>
+<script src="{{ asset('assets/vendor_components/select2/dist/js/select2.full.min.js') }}"></script>
 <script src="{{ asset('assets/js/pages/chat-popup.js') }}"></script>
 <script src="{{ asset('assets/icons/feather-icons/feather.min.js') }}"></script>
 
@@ -736,7 +736,7 @@
   document.getElementById('meses_duracao')?.addEventListener('input', recalcTotal);
   recalcTotal();
 
-  // ----------------------------
+// ----------------------------
 // Modal solicitante: matrícula OU nome -> preencher id/matricula/filial
 // ----------------------------
 window.CON_COLAB_URL = @json(route('beneficios.bolsa.colaborador_por_matricula', ['sub' => request()->route('sub')]));
@@ -788,7 +788,6 @@ $mat?.addEventListener('input', function(){
   clearTimeout(solTimer);
   const matricula = this.value.trim();
 
-  // se limpou, limpa tudo e esconde msg
   if (!matricula) {
     solClear();
     $msgMat?.classList.add('d-none');
@@ -803,11 +802,8 @@ $mat?.addEventListener('input', function(){
       const res = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
       const json = await res.json();
 
-      if (json && json.ok && json.data) {
-        solSetFound(json.data);
-      } else {
-        solSetNotFound('mat');
-      }
+      if (json && json.ok && json.data) solSetFound(json.data);
+      else solSetNotFound('mat');
     }catch(e){
       solSetNotFound('mat');
     }
@@ -869,12 +865,12 @@ $mat?.addEventListener('input', function(){
     $msgMat?.classList.add('d-none');
   });
 
-  // ao abrir modal: reset mensagens e não duplicar options antigas
   jQuery('#modalAddSolicitante').on('shown.bs.modal', function(){
     $msgNome?.classList.add('d-none');
     $msgMat?.classList.add('d-none');
   });
 })();
+
 
 
   // ----------------------------
@@ -932,6 +928,7 @@ $mat?.addEventListener('input', function(){
       }
     });
 
+
     function destroyCurso(){
       try { $cur.select2('destroy'); } catch(e) {}
       $cur.empty();
@@ -950,7 +947,7 @@ $mat?.addEventListener('input', function(){
       $cur.prop('disabled', false);
       $cur.closest('.form-group')?.find('small.text-muted')?.text('');
 
-      $cur.select2({
+     $cur.select2({
       width: '100%',
       dropdownParent: jQuery('#modalAddSolicitante'),
       theme: "default",
@@ -977,6 +974,8 @@ $mat?.addEventListener('input', function(){
       $cur.closest('.form-group')?.find('small.text-muted')?.text('Digite o curso e clique em Salvar.');
 
       $cur.select2({
+      width: '100%',
+      dropdownParent: jQuery('#modalAddSolicitante'),
         theme: "default",
         placeholder: "Digite o curso...",
         allowClear: true,
