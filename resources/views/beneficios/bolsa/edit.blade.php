@@ -514,63 +514,87 @@
         </div>
 
         <div class="modal-body">
-          <input type="hidden" name="colaborador_id" id="sol_colaborador_id">
+  <input type="hidden" name="colaborador_id" id="sol_colaborador_id">
 
-          <div class="row">
-            <div class="col-md-4 col-12">
-              <div class="form-group">
-                <label class="form-label">Matrícula</label>
-                <input type="text" id="sol_matricula" class="form-control" placeholder="Digite a matrícula" autocomplete="off">
-                <small id="sol_matricula_msg" class="text-danger d-none">Colaborador não encontrado.</small>
-              </div>
-            </div>
+  {{-- Linha 1: Matrícula + Nome --}}
+  <div class="row">
+    <div class="col-md-4 col-12">
+      <div class="form-group">
+        <label class="form-label">Matrícula</label>
+        <input type="text" id="sol_matricula" class="form-control" placeholder="Digite a matrícula" autocomplete="off">
+        <small id="sol_matricula_msg" class="text-danger d-none">Colaborador não encontrado.</small>
+      </div>
+    </div>
 
-            <div class="col-md-4 col-12">
-              <div class="form-group">
-                <label class="form-label">Nome</label>
-                <select id="sol_nome_select" class="form-control"></select>
-                <small id="sol_nome_msg" class="text-danger d-none">Colaborador não encontrado.</small>
-              </div>
-            </div>
+    <div class="col-md-8 col-12">
+      <div class="form-group">
+        <label class="form-label">Nome</label>
+        <select id="sol_nome_select" class="form-control"></select>
+        <small id="sol_nome_msg" class="text-danger d-none">Colaborador não encontrado.</small>
+      </div>
+    </div>
+  </div>
 
-            <div class="col-md-4 col-12">
-              <div class="form-group">
-                <label class="form-label">Filial</label>
-                <input type="text" id="sol_filial" class="form-control" disabled>
-              </div>
-            </div>
-          </div>
+  {{-- Linha 2: Filial + Setor (placeholder) --}}
+  <div class="row">
+    <div class="col-md-6 col-12">
+      <div class="form-group">
+        <label class="form-label">Filial</label>
+        <input type="text" id="sol_filial" class="form-control" disabled>
+      </div>
+    </div>
 
-          <div class="row">
-            <div class="col-md-6 col-12">
-              <div class="form-group">
-                <label class="form-label">Entidade</label>
-                <select name="entidade_nome" id="sol_entidade_select" class="form-control" required></select>
-              </div>
-            </div>
+    <div class="col-md-6 col-12">
+      <div class="form-group">
+        <label class="form-label">Setor</label>
+        <input type="text" id="sol_setor" class="form-control" disabled placeholder="(em breve)">
+      </div>
+    </div>
+  </div>
 
-            <div class="col-md-6 col-12">
-              <div class="form-group">
-                <label class="form-label">Curso</label>
-                <select name="curso_nome" id="sol_curso_select" class="form-control" required disabled></select>
-                <small class="text-muted">Selecione a entidade primeiro.</small>
-              </div>
-            </div>
-          </div>
+  {{-- Linha 3: Entidade + Curso --}}
+  <div class="row">
+    <div class="col-md-6 col-12">
+      <div class="form-group">
+        <label class="form-label">Entidade</label>
+        <select name="entidade_nome" id="sol_entidade_select" class="form-control" required></select>
+      </div>
+    </div>
 
-          <div class="row">
-            <div class="col-md-4 col-12">
-              <div class="form-group">
-                <label class="form-label">Valor total mensalidade</label>
-                <div class="input-group">
-                  <span class="input-group-text">R$</span>
-                  <input type="text" name="valor_total_mensalidade" id="sol_mensalidade" class="form-control" required>
-                </div>
-              </div>
-            </div>
-          </div>
+    <div class="col-md-6 col-12">
+      <div class="form-group">
+        <label class="form-label">Curso</label>
+        <select name="curso_nome" id="sol_curso_select" class="form-control" required disabled></select>
+        <small class="text-muted">Selecione a entidade primeiro.</small>
+      </div>
+    </div>
+  </div>
 
+  {{-- Linha 4: Valor Mensal + Tipo --}}
+  <div class="row">
+    <div class="col-md-6 col-12">
+      <div class="form-group">
+        <label class="form-label">Valor Mensal do Curso</label>
+        <div class="input-group">
+          <span class="input-group-text">R$</span>
+          <input type="text" name="valor_total_mensalidade" id="sol_mensalidade" class="form-control" required>
         </div>
+      </div>
+    </div>
+
+    <div class="col-md-6 col-12">
+      <div class="form-group">
+        <label class="form-label">Tipo</label>
+        <select name="tipo" class="form-control" required>
+          <option value="1">Nova concessão</option>
+          <option value="2">Renovação</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+</div>
+
 
         <div class="modal-footer d-flex justify-content-end gap-2">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
