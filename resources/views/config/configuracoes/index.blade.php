@@ -40,7 +40,7 @@
                   </li>
 
                   <li class="nav-item">
-                    <a class="nav-link" data-bs-toggle="tab" href="#tab-whatsapp" role="tab">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tab-whatsapp" role="tab" id="tab-whatsapp-link">
                       <i data-feather="lock"></i>
                       WhatsApp
                     </a>
@@ -56,7 +56,7 @@
                     <p class="text-muted mb-0">Central de configurações do sistema.</p>
                   </div>
 
-                  {{-- TAB: USUÁRIOS (placeholder) --}}
+                  {{-- TAB: USUÁRIOS --}}
                   <div class="tab-pane" id="tab-usuarios" role="tabpanel">
                     <h4 class="mb-10">Usuários</h4>
                     <p class="text-muted mb-0">Configurações relacionadas a usuários (evoluiremos depois).</p>
@@ -67,12 +67,13 @@
                     <h4 class="mb-15">WhatsApp (Evolution)</h4>
 
                     @php
-                      $state = $empresa->wa_connection_state ?? null;
-                      $hasInstance = !empty($empresa->wa_instance_id) && !empty($empresa->wa_instance_name);
-                      $qrCode = (string) ($empresa->wa_qrcode_base64 ?? '');
-                      // NUNCA considerar conectado se existe QRCode pendente
-                      $connected = ($state === 'open') && ($qrCode === '');
                       $sub = request()->route('sub');
+                      $hasInstance = !empty($empresa->wa_instance_id) && !empty($empresa->wa_instance_name);
+
+                      // Se tem QR salvo, então NÃO está conectado (regra rígida)
+                      $qrCode = (string) ($empresa->wa_qrcode_base64 ?? '');
+                      $state  = (string) ($empresa->wa_connection_state ?? '');
+                      $connected = ($state === 'open') && ($qrCode === '');
                     @endphp
 
                     <div class="row">
@@ -151,9 +152,9 @@
                             </div>
                           </div>
 
-                          {{-- Overlay verde: começa SEMPRE escondido (só aparece via JS quando connected=true) --}}
+                          {{-- Overlay verde: SEMPRE oculto no HTML. Só aparece quando o /status retornar connected=true --}}
                           <div id="js-wa-overlay"
-                               class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+                               class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center d-none"
                                style="background: rgba(40,167,69,.18); border-radius:8px; display:none;">
                             <div class="text-center">
                               <div class="mb-5">
@@ -207,13 +208,14 @@
     new QRCode(el, { text: code, width: 240, height: 240 });
   }
 
-  // Render inicial
+  // Render inicial (do banco)
   renderQr(@json($qrCode));
 
   if (window.feather) feather.replace();
 
-  const statusUrl = @json(route('config.whatsapp.status', ['sub' => $sub]));
-  const btnRefresh = document.getElementById('btn-refresh-status');
+  const statusUrl   = @json(route('config.whatsapp.status', ['sub' => $sub]));
+  const btnRefresh  = document.getElementById('btn-refresh-status');
+  const tabWhatsapp = document.getElementById('tab-whatsapp-link');
 
   async function refreshStatus() {
     try {
@@ -228,11 +230,22 @@
       if (!data || !data.ok || !data.hasInstance) return;
 
       const connected = !!data.connected;
-      const state = data.state || '';
-      const needsQr = !!data.needsQr;
+      const state     = data.state || '';
+      const needsQr   = !!data.needsQr;
 
-      const badge = document.getElementById('js-wa-status-badge');
+      const badge   = document.getElementById('js-wa-status-badge');
       const overlay = document.getElementById('js-wa-overlay');
+
+      // ✅ Sempre forçar o overlay a respeitar o retorno do backend
+      if (overlay) {
+        if (connected) {
+          overlay.classList.remove('d-none');
+          overlay.style.display = '';
+        } else {
+          overlay.classList.add('d-none');
+          overlay.style.display = 'none';
+        }
+      }
 
       if (badge) {
         badge.classList.remove('badge-success', 'badge-secondary');
@@ -242,13 +255,8 @@
           : (needsQr ? 'Aguardando QR' : (state || 'Sem conexão'));
       }
 
-      if (overlay) {
-        // Overlay só aparece quando connected=true
-        overlay.style.display = connected ? '' : 'none';
-      }
-
-      // Atualiza QR se necessário
-      if (needsQr && data.qrCode) {
+      // Se precisa de QR, renderiza/atualiza o QRCode
+      if (!connected && needsQr && data.qrCode) {
         renderQr(data.qrCode);
       }
 
@@ -267,7 +275,14 @@
     });
   }
 
-  // Atualiza imediatamente ao carregar (evita overlay/status incorreto)
+  // Quando clicar/abrir a tab WhatsApp, atualiza na hora
+  if (tabWhatsapp) {
+    tabWhatsapp.addEventListener('shown.bs.tab', function () {
+      refreshStatus();
+    });
+  }
+
+  // Atualiza imediatamente ao carregar
   refreshStatus();
 })();
 </script>
