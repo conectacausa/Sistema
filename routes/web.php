@@ -13,6 +13,7 @@ use App\Http\Controllers\Cargo\HeadcountController;
 use App\Http\Controllers\Config\UsuariosController;
 use App\Http\Controllers\Config\GrupoPermissaoController;
 use App\Http\Controllers\Config\FiliaisController;
+use App\Http\Controllers\Config\WhatsappIntegracoesController;
 
 // COLABORADORES
 use App\Http\Controllers\Colaboradores\ColaboradoresController;
@@ -191,6 +192,15 @@ Route::domain('{sub}.conecttarh.com.br')
                     Route::post('/{id}/permissoes/toggle', [GrupoPermissaoController::class, 'togglePermissao'])
                         ->whereNumber('id')
                         ->name('config.grupos.permissoes.toggle');
+
+                    Route::get('/config/whatsapp-integracoes', [WhatsappIntegracoesController::class, 'index'])
+                        ->name('config.whatsapp_integracoes');
+                    
+                    Route::post('/config/whatsapp-integracoes', [WhatsappIntegracoesController::class, 'store'])
+                        ->name('config.whatsapp_integracoes.store');
+                    
+                    Route::post('/config/whatsapp-integracoes/test', [WhatsappIntegracoesController::class, 'testConnection'])
+                        ->name('config.whatsapp_integracoes.test');
                 });
 
             /*
