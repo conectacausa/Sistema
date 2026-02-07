@@ -195,28 +195,30 @@ Route::domain('{sub}.conecttarh.com.br')
                         ->name('config.grupos.permissoes.toggle');
 
                 });
-        /*
-        |--------------------------------------------------------------------------
-        | CONFIGURAÇÕES → CENTRAL (/config)
-        |--------------------------------------------------------------------------
-        | Tela ID: 15
-        */
-        Route::prefix('config')
-            ->middleware('screen:15')
-            ->group(function () {
-        
-                // /config
-                Route::get('/', [ConfiguracoesController::class, 'index'])
-                    ->name('config.index');
-        
-                // WhatsApp (Evolution) - ficará como aba dentro do /config,
-                // mas as rotas continuam existindo para salvar e testar
-                Route::post('/whatsapp-integracoes', [WhatsappIntegracoesController::class, 'store'])
-                    ->name('config.whatsapp_integracoes.store');
-        
-                Route::post('/whatsapp-integracoes/test', [WhatsappIntegracoesController::class, 'testConnection'])
-                    ->name('config.whatsapp_integracoes.test');
-            });
+       /*
+|--------------------------------------------------------------------------
+| CONFIGURAÇÕES (Página única)
+|--------------------------------------------------------------------------
+| Tela ID: 15
+| Slug: config
+*/
+Route::prefix('config')
+    ->middleware('screen:15')
+    ->group(function () {
+
+        Route::get('/', [\App\Http\Controllers\Config\ConfiguracoesController::class, 'index'])
+            ->name('config.index');
+
+        // WhatsApp (Evolution)
+        Route::post('/whatsapp/criar-instancia', [\App\Http\Controllers\Config\ConfiguracoesController::class, 'whatsappCriarInstancia'])
+            ->name('config.whatsapp.criar_instancia');
+
+        Route::post('/whatsapp/gerar-qrcode', [\App\Http\Controllers\Config\ConfiguracoesController::class, 'whatsappGerarQrCode'])
+            ->name('config.whatsapp.gerar_qrcode');
+
+        Route::get('/whatsapp/status', [\App\Http\Controllers\Config\ConfiguracoesController::class, 'whatsappStatus'])
+            ->name('config.whatsapp.status');
+    });
 
             /*
             |--------------------------------------------------------------------------
