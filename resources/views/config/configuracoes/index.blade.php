@@ -37,6 +37,7 @@
             $qrRaw = (string)($empresa->wa_qrcode_base64 ?? '');
             $state = (string)($empresa->wa_connection_state ?? '');
 
+            // Conectado de verdade: state=open e não precisa mostrar QR
             $connected = ($state === 'open') && ($qrRaw === '');
 
             $isDataUri   = str_starts_with($qrRaw, 'data:image');
@@ -58,6 +59,43 @@
               <div class="tab-pane active" id="tab-whatsapp" role="tabpanel">
 
                 <div class="row">
+
+                  {{-- QRCode MAIOR À ESQUERDA --}}
+                  <div class="col-12 col-lg-7">
+                    <label class="form-label">QRCode</label>
+
+                    <div class="position-relative p-10"
+                         style="border:1px dashed #d9d9d9; border-radius:8px; height:420px;">
+
+                      <div class="h-100 d-flex align-items-center justify-content-center">
+                        <img id="js-qr-img"
+                             src="{{ $qrImgSrc }}"
+                             alt="QRCode"
+                             style="{{ $qrImgSrc ? '' : 'display:none;' }} max-width:320px; max-height:320px;">
+
+                        <div id="js-qr-empty" class="text-muted text-center" style="{{ $qrImgSrc ? 'display:none;' : '' }}">
+                          Nenhum QRCode disponível no momento.
+                        </div>
+                      </div>
+
+                      {{-- Overlay cobre 100% --}}
+                      <div id="js-wa-overlay"
+                           class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center d-none"
+                           style="background: rgba(40,167,69,.22); border-radius:8px; display:none;">
+                        <div class="text-center">
+                          <div class="mb-8">
+                            <span class="badge badge-success" style="font-size:16px; padding:10px 14px;">
+                              ✓ Conectado
+                            </span>
+                          </div>
+                          <div class="text-success fw-600">WhatsApp conectado</div>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+
+                  {{-- INFO À DIREITA --}}
                   <div class="col-12 col-lg-5">
 
                     <div class="mb-10">
@@ -77,7 +115,7 @@
 
                     <div class="mb-10">
                       <label class="form-label">Telefone</label>
-                      <div class="form-control">
+                      <div class="form-control" id="js-wa-phone-view">
                         {{ $empresa->wa_phone ?: '-' }}
                       </div>
                     </div>
@@ -87,11 +125,13 @@
                         @csrf
 
                         <div class="mb-10">
-                          <label class="form-label">Telefone para pareamento (opcional, com DDI)</label>
+                          <label class="form-label">Telefone para pareamento (opcional)</label>
                           <input type="text"
                                  name="wa_phone"
+                                 id="wa_phone"
                                  class="form-control"
-                                 placeholder="Ex: 5511999999999">
+                                 placeholder="(11) 99999-9999">
+                          <small class="text-muted">O sistema salva somente números (DDI/DDD + número).</small>
                         </div>
 
                         <button type="submit" class="btn btn-primary">
@@ -112,43 +152,6 @@
 
                   </div>
 
-                  <div class="col-12 col-lg-7">
-                    <label class="form-label">QRCode</label>
-
-                    <div class="position-relative p-10"
-                         style="border:1px dashed #d9d9d9; border-radius:8px; height:360px;">
-
-                      <div class="h-100 d-flex align-items-center justify-content-center">
-                        <img id="js-qr-img"
-                             src="{{ $qrImgSrc }}"
-                             alt="QRCode"
-                             style="{{ $qrImgSrc ? '' : 'display:none;' }} max-width:280px; max-height:280px;">
-
-                        <div id="js-qr-empty" class="text-muted text-center" style="{{ $qrImgSrc ? 'display:none;' : '' }}">
-                          Nenhum QRCode disponível no momento.
-                        </div>
-
-                        <div id="js-qr-invalid" class="text-warning text-center" style="{{ ($qrRaw !== '' && $qrImgSrc === '') ? '' : 'display:none;' }}">
-                          QRCode ainda não disponível.
-                        </div>
-                      </div>
-
-                      {{-- Overlay cobre 100% --}}
-                      <div id="js-wa-overlay"
-                           class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center d-none"
-                           style="background: rgba(40,167,69,.22); border-radius:8px; display:none;">
-                        <div class="text-center">
-                          <div class="mb-8">
-                            <span class="badge badge-success" style="font-size:16px; padding:10px 14px;">
-                              ✓ Conectado
-                            </span>
-                          </div>
-                          <div class="text-success fw-600">WhatsApp conectado</div>
-                        </div>
-                      </div>
-
-                    </div>
-                  </div>
                 </div>
 
               </div>
@@ -164,6 +167,9 @@
 @endsection
 
 @push('scripts')
+{{-- Gera QRCode a partir do "code" que o Evolution retorna --}}
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+
 <script>
 (function () {
   if (window.feather) feather.replace();
@@ -174,6 +180,23 @@
   const btnRefresh   = document.getElementById('btn-refresh-status');
   const btnRequestQr = document.getElementById('btn-request-qr');
   const tabWhatsapp  = document.getElementById('tab-whatsapp-link');
+
+  // --- MÁSCARA TELEFONE (se Inputmask existir no template) + fallback simples
+  const phoneInput = document.getElementById('wa_phone');
+  if (phoneInput) {
+    if (window.Inputmask) {
+      Inputmask({ mask: '(99) 99999-9999', showMaskOnHover: false }).mask(phoneInput);
+    } else {
+      phoneInput.addEventListener('input', function () {
+        const digits = (this.value || '').replace(/\D/g,'').slice(0,11);
+        let out = '';
+        if (digits.length >= 1) out += '(' + digits.slice(0,2);
+        if (digits.length >= 3) out += ') ' + digits.slice(2,7);
+        if (digits.length >= 8) out += '-' + digits.slice(7,11);
+        this.value = out;
+      });
+    }
+  }
 
   function setOverlay(connected) {
     const overlay = document.getElementById('js-wa-overlay');
@@ -197,42 +220,57 @@
     badge.textContent = text;
   }
 
-  function setQrImage(base64OrDataUri) {
+  async function renderQrFromEvolutionCode(code) {
+    // Code típico: "2@....,....,...."
+    // Converte em PNG DataURL pra colocar no <img>
+    try {
+      const dataUrl = await QRCode.toDataURL(code, { margin: 1, width: 320 });
+      return dataUrl;
+    } catch (e) {
+      return '';
+    }
+  }
+
+  async function setQrImageFromBackendValue(value) {
     const img = document.getElementById('js-qr-img');
     const empty = document.getElementById('js-qr-empty');
-    const invalid = document.getElementById('js-qr-invalid');
+    if (!img || !empty) return;
 
-    if (!img || !empty || !invalid) return;
-
-    if (!base64OrDataUri) {
+    if (!value) {
       img.style.display = 'none';
       empty.style.display = '';
-      invalid.style.display = 'none';
       return;
     }
 
-    const isDataUri = base64OrDataUri.startsWith('data:image');
-    const looksBase64 = /^[A-Za-z0-9+/=]+$/.test(base64OrDataUri);
+    // Se vier data-uri ou base64 png
+    const isDataUri = value.startsWith('data:image');
+    const looksBase64 = /^[A-Za-z0-9+/=]+$/.test(value);
 
     if (isDataUri) {
-      img.src = base64OrDataUri;
+      img.src = value;
       img.style.display = '';
       empty.style.display = 'none';
-      invalid.style.display = 'none';
       return;
     }
 
     if (looksBase64) {
-      img.src = 'data:image/png;base64,' + base64OrDataUri;
+      img.src = 'data:image/png;base64,' + value;
       img.style.display = '';
       empty.style.display = 'none';
-      invalid.style.display = 'none';
+      return;
+    }
+
+    // Senão: tratar como "code" do Evolution e gerar o QR no front
+    const generated = await renderQrFromEvolutionCode(value);
+    if (generated) {
+      img.src = generated;
+      img.style.display = '';
+      empty.style.display = 'none';
       return;
     }
 
     img.style.display = 'none';
-    empty.style.display = 'none';
-    invalid.style.display = '';
+    empty.style.display = '';
   }
 
   async function refreshStatus() {
@@ -250,7 +288,9 @@
 
       setOverlay(connected);
       setBadge(connected ? 'Conectado' : (needsQr ? 'Aguardando QR' : (state || 'Sem conexão')), connected);
-      setQrImage(data.qrCode || '');
+
+      // Aqui: tanto faz se vier base64 de verdade OU o "code" do Evolution.
+      await setQrImageFromBackendValue(data.qrCode || '');
 
       if (window.feather) feather.replace();
     } catch (e) {}
@@ -266,10 +306,13 @@
         }
       });
 
-      setTimeout(refreshStatus, 1200);
+      // Aguarda um pouco e busca o status (que deve trazer o "code" para renderizar o QR)
+      setTimeout(refreshStatus, 800);
+      setTimeout(refreshStatus, 1800);
     } catch (e) {}
   }
 
+  // polling
   setInterval(refreshStatus, 10000);
 
   if (btnRefresh) btnRefresh.addEventListener('click', refreshStatus);
