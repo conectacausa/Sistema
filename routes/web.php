@@ -16,6 +16,9 @@ use App\Http\Controllers\Config\FiliaisController;
 use App\Http\Controllers\Config\WhatsappIntegracoesController;
 use App\Http\Controllers\Config\ConfiguracoesController;
 
+// WEBHOOKS
+use App\Http\Controllers\Webhooks\EvolutionWebhookController;
+
 // COLABORADORES
 use App\Http\Controllers\Colaboradores\ColaboradoresController;
 use App\Http\Controllers\Colaboradores\ColaboradoresImportacaoController;
@@ -44,6 +47,14 @@ Route::domain('{sub}.conecttarh.com.br')
         Route::post('/login', [LoginController::class, 'login'])->name('login.post');
         Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
+        /*
+        |--------------------------------------------------------------------------
+        | WEBHOOKS (SEM AUTH)
+        |--------------------------------------------------------------------------
+        */
+        Route::post('/webhooks/evolution', [EvolutionWebhookController::class, 'handle'])
+            ->name('webhooks.evolution');
+
         Route::middleware(['auth', 'tenant.user'])->group(function () {
 
             Route::get('/dashboard', fn () => view('dashboard.index'))
@@ -60,15 +71,15 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->middleware('screen:13')
                 ->name('colaboradores.index');
 
-            Route::get('/colaboradores/importar', [\App\Http\Controllers\Colaboradores\ColaboradoresImportacaoController::class, 'index'])
+            Route::get('/colaboradores/importar', [ColaboradoresImportacaoController::class, 'index'])
                 ->middleware('screen:14')
                 ->name('colaboradores.importar.index');
-            
-            Route::post('/colaboradores/importar', [\App\Http\Controllers\Colaboradores\ColaboradoresImportacaoController::class, 'store'])
+
+            Route::post('/colaboradores/importar', [ColaboradoresImportacaoController::class, 'store'])
                 ->middleware('screen:14')
                 ->name('colaboradores.importar.store');
-            
-            Route::get('/colaboradores/importar/modelo', [\App\Http\Controllers\Colaboradores\ColaboradoresImportacaoController::class, 'downloadModelo'])
+
+            Route::get('/colaboradores/importar/modelo', [ColaboradoresImportacaoController::class, 'downloadModelo'])
                 ->middleware('screen:14')
                 ->name('colaboradores.importar.modelo');
 
@@ -76,6 +87,30 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->whereNumber('id')
                 ->middleware('screen:14')
                 ->name('colaboradores.importar.rejeitados');
+
+            /*
+            |--------------------------------------------------------------------------
+            | CONFIGURAÇÕES → PÁGINA CENTRAL (/config)
+            |--------------------------------------------------------------------------
+            | Tela ID: 15
+            */
+            Route::prefix('config')
+                ->middleware('screen:15')
+                ->group(function () {
+
+                    Route::get('/', [ConfiguracoesController::class, 'index'])
+                        ->name('config.index');
+
+                    // WhatsApp (Evolution)
+                    Route::post('/whatsapp/criar-instancia', [ConfiguracoesController::class, 'whatsappCriarInstancia'])
+                        ->name('config.whatsapp.criar_instancia');
+
+                    Route::post('/whatsapp/request-qr', [ConfiguracoesController::class, 'whatsappRequestQr'])
+                        ->name('config.whatsapp.request_qr');
+
+                    Route::get('/whatsapp/status', [ConfiguracoesController::class, 'whatsappStatus'])
+                        ->name('config.whatsapp.status');
+                });
 
             /*
             |--------------------------------------------------------------------------
@@ -193,32 +228,7 @@ Route::domain('{sub}.conecttarh.com.br')
                     Route::post('/{id}/permissoes/toggle', [GrupoPermissaoController::class, 'togglePermissao'])
                         ->whereNumber('id')
                         ->name('config.grupos.permissoes.toggle');
-
                 });
-       /*
-|--------------------------------------------------------------------------
-| CONFIGURAÇÕES (Página única)
-|--------------------------------------------------------------------------
-| Tela ID: 15
-| Slug: config
-*/
-Route::prefix('config')
-    ->middleware('screen:15')
-    ->group(function () {
-
-        Route::get('/', [\App\Http\Controllers\Config\ConfiguracoesController::class, 'index'])
-            ->name('config.index');
-
-        // WhatsApp (Evolution)
-        Route::post('/whatsapp/criar-instancia', [\App\Http\Controllers\Config\ConfiguracoesController::class, 'whatsappCriarInstancia'])
-            ->name('config.whatsapp.criar_instancia');
-
-        Route::post('/whatsapp/gerar-qrcode', [\App\Http\Controllers\Config\ConfiguracoesController::class, 'whatsappGerarQrCode'])
-            ->name('config.whatsapp.gerar_qrcode');
-
-        Route::get('/whatsapp/status', [\App\Http\Controllers\Config\ConfiguracoesController::class, 'whatsappStatus'])
-            ->name('config.whatsapp.status');
-    });
 
             /*
             |--------------------------------------------------------------------------
@@ -227,7 +237,6 @@ Route::prefix('config')
             | Telas:
             | 6 = CBO
             | 7 = Cargos
-            | (Headcount ainda sem middleware screen no seu arquivo original)
             */
             Route::prefix('cargos')->group(function () {
 
@@ -278,7 +287,6 @@ Route::prefix('config')
             | BENEFÍCIOS → BOLSA DE ESTUDOS
             |--------------------------------------------------------------------------
             | Tela ID: 12
-            | Slug: beneficios/bolsa
             */
             Route::prefix('beneficios/bolsa')
                 ->middleware('screen:12')
@@ -308,30 +316,8 @@ Route::prefix('config')
                         ->whereNumber('id')
                         ->name('beneficios.bolsa.destroy');
 
-                    Route::post('/{id}/unidades', [BolsaEstudosController::class, 'storeUnidade'])
-                        ->whereNumber('id')
-                        ->name('beneficios.bolsa.unidades.store');
-
-                    Route::delete('/{id}/unidades/{vinculo_id}', [BolsaEstudosController::class, 'destroyUnidade'])
-                        ->whereNumber('id')
-                        ->whereNumber('vinculo_id')
-                        ->name('beneficios.bolsa.unidades.destroy');
-
-                    Route::post('/{id}/solicitantes', [BolsaEstudosController::class, 'storeSolicitante'])
-                        ->whereNumber('id')
-                        ->name('beneficios.bolsa.solicitantes.store');
-
-                    Route::delete('/{id}/solicitantes/{solicitacao_id}', [BolsaEstudosController::class, 'destroySolicitante'])
-                        ->whereNumber('id')
-                        ->whereNumber('solicitacao_id')
-                        ->name('beneficios.bolsa.solicitantes.destroy');
-
                     Route::get('/colaborador-por-matricula', [BolsaEstudosController::class, 'colaboradorPorMatricula'])
                         ->name('beneficios.bolsa.colaborador.lookup');
-
-                    Route::get('/beneficios/bolsa/colaborador-por-matricula', [BolsaEstudosController::class, 'colaboradorPorMatricula'])
-                        ->middleware('screen:12')
-                        ->name('beneficios.bolsa.colaborador_por_matricula');
 
                     Route::get('/entidades/search', [BolsaEstudosController::class, 'entidadesSearch'])
                         ->name('beneficios.bolsa.entidades.search');
@@ -377,41 +363,13 @@ Route::prefix('config')
                         ->whereNumber('doc_id')
                         ->name('beneficios.bolsa.documentos.reprovar');
 
-                    Route::post('/{processo_id}/competencias/{competencia_id}/pagar', [BolsaDocumentosController::class, 'pagar'])
-                        ->whereNumber('processo_id')
-                        ->whereNumber('competencia_id')
-                        ->name('beneficios.bolsa.competencias.pagar');
-
                     Route::get('/relatorios', [BolsaRelatoriosController::class, 'index'])
                         ->name('beneficios.bolsa.relatorios.index');
-
-                    Route::get('/relatorios/export-pagamentos', [BolsaRelatoriosController::class, 'exportPagamentosExcel'])
-                        ->name('beneficios.bolsa.relatorios.export_pagamentos');
-
-                    Route::get('/{id}/documentos-grid', [BolsaEstudosController::class, 'documentosGrid'])
-                        ->whereNumber('id')
-                        ->name('beneficios.bolsa.documentos_grid');
-
-                    Route::post('/{id}/unidades', [BolsaEstudosController::class, 'addUnidade'])
-                        ->whereNumber('id')
-                        ->name('beneficios.bolsa.unidades.store');
-
-                    Route::post('/{id}/solicitantes', [BolsaEstudosController::class, 'addSolicitante'])
-                        ->whereNumber('id')
-                        ->name('beneficios.bolsa.solicitantes.store');
-
-                    Route::post('/{id}/documentos', [BolsaEstudosController::class, 'addDocumento'])
-                        ->whereNumber('id')
-                        ->name('beneficios.bolsa.documentos.store');
-
-                    Route::get('/{id}/aprovacoes', [BolsaEstudosController::class, 'aprovacoes'])
-                        ->whereNumber('id')
-                        ->name('beneficios.bolsa.aprovacoes');
                 });
 
             /*
             |--------------------------------------------------------------------------
-            | RECRUTAMENTO E SELEÇÃO
+            | RECRUTAMENTO
             |--------------------------------------------------------------------------
             */
             Route::prefix('recrutamento')->group(function () {
