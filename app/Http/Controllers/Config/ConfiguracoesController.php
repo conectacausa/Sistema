@@ -16,17 +16,16 @@ class ConfiguracoesController extends Controller
 
     private function evolutionBaseUrl(): string
     {
-        // base fixa
         return rtrim(config('services.evolution.base_url', env('EVOLUTION_BASE_URL', 'https://evolution.conecttarh.com.br')), '/');
     }
 
     /**
-     * Chave ADMIN da Evolution (para criar instância / gerar QR).
-     * (não é o apikey da instância)
+     * Chave ADMIN da Evolution (global) para gerenciar instâncias.
      */
     private function evolutionAdminKey(): string
     {
-        return (string) env('EVOLUTION_ADMIN_API_KEY', '');
+        // Se você estiver usando EVOLUTION_GLOBAL_APIKEY no .env, use este:
+        return (string) env('EVOLUTION_GLOBAL_APIKEY', env('EVOLUTION_ADMIN_API_KEY', ''));
     }
 
     public function index(Request $request, string $sub)
@@ -40,7 +39,7 @@ class ConfiguracoesController extends Controller
                 'razao_social',
                 'wa_instance_id',
                 'wa_instance_name',
-                'wa_api_key',
+                'wa_instance_apikey',     // ✅ nome correto
                 'wa_phone',
                 'wa_connection_state',
                 'wa_qrcode_base64',
@@ -55,8 +54,8 @@ class ConfiguracoesController extends Controller
     }
 
     /**
-     * Endpoint usado pelo JS (poll) para saber se conectou.
-     * REGRA: se existe QR no banco => NÃO está conectado.
+     * Poll do status (JS) — Regra rígida:
+     * Se existir QRCode salvo no banco, NÃO está conectado.
      */
     public function whatsappStatus(Request $request, string $sub)
     {
@@ -84,15 +83,12 @@ class ConfiguracoesController extends Controller
         $baseUrl = $this->evolutionBaseUrl();
         $adminKey = $this->evolutionAdminKey();
 
-        // Se existe QR salvo no banco, consideramos "pendente de conexão"
         $qrFromDb = (string) ($empresa->wa_qrcode_base64 ?? '');
-        $needsQr = $qrFromDb !== '';
+        $hasQrPending = ($qrFromDb !== '');
 
         $state = null;
 
         try {
-            // Connection State (documentação oficial)
-            // GET /instance/connectionState/{instance}
             $resp = Http::withHeaders([
                     'apikey' => $adminKey,
                     'Accept' => 'application/json',
@@ -102,39 +98,33 @@ class ConfiguracoesController extends Controller
 
             if ($resp->ok()) {
                 $json = $resp->json();
-                $state = data_get($json, 'instance.state');
+                $state = (string) (data_get($json, 'instance.state') ?? '');
             }
         } catch (\Throwable $e) {
-            // mantém fallback abaixo
+            // fallback abaixo
         }
 
-        // Fallback: se não conseguiu buscar no Evolution, usa o que está no banco
         if (!$state) {
             $state = (string) ($empresa->wa_connection_state ?? '');
         }
 
-        /**
-         * ✅ Regra final de "connected":
-         * - state precisa ser "open"
-         * - E não pode existir QR pendente no banco
-         */
-        $connected = ($state === 'open') && !$needsQr;
+        // ✅ conectado SOMENTE se state=open e NÃO existe QR pendente no banco
+        $connected = ($state === 'open') && !$hasQrPending;
 
-        // Se conectou de verdade, limpa QR e atualiza estado
         if ($connected) {
+            // ao conectar, limpa QR pendente
             DB::table('empresas')
                 ->where('id', $empresaId)
                 ->update([
-                    'wa_connection_state' => $state,
+                    'wa_connection_state' => 'open',
                     'wa_qrcode_base64'    => null,
                     'updated_at'          => now(),
                 ]);
         } else {
-            // Atualiza estado no banco, mas mantém QR se existir
             DB::table('empresas')
                 ->where('id', $empresaId)
                 ->update([
-                    'wa_connection_state' => $state,
+                    'wa_connection_state' => $state ?: ($hasQrPending ? 'waiting_qr' : null),
                     'updated_at'          => now(),
                 ]);
         }
@@ -143,16 +133,16 @@ class ConfiguracoesController extends Controller
             'ok' => true,
             'hasInstance' => true,
             'connected' => $connected,
-            'state' => $state,
-            'needsQr' => !$connected, // se não conectado, consideramos que precisa de ação (QR)
+            'state' => $state ?: null,
+            'needsQr' => !$connected,
             'qrCode' => $connected ? null : ($qrFromDb ?: null),
         ]);
     }
 
     /**
-     * Cria instância no Evolution e salva no banco (sem mostrar token na tela).
+     * Criar instância
      */
-    public function criarInstancia(Request $request, string $sub)
+    public function whatsappCriarInstancia(Request $request, string $sub)
     {
         $empresaId = $this->empresaId();
 
@@ -170,14 +160,14 @@ class ConfiguracoesController extends Controller
         }
 
         $instanceName = trim((string) ($empresa->nome_fantasia ?: $empresa->razao_social ?: ('empresa_' . $empresaId)));
-        $instanceName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $instanceName);
+        $instanceName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $instanceName) . '_' . $empresaId;
+
+        $telefone = preg_replace('/\D+/', '', (string) $request->input('wa_phone', ''));
 
         $baseUrl = $this->evolutionBaseUrl();
         $adminKey = $this->evolutionAdminKey();
 
         try {
-            // Create Instance (admin key)
-            // Obs: payload pode variar por versão — aqui usamos o mínimo típico
             $resp = Http::withHeaders([
                     'apikey' => $adminKey,
                     'Accept' => 'application/json',
@@ -185,7 +175,10 @@ class ConfiguracoesController extends Controller
                 ->timeout(30)
                 ->post($baseUrl . '/instance/create', [
                     'instanceName' => $instanceName,
+                    'integration'  => 'WHATSAPP-BAILEYS',
+                    'token'        => '',
                     'qrcode'       => true,
+                    'number'       => $telefone ?: '',
                 ]);
 
             if (!$resp->ok()) {
@@ -194,35 +187,32 @@ class ConfiguracoesController extends Controller
 
             $json = $resp->json();
 
-            $instanceId = data_get($json, 'instance.instanceId')
-                ?: data_get($json, 'instanceId')
-                ?: null;
-
-            $apiKey = data_get($json, 'instance.apikey')
-                ?: data_get($json, 'apikey')
-                ?: null;
+            $instanceId = data_get($json, 'instance.instanceId') ?: data_get($json, 'instanceId');
+            $apiKey     = data_get($json, 'hash.apikey') ?: data_get($json, 'apikey');
 
             DB::table('empresas')
                 ->where('id', $empresaId)
                 ->update([
                     'wa_instance_name'     => $instanceName,
                     'wa_instance_id'       => $instanceId,
-                    'wa_api_key'           => $apiKey,
+                    'wa_instance_apikey'   => $apiKey,  // ✅ nome correto
+                    'wa_phone'             => $telefone ?: null,
                     'wa_connection_state'  => 'created',
                     'wa_qrcode_base64'     => null,
                     'updated_at'           => now(),
                 ]);
 
             return back()->with('success', 'Instância criada com sucesso.');
+
         } catch (\Throwable $e) {
             return back()->with('error', 'Erro ao criar instância: ' . $e->getMessage());
         }
     }
 
     /**
-     * Gera/atualiza QRCode no Evolution e salva no banco.
+     * Gerar/Atualizar QR
      */
-    public function gerarQrCode(Request $request, string $sub)
+    public function whatsappGerarQrCode(Request $request, string $sub)
     {
         $empresaId = $this->empresaId();
 
@@ -239,7 +229,6 @@ class ConfiguracoesController extends Controller
         $adminKey = $this->evolutionAdminKey();
 
         try {
-            // Instance Connect (gera QR / pairing code dependendo da config)
             $resp = Http::withHeaders([
                     'apikey' => $adminKey,
                     'Accept' => 'application/json',
@@ -253,16 +242,12 @@ class ConfiguracoesController extends Controller
 
             $json = $resp->json();
 
-            // Em muitas instalações o retorno do "connect" traz um code/qr (varia por versão)
-            // Aqui suportamos os nomes mais comuns:
             $qr = data_get($json, 'base64')
                 ?: data_get($json, 'qrcode')
                 ?: data_get($json, 'qr')
-                ?: data_get($json, 'code')
-                ?: null;
+                ?: data_get($json, 'code');
 
             if (!$qr) {
-                // Mesmo sem qr, guardamos estado e avisamos
                 DB::table('empresas')
                     ->where('id', $empresaId)
                     ->update([
@@ -282,6 +267,7 @@ class ConfiguracoesController extends Controller
                 ]);
 
             return back()->with('success', 'QRCode atualizado! Escaneie com o WhatsApp.');
+
         } catch (\Throwable $e) {
             return back()->with('error', 'Erro ao gerar QRCode: ' . $e->getMessage());
         }
