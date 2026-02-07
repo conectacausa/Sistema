@@ -68,9 +68,10 @@
 
                     @php
                       $state = $empresa->wa_connection_state ?? null;
-                      $connected = ($state === 'open') && ($qrCode === '');
                       $hasInstance = !empty($empresa->wa_instance_id) && !empty($empresa->wa_instance_name);
                       $qrCode = (string) ($empresa->wa_qrcode_base64 ?? '');
+                      // NUNCA considerar conectado se existe QRCode pendente
+                      $connected = ($state === 'open') && ($qrCode === '');
                       $sub = request()->route('sub');
                     @endphp
 
@@ -81,7 +82,7 @@
                           <label class="form-label">Status</label><br>
                           <span id="js-wa-status-badge"
                                 class="badge {{ $connected ? 'badge-success' : 'badge-secondary' }}">
-                            {{ $connected ? 'Conectado' : ($state ?: 'Sem conexão') }}
+                            {{ $connected ? 'Conectado' : ($qrCode !== '' ? 'Aguardando QR' : ($state ?: 'Sem conexão')) }}
                           </span>
                         </div>
 
@@ -150,10 +151,10 @@
                             </div>
                           </div>
 
-                          {{-- Overlay verde quando conectado (controlado pelo poll) --}}
+                          {{-- Overlay verde: começa SEMPRE escondido (só aparece via JS quando connected=true) --}}
                           <div id="js-wa-overlay"
                                class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
-                               style="background: rgba(40,167,69,.18); border-radius:8px; display:none;" }}">
+                               style="background: rgba(40,167,69,.18); border-radius:8px; display:none;">
                             <div class="text-center">
                               <div class="mb-5">
                                 <span class="badge badge-success" style="font-size:14px; padding:8px 12px;">
@@ -203,11 +204,7 @@
     }
     if (empty) empty.style.display = 'none';
 
-    new QRCode(el, {
-      text: code,
-      width: 240,
-      height: 240
-    });
+    new QRCode(el, { text: code, width: 240, height: 240 });
   }
 
   // Render inicial
@@ -220,9 +217,14 @@
 
   async function refreshStatus() {
     try {
-      const res = await fetch(statusUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }});
-      const data = await res.json();
+      const res = await fetch(statusUrl, {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json'
+        }
+      });
 
+      const data = await res.json();
       if (!data || !data.ok || !data.hasInstance) return;
 
       const connected = !!data.connected;
@@ -235,13 +237,17 @@
       if (badge) {
         badge.classList.remove('badge-success', 'badge-secondary');
         badge.classList.add(connected ? 'badge-success' : 'badge-secondary');
-        badge.textContent = connected ? 'Conectado' : (needsQr ? 'Aguardando QR' : (state || 'Sem conexão'));
+        badge.textContent = connected
+          ? 'Conectado'
+          : (needsQr ? 'Aguardando QR' : (state || 'Sem conexão'));
       }
 
       if (overlay) {
+        // Overlay só aparece quando connected=true
         overlay.style.display = connected ? '' : 'none';
       }
 
+      // Atualiza QR se necessário
       if (needsQr && data.qrCode) {
         renderQr(data.qrCode);
       }
@@ -261,10 +267,8 @@
     });
   }
 
-  // Atualiza imediatamente ao carregar
+  // Atualiza imediatamente ao carregar (evita overlay/status incorreto)
   refreshStatus();
-})();
-  }
 })();
 </script>
 @endpush
