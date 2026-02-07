@@ -17,14 +17,12 @@ class ConfiguracoesController extends Controller
 
     private function evolutionBaseUrl(): string
     {
-        // Ideal: http://127.0.0.1:8080 (para não passar pelo Basic Auth do Nginx)
         $base = (string) config('services.evolution.base_url', env('EVOLUTION_BASE_URL', 'http://127.0.0.1:8080'));
         return rtrim($base, '/');
     }
 
     private function evolutionAdminKey(): string
     {
-        // Chave global/admin do Evolution
         return (string) config('services.evolution.global_apikey', env('EVOLUTION_GLOBAL_APIKEY', ''));
     }
 
@@ -41,16 +39,10 @@ class ConfiguracoesController extends Controller
         $base = trim($nomeEmpresa) !== '' ? $nomeEmpresa : ('empresa_' . $empresaId);
         $slug = Str::slug($base, '_');
         if ($slug === '') $slug = 'empresa_' . $empresaId;
-
-        // garante unicidade por empresa
         $slug .= '_' . $empresaId;
-
         return Str::limit($slug, 50, '');
     }
 
-    /**
-     * Tela /config (Tela ID 15)
-     */
     public function index(Request $request, string $sub)
     {
         $empresaId = $this->empresaId();
@@ -76,11 +68,6 @@ class ConfiguracoesController extends Controller
         ]);
     }
 
-    /**
-     * Criar instância (1 por empresa)
-     * - instanceName = nome da empresa (slug) + _{empresaId}
-     * - Evolution retorna token/hash e instanceId (salvar, não exibir)
-     */
     public function whatsappCriarInstancia(Request $request, string $sub)
     {
         $empresaId = $this->empresaId();
@@ -143,10 +130,6 @@ class ConfiguracoesController extends Controller
         }
     }
 
-    /**
-     * Solicitar QR (dispara connect no Evolution).
-     * O QR real deve chegar via Webhook (QRCODE_UPDATED).
-     */
     public function whatsappRequestQr(Request $request, string $sub)
     {
         $empresaId = $this->empresaId();
@@ -172,37 +155,16 @@ class ConfiguracoesController extends Controller
                 ->withHeaders($this->evolutionHeaders())
                 ->get($url);
 
-            // Mesmo que não venha o QR aqui, o webhook deve enviar o QR real.
             if (!$resp->successful()) {
                 return response()->json(['ok' => false, 'error' => $resp->body()], 500);
             }
 
-            // Se por acaso vier base64 real aqui (algumas configs retornam), salvamos:
-            $json = $resp->json();
-
-            $qr = (string) (
-                data_get($json, 'base64') ??
-                data_get($json, 'qrcode') ??
-                data_get($json, 'qr') ??
-                data_get($json, 'data.base64') ??
-                data_get($json, 'data.qrcode') ??
-                ''
-            );
-            $qr = trim($qr);
-
-            if ($qr !== '' && (str_starts_with($qr, 'data:image') || preg_match('/^[A-Za-z0-9+\/=]+$/', $qr))) {
-                DB::table('empresas')->where('id', $empresaId)->update([
-                    'wa_qrcode_base64'    => $qr,
-                    'wa_connection_state' => 'waiting_qr',
-                    'updated_at'          => now(),
-                ]);
-            } else {
-                // não grava "code" textual aqui, para não gerar QR inválido
-                DB::table('empresas')->where('id', $empresaId)->update([
-                    'wa_connection_state' => 'waiting_qr',
-                    'updated_at'          => now(),
-                ]);
-            }
+            // Não salva "code" textual como QR (isso quebra o WhatsApp).
+            // Só marca que está aguardando QR (o QR real deve vir via webhook).
+            DB::table('empresas')->where('id', $empresaId)->update([
+                'wa_connection_state' => 'waiting_qr',
+                'updated_at'          => now(),
+            ]);
 
             return response()->json(['ok' => true]);
 
@@ -212,8 +174,9 @@ class ConfiguracoesController extends Controller
     }
 
     /**
-     * Status para o frontend (poll)
-     * Regra: se existir wa_qrcode_base64 => NÃO está conectado.
+     * ✅ Corrigido:
+     * - Se o Evolution disser state=open, consideramos conectado.
+     * - E limpamos wa_qrcode_base64 no banco imediatamente.
      */
     public function whatsappStatus(Request $request, string $sub)
     {
@@ -239,9 +202,7 @@ class ConfiguracoesController extends Controller
         }
 
         $qrFromDb = (string) ($empresa->wa_qrcode_base64 ?? '');
-        $hasQrPending = ($qrFromDb !== '');
-
-        $state = null;
+        $state = '';
 
         try {
             $resp = Http::timeout(15)
@@ -256,35 +217,41 @@ class ConfiguracoesController extends Controller
             // fallback abaixo
         }
 
-        if (!$state) {
+        if ($state === '') {
             $state = (string) ($empresa->wa_connection_state ?? '');
         }
 
-        // ✅ conectado SOMENTE se state=open E NÃO existe QR pendente no banco
-        $connected = ($state === 'open') && !$hasQrPending;
-
-        if ($connected) {
+        // ✅ Se state=open, está conectado (independente do QR pendente no banco)
+        if ($state === 'open') {
             DB::table('empresas')->where('id', $empresaId)->update([
                 'wa_connection_state' => 'open',
-                'wa_qrcode_base64'    => null,
+                'wa_qrcode_base64'    => null,   // ✅ limpa QR pendente
                 'updated_at'          => now(),
             ]);
-            $qrFromDb = '';
-        } else {
-            DB::table('empresas')->where('id', $empresaId)->update([
-                'wa_connection_state' => $state ?: ($hasQrPending ? 'waiting_qr' : null),
-                'updated_at'          => now(),
+
+            return response()->json([
+                'ok' => true,
+                'hasInstance' => true,
+                'connected' => true,
+                'state' => 'open',
+                'needsQr' => false,
+                'qrCode' => null,
             ]);
         }
 
+        // Se não está open, ainda não conectou.
+        DB::table('empresas')->where('id', $empresaId)->update([
+            'wa_connection_state' => $state ?: ($qrFromDb !== '' ? 'waiting_qr' : null),
+            'updated_at'          => now(),
+        ]);
+
         return response()->json([
-            'ok'        => true,
+            'ok' => true,
             'hasInstance' => true,
-            'connected' => $connected,
-            'state'     => $state ?: null,
-            'needsQr'   => !$connected,
-            // qrCode aqui deve ser base64 real (webhook). Se for texto, a view mostra aviso "não é QR válido".
-            'qrCode'    => $connected ? null : ($qrFromDb ?: null),
+            'connected' => false,
+            'state' => $state ?: null,
+            'needsQr' => true,
+            'qrCode' => $qrFromDb ?: null, // QR vem via webhook
         ]);
     }
 }
