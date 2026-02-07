@@ -18,7 +18,6 @@
       <div class="box">
         <div class="box-body">
 
-          {{-- Alerts --}}
           @if (session('success'))
             <div class="alert alert-success">{{ session('success') }}</div>
           @endif
@@ -37,7 +36,6 @@
             $qrRaw = (string)($empresa->wa_qrcode_base64 ?? '');
             $state = (string)($empresa->wa_connection_state ?? '');
 
-            // Conectado de verdade: state=open e não precisa mostrar QR
             $connected = ($state === 'open') && ($qrRaw === '');
 
             $isDataUri   = str_starts_with($qrRaw, 'data:image');
@@ -60,64 +58,24 @@
 
                 <div class="row">
 
-                  {{-- QRCode MAIOR À ESQUERDA --}}
-                  <div class="col-12 col-lg-7">
-                    <label class="form-label">QRCode</label>
-
-                    <div class="position-relative p-10"
-                         style="border:1px dashed #d9d9d9; border-radius:8px; height:420px;">
-
-                      <div class="h-100 d-flex align-items-center justify-content-center">
-                        <img id="js-qr-img"
-                             src="{{ $qrImgSrc }}"
-                             alt="QRCode"
-                             style="{{ $qrImgSrc ? '' : 'display:none;' }} max-width:320px; max-height:320px;">
-
-                        <div id="js-qr-empty" class="text-muted text-center" style="{{ $qrImgSrc ? 'display:none;' : '' }}">
-                          Nenhum QRCode disponível no momento.
-                        </div>
-                      </div>
-
-                      {{-- Overlay cobre 100% --}}
-                      <div id="js-wa-overlay"
-                           class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center d-none"
-                           style="background: rgba(40,167,69,.22); border-radius:8px; display:none;">
-                        <div class="text-center">
-                          <div class="mb-8">
-                            <span class="badge badge-success" style="font-size:16px; padding:10px 14px;">
-                              ✓ Conectado
-                            </span>
-                          </div>
-                          <div class="text-success fw-600">WhatsApp conectado</div>
-                        </div>
-                      </div>
-
-                    </div>
-                  </div>
-
-                  {{-- INFO À DIREITA --}}
+                  {{-- ESQUERDA: CAMPOS / AÇÕES (MAIS LARGO E SEM TRUNCAR) --}}
                   <div class="col-12 col-lg-5">
 
                     <div class="mb-10">
                       <label class="form-label">Status</label><br>
-                      <span id="js-wa-status-badge"
-                            class="badge {{ $connected ? 'badge-success' : 'badge-secondary' }}">
+                      <span id="js-wa-status-badge" class="badge {{ $connected ? 'badge-success' : 'badge-secondary' }}">
                         {{ $connected ? 'Conectado' : ($qrRaw !== '' ? 'Aguardando QR' : ($state ?: 'Sem conexão')) }}
                       </span>
                     </div>
 
                     <div class="mb-10">
                       <label class="form-label">Instance ID</label>
-                      <div class="form-control">
-                        {{ $empresa->wa_instance_id ?: '-' }}
-                      </div>
+                      <input type="text" class="form-control" value="{{ $empresa->wa_instance_id ?: '-' }}" readonly>
                     </div>
 
                     <div class="mb-10">
                       <label class="form-label">Telefone</label>
-                      <div class="form-control" id="js-wa-phone-view">
-                        {{ $empresa->wa_phone ?: '-' }}
-                      </div>
+                      <input type="text" class="form-control" value="{{ $empresa->wa_phone ?: '' }}" readonly>
                     </div>
 
                     @if (!$hasInstance)
@@ -131,7 +89,6 @@
                                  id="wa_phone"
                                  class="form-control"
                                  placeholder="(11) 99999-9999">
-                          <small class="text-muted">O sistema salva somente números (DDI/DDD + número).</small>
                         </div>
 
                         <button type="submit" class="btn btn-primary">
@@ -152,6 +109,41 @@
 
                   </div>
 
+                  {{-- DIREITA: QRCode (MAIOR) --}}
+                  <div class="col-12 col-lg-7">
+                    <label class="form-label">QRCode</label>
+
+                    <div class="position-relative p-10"
+                         style="border:1px dashed #d9d9d9; border-radius:8px; height:460px;">
+
+                      <div class="h-100 d-flex align-items-center justify-content-center">
+                        <img id="js-qr-img"
+                             src="{{ $qrImgSrc }}"
+                             alt="QRCode"
+                             style="{{ $qrImgSrc ? '' : 'display:none;' }} max-width:360px; max-height:360px;">
+
+                        <div id="js-qr-empty" class="text-muted text-center" style="{{ $qrImgSrc ? 'display:none;' : '' }}">
+                          Nenhum QRCode disponível no momento.
+                        </div>
+                      </div>
+
+                      {{-- Overlay cobrindo tudo --}}
+                      <div id="js-wa-overlay"
+                           class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center d-none"
+                           style="background: rgba(40,167,69,.22); border-radius:8px; display:none;">
+                        <div class="text-center">
+                          <div class="mb-8">
+                            <span class="badge badge-success" style="font-size:16px; padding:10px 14px;">
+                              ✓ Conectado
+                            </span>
+                          </div>
+                          <div class="text-success fw-600">WhatsApp conectado</div>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+
                 </div>
 
               </div>
@@ -167,7 +159,6 @@
 @endsection
 
 @push('scripts')
-{{-- Gera QRCode a partir do "code" que o Evolution retorna --}}
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 
 <script>
@@ -179,9 +170,8 @@
 
   const btnRefresh   = document.getElementById('btn-refresh-status');
   const btnRequestQr = document.getElementById('btn-request-qr');
-  const tabWhatsapp  = document.getElementById('tab-whatsapp-link');
 
-  // --- MÁSCARA TELEFONE (se Inputmask existir no template) + fallback simples
+  // máscara telefone (somente no campo de criação)
   const phoneInput = document.getElementById('wa_phone');
   if (phoneInput) {
     if (window.Inputmask) {
@@ -220,18 +210,7 @@
     badge.textContent = text;
   }
 
-  async function renderQrFromEvolutionCode(code) {
-    // Code típico: "2@....,....,...."
-    // Converte em PNG DataURL pra colocar no <img>
-    try {
-      const dataUrl = await QRCode.toDataURL(code, { margin: 1, width: 320 });
-      return dataUrl;
-    } catch (e) {
-      return '';
-    }
-  }
-
-  async function setQrImageFromBackendValue(value) {
+  async function renderQrValueToImg(value) {
     const img = document.getElementById('js-qr-img');
     const empty = document.getElementById('js-qr-empty');
     if (!img || !empty) return;
@@ -242,7 +221,6 @@
       return;
     }
 
-    // Se vier data-uri ou base64 png
     const isDataUri = value.startsWith('data:image');
     const looksBase64 = /^[A-Za-z0-9+/=]+$/.test(value);
 
@@ -260,17 +238,16 @@
       return;
     }
 
-    // Senão: tratar como "code" do Evolution e gerar o QR no front
-    const generated = await renderQrFromEvolutionCode(value);
-    if (generated) {
-      img.src = generated;
+    // senão: trata como "code" e gera QR
+    try {
+      const dataUrl = await QRCode.toDataURL(value, { margin: 1, width: 360 });
+      img.src = dataUrl;
       img.style.display = '';
       empty.style.display = 'none';
-      return;
+    } catch (e) {
+      img.style.display = 'none';
+      empty.style.display = '';
     }
-
-    img.style.display = 'none';
-    empty.style.display = '';
   }
 
   async function refreshStatus() {
@@ -289,8 +266,7 @@
       setOverlay(connected);
       setBadge(connected ? 'Conectado' : (needsQr ? 'Aguardando QR' : (state || 'Sem conexão')), connected);
 
-      // Aqui: tanto faz se vier base64 de verdade OU o "code" do Evolution.
-      await setQrImageFromBackendValue(data.qrCode || '');
+      await renderQrValueToImg(data.qrCode || '');
 
       if (window.feather) feather.replace();
     } catch (e) {}
@@ -298,31 +274,31 @@
 
   async function requestQr() {
     try {
-      await fetch(requestQrUrl, {
+      const res = await fetch(requestQrUrl, {
         method: 'POST',
         headers: {
           'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json',
           'X-CSRF-TOKEN': @json(csrf_token())
         }
       });
 
-      // Aguarda um pouco e busca o status (que deve trazer o "code" para renderizar o QR)
+      const data = await res.json();
+
+      // ✅ renderiza imediatamente se o controller devolver qrCode
+      if (data && data.ok && data.qrCode) {
+        await renderQrValueToImg(data.qrCode);
+      }
+
       setTimeout(refreshStatus, 800);
-      setTimeout(refreshStatus, 1800);
+      setTimeout(refreshStatus, 2000);
     } catch (e) {}
   }
 
-  // polling
   setInterval(refreshStatus, 10000);
 
   if (btnRefresh) btnRefresh.addEventListener('click', refreshStatus);
   if (btnRequestQr) btnRequestQr.addEventListener('click', requestQr);
-
-  if (tabWhatsapp) {
-    tabWhatsapp.addEventListener('shown.bs.tab', function () {
-      refreshStatus();
-    });
-  }
 
   refreshStatus();
 })();
