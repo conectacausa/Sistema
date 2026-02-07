@@ -35,4 +35,14 @@ return [
         ],
     ],
 
+    'evolution' => [
+        // base fixa para todas as empresas (como você pediu)
+        'base_url' => env('EVOLUTION_BASE_URL', 'https://evolution.conecttarh.com.br'),
+
+        // apikey global do Evolution (ADMIN)
+        'global_apikey' => env('EVOLUTION_GLOBAL_APIKEY', ''),
+
+        // segredo opcional (pra webhook futuro). pode deixar vazio por enquanto.
+        'webhook_secret' => env('EVOLUTION_WEBHOOK_SECRET', ''),
+    ],
 ];
