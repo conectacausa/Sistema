@@ -14,15 +14,15 @@ class EvolutionWebhookController extends Controller
      * Configure no Evolution para apontar para:
      *   https://{sub}.conecttarh.com.br/webhooks/evolution
      *
-     * Importante: NÃO usa auth. Só o middleware tenant (pelo subdomínio).
+     * Importante: esta rota NÃO usa auth (apenas tenant via subdomínio).
      */
     public function handle(Request $request, string $sub)
     {
         $payload = $request->all();
 
-        // (Opcional) Validação simples por secret (se você decidir usar)
-        // Envie esse header pelo Evolution (se suportar) e defina no .env:
-        // EVOLUTION_WEBHOOK_SECRET=xxxxx
+        // (Opcional) Validação por secret (se você quiser endurecer):
+        // - Defina no .env: EVOLUTION_WEBHOOK_SECRET=xxxxx
+        // - Configure no Evolution para enviar header: X-Webhook-Secret: xxxxx (se suportar)
         $secret = (string) env('EVOLUTION_WEBHOOK_SECRET', '');
         if ($secret !== '') {
             $incoming = (string) ($request->header('X-Webhook-Secret') ?? '');
@@ -31,17 +31,17 @@ class EvolutionWebhookController extends Controller
             }
         }
 
-        /**
-         * O Evolution pode enviar campos diferentes dependendo da versão/config.
-         * Vamos capturar o máximo possível.
-         */
+        // Identifica evento
         $event = (string) (
             data_get($payload, 'event') ??
             data_get($payload, 'type') ??
             data_get($payload, 'action') ??
+            data_get($payload, 'name') ??
             ''
         );
+        $event = trim($event);
 
+        // Identifica instanceName (tenta várias chaves comuns)
         $instanceName = (string) (
             data_get($payload, 'instance') ??
             data_get($payload, 'instanceName') ??
@@ -52,29 +52,31 @@ class EvolutionWebhookController extends Controller
             ''
         );
 
-        // Alguns payloads vem com "instance": { instanceName: ... }
-        if ($instanceName === '') {
+        // Alguns payloads vêm com instance como objeto
+        if ($instanceName === '' && is_array(data_get($payload, 'instance'))) {
             $instanceName = (string) (data_get($payload, 'instance.instanceName') ?? '');
         }
 
         $instanceName = trim($instanceName);
 
         if ($instanceName === '') {
-            // Sem instance, não temos como mapear a empresa
             return response()->json(['ok' => true, 'ignored' => 'missing_instance']);
         }
 
+        // Localiza a empresa pela instanceName
         $empresa = DB::table('empresas')
             ->select(['id', 'wa_instance_name'])
             ->where('wa_instance_name', $instanceName)
             ->first();
 
         if (!$empresa) {
-            // Instância não encontrada no Conectta
             return response()->json(['ok' => true, 'ignored' => 'instance_not_mapped']);
         }
 
-        // Captura QR base64 real (quando vier)
+        /**
+         * Captura QR real (base64)
+         * - Pode vir como data:image/png;base64,... OU apenas base64 puro
+         */
         $qr = (string) (
             data_get($payload, 'qrcode') ??
             data_get($payload, 'qr') ??
@@ -83,43 +85,52 @@ class EvolutionWebhookController extends Controller
             data_get($payload, 'data.qr') ??
             data_get($payload, 'data.base64') ??
             data_get($payload, 'data.qrcode.base64') ??
+            data_get($payload, 'data.qrcodeBase64') ??
             ''
         );
-
         $qr = trim($qr);
 
-        // Captura estado de conexão (quando vier)
+        /**
+         * Captura state (open/close/connecting/...)
+         */
         $state = (string) (
             data_get($payload, 'state') ??
             data_get($payload, 'status') ??
             data_get($payload, 'data.state') ??
             data_get($payload, 'data.status') ??
+            data_get($payload, 'data.connectionState') ??
             ''
         );
-
         $state = trim($state);
 
-        $update = ['updated_at' => now()];
+        $update = [
+            'updated_at' => now(),
+        ];
 
-        // Se vier evento de QR, salvamos QR
+        // Heurística: se evento sugere QR, salva QR mesmo sem "state"
+        $eventLower = Str::lower($event);
+        $isQrEvent = Str::contains($eventLower, 'qr');
+
+        // Se veio QR, salva QR e marca aguardando
         if ($qr !== '') {
-            // Se vier data-uri, ok. Se vier base64 puro, ok também.
             $update['wa_qrcode_base64'] = $qr;
-            // enquanto tem QR, consideramos aguardando
+            $update['wa_connection_state'] = $state !== '' ? $state : 'waiting_qr';
+        } elseif ($isQrEvent) {
+            // Evento de QR sem base64 (raro) — ainda marca como aguardando
             $update['wa_connection_state'] = $state !== '' ? $state : 'waiting_qr';
         }
 
-        // Se vier estado, atualiza
+        // Se veio state, atualiza
         if ($state !== '') {
             $update['wa_connection_state'] = $state;
 
-            // Se conectou de verdade, limpa QR pendente
+            // Se conectou, limpa QR pendente
             if ($state === 'open' || Str::lower($state) === 'connected') {
                 $update['wa_qrcode_base64'] = null;
             }
         }
 
-        // Se não veio nada útil, apenas registra o evento como estado (opcional)
+        // Se não veio nada útil, registra algo mínimo
         if (count($update) === 1) {
             $update['wa_connection_state'] = $event !== '' ? $event : 'webhook';
         }
