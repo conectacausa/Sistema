@@ -4,172 +4,166 @@
 <div class="content-wrapper">
   <div class="container-full">
     <section class="content">
-
       <div class="row">
         <div class="col-12">
-
           <div class="box">
             <div class="box-body">
 
-              {{-- Alerts --}}
-              @if(session('success'))
+              @if (session('success'))
                 <div class="alert alert-success">{{ session('success') }}</div>
               @endif
-              @if($errors->any())
-                <div class="alert alert-danger">
-                  <ul class="mb-0">
-                    @foreach($errors->all() as $e)
-                      <li>{{ $e }}</li>
-                    @endforeach
-                  </ul>
-                </div>
+              @if (session('error'))
+                <div class="alert alert-danger">{{ session('error') }}</div>
+              @endif
+              @if (session('info'))
+                <div class="alert alert-info">{{ session('info') }}</div>
               @endif
 
-              <div class="row">
-                <div class="col-12">
-                  <h4 class="mb-15">Configurações</h4>
-                </div>
-              </div>
+              <div class="vtabs">
+                <ul class="nav nav-tabs tabs-vertical" role="tablist">
+                  <li class="nav-item">
+                    <a class="nav-link active" data-bs-toggle="tab" href="#tab-geral" role="tab">
+                      <i data-feather="user"></i> Geral
+                    </a>
+                  </li>
 
-              <div class="row">
-                <div class="col-12">
+                  <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tab-usuarios" role="tab">
+                      <i data-feather="users"></i> Usuários
+                    </a>
+                  </li>
 
-                  <div class="vtabs">
-                    <ul class="nav nav-tabs tabs-vertical" role="tablist">
-                      <li class="nav-item">
-                        <a class="nav-link active" data-bs-toggle="tab" href="#tab-geral" role="tab">
-                          <i data-feather="lock"></i>
-                          Geral
-                        </a>
-                      </li>
+                  <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tab-whatsapp" role="tab">
+                      <i data-feather="lock"></i> WhatsApp
+                    </a>
+                  </li>
+                </ul>
 
-                      <li class="nav-item">
-                        <a class="nav-link" data-bs-toggle="tab" href="#tab-usuarios" role="tab">
-                          <i data-feather="users"></i>
-                          Usuários
-                        </a>
-                      </li>
+                <div class="tab-content">
 
-                      <li class="nav-item">
-                        <a class="nav-link" data-bs-toggle="tab" href="#tab-whatsapp" role="tab">
-                          <i data-feather="user"></i>
-                          WhatsApp (Evolution)
-                        </a>
-                      </li>
-                    </ul>
+                  <div class="tab-pane active" id="tab-geral" role="tabpanel">
+                    <h4 class="mb-10">Configurações Gerais</h4>
+                    <p class="text-muted mb-0">Central de configurações do sistema.</p>
+                  </div>
 
-                    <div class="tab-content">
+                  <div class="tab-pane" id="tab-usuarios" role="tabpanel">
+                    <h4 class="mb-10">Usuários</h4>
+                    <p class="text-muted mb-0">Configurações relacionadas a usuários (iremos evoluir depois).</p>
+                  </div>
 
-                      {{-- TAB: Geral --}}
-                      <div class="tab-pane active" id="tab-geral" role="tabpanel">
-                        <div class="p-15">
-                          <h5 class="mb-10">Geral</h5>
-                          <p class="text-muted mb-0">
-                            Central de configurações do sistema (Tela ID {{ $telaId }}).
-                          </p>
+                  <div class="tab-pane" id="tab-whatsapp" role="tabpanel">
+                    <h4 class="mb-15">WhatsApp (Evolution)</h4>
+
+                    <div class="row">
+                      <div class="col-12 col-lg-6">
+
+                        <div class="mb-10">
+                          <label class="form-label">Status</label><br>
+                          @php
+                            $state = $empresa->wa_connection_state ?? null;
+                            $connected = ($state === 'open');
+                          @endphp
+
+                          <span id="js-wa-status-badge"
+                                class="badge {{ $connected ? 'badge-success' : 'badge-secondary' }}">
+                            {{ $connected ? 'Conectado' : ($state ?: 'Sem conexão') }}
+                          </span>
                         </div>
-                      </div>
 
-                      {{-- TAB: Usuários (placeholder) --}}
-                      <div class="tab-pane" id="tab-usuarios" role="tabpanel">
-                        <div class="p-15">
-                          <h5 class="mb-10">Usuários</h5>
-                          <p class="text-muted mb-0">Em breve: configurações gerais de usuários.</p>
+                        <div class="mb-10">
+                          <label class="form-label">Instance ID</label>
+                          <div class="form-control">
+                            {{ $empresa->wa_instance_id ?: '-' }}
+                          </div>
                         </div>
-                      </div>
 
-                      {{-- TAB: WhatsApp --}}
-                      <div class="tab-pane" id="tab-whatsapp" role="tabpanel">
-                        <div class="p-15">
-                          <h5 class="mb-15">Integração WhatsApp (Evolution)</h5>
+                        <div class="mb-10">
+                          <label class="form-label">Telefone (com DDI)</label>
+                          <div class="form-control">
+                            {{ $empresa->wa_phone ?: '-' }}
+                          </div>
+                        </div>
 
-                          <form id="form-whatsapp" method="POST" action="{{ route('config.whatsapp_integracoes.store', ['sub' => $sub]) }}">
+                        @if (empty($empresa->wa_instance_id))
+                          <form method="POST" action="{{ route('config.whatsapp.criar_instancia', ['sub' => request()->route('sub')]) }}">
                             @csrf
 
-                            <div class="row">
-                              <div class="col-12 col-lg-6">
-                                <div class="form-group">
-                                  <label class="form-label">Base URL (Evolution)</label>
-                                  <input type="text"
-                                         name="base_url"
-                                         class="form-control"
-                                         placeholder="https://evolution.conecttarh.com.br"
-                                         value="{{ old('base_url', $integracaoWhatsapp->base_url ?? '') }}">
-                                </div>
-                              </div>
-
-                              <div class="col-12 col-lg-6">
-                                <div class="form-group">
-                                  <label class="form-label">Instance Name</label>
-                                  <input type="text"
-                                         name="instance_name"
-                                         class="form-control"
-                                         placeholder="ex: admin"
-                                         value="{{ old('instance_name', $integracaoWhatsapp->instance_name ?? '') }}">
-                                </div>
-                              </div>
-
-                              <div class="col-12 col-lg-6">
-                                <div class="form-group">
-                                  <label class="form-label">API Key (Evolution)</label>
-                                  <input type="password"
-                                         name="api_key"
-                                         class="form-control"
-                                         placeholder="Cole a API KEY do Evolution"
-                                         value="{{ old('api_key', '') }}">
-                                  <small class="text-muted">
-                                    Por segurança, não exibimos a chave salva. Cole novamente para atualizar.
-                                  </small>
-                                </div>
-                              </div>
-
-                              <div class="col-12 col-lg-6">
-                                <div class="form-group mt-25">
-                                  <div class="form-check">
-                                    <input class="form-check-input"
-                                           type="checkbox"
-                                           id="whatsapp-ativo"
-                                           name="ativo"
-                                           value="1"
-                                           {{ old('ativo', ($integracaoWhatsapp->ativo ?? true) ? 1 : 0) ? 'checked' : '' }}>
-                                    <label class="form-check-label" for="whatsapp-ativo">
-                                      Integração ativa
-                                    </label>
-                                  </div>
-
-                                  <div class="mt-10">
-                                    <button type="button" class="btn btn-outline-primary btn-sm" id="btn-test-whatsapp">
-                                      Testar conexão
-                                    </button>
-                                    <span class="ms-10 text-muted" id="whatsapp-test-result"></span>
-                                  </div>
-                                </div>
-                              </div>
+                            <div class="mb-10">
+                              <label class="form-label">Telefone para pareamento (opcional)</label>
+                              <input type="text"
+                                     name="wa_phone"
+                                     class="form-control"
+                                     placeholder="Ex: 5511999999999">
+                              <small class="text-muted">Se vazio, você ainda consegue conectar via QR no manager.</small>
                             </div>
 
-                            {{-- Botão Salvar fora do conteúdo das abas: aqui fica no final do form --}}
-                            <div class="mt-20">
-                              <button type="submit" class="btn btn-primary">
-                                Salvar
-                              </button>
-                            </div>
+                            <button type="submit" class="btn btn-primary">
+                              Criar instância
+                            </button>
                           </form>
+                        @else
+                          <form method="POST" action="{{ route('config.whatsapp.gerar_qrcode', ['sub' => request()->route('sub')]) }}" class="d-inline">
+                            @csrf
+                            <button type="submit" class="btn btn-primary">
+                              Gerar / Atualizar QRCode
+                            </button>
+                          </form>
+                        @endif
 
-                        </div>
                       </div>
 
-                    </div>{{-- tab-content --}}
-                  </div>{{-- vtabs --}}
+                      <div class="col-12 col-lg-6">
+                        <label class="form-label">QRCode</label>
 
-                </div>
-              </div>
+                        <div class="position-relative p-10" style="border:1px dashed #d9d9d9; border-radius:8px; min-height:320px;">
+                          {{-- Placeholder: por enquanto guardamos "code" aqui.
+                               No próximo passo, vamos mudar para receber base64 real via webhook e renderizar como <img>.
+                          --}}
+                          @php
+                            $qr = (string) ($empresa->wa_qrcode_base64 ?? '');
+                          @endphp
 
-            </div>{{-- box-body --}}
-          </div>{{-- box --}}
+                          @if ($qr !== '')
+                            <div id="js-wa-qr-code" class="small text-break" style="user-select: all;">
+                              {{ $qr }}
+                            </div>
+                            <div class="text-muted mt-10">
+                              *No próximo passo vamos renderizar esse conteúdo como imagem (base64) via webhook.
+                            </div>
+                          @else
+                            <div class="text-muted">
+                              Clique em <b>Gerar / Atualizar QRCode</b> para solicitar ao Evolution.
+                            </div>
+                          @endif
 
+                          {{-- Overlay verde quando conectado --}}
+                          <div id="js-wa-overlay"
+                               class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+                               style="background: rgba(40,167,69,.18); border-radius:8px; {{ $connected ? '' : 'display:none;' }}">
+                            <div class="text-center">
+                              <div class="mb-5">
+                                <span class="badge badge-success" style="font-size:14px; padding:8px 12px;">
+                                  ✓ Conectado
+                                </span>
+                              </div>
+                              <div class="text-success">WhatsApp conectado com sucesso.</div>
+                            </div>
+                          </div>
+
+                        </div>
+
+                      </div>
+                    </div>
+                  </div>
+
+                </div> {{-- tab-content --}}
+              </div> {{-- vtabs --}}
+
+            </div> {{-- box-body --}}
+          </div> {{-- box --}}
         </div>
       </div>
-
     </section>
   </div>
 </div>
@@ -177,40 +171,40 @@
 
 @push('scripts')
 <script>
-  (function () {
-    const btn = document.getElementById('btn-test-whatsapp');
-    const result = document.getElementById('whatsapp-test-result');
+(function () {
+  // Atualiza feather após render/AJAX
+  if (window.feather) feather.replace();
 
-    if (btn) {
-      btn.addEventListener('click', async function () {
-        result.textContent = 'Testando...';
+  // Poll simples do status para ligar/desligar overlay
+  const statusUrl = @json(route('config.whatsapp.status', ['sub' => request()->route('sub')]));
 
-        try {
-          const res = await fetch("{{ route('config.whatsapp_integracoes.test', ['sub' => $sub]) }}", {
-            method: 'POST',
-            headers: {
-              'X-CSRF-TOKEN': "{{ csrf_token() }}",
-              'X-Requested-With': 'XMLHttpRequest',
-              'Accept': 'application/json'
-            }
-          });
+  async function refreshStatus() {
+    try {
+      const res = await fetch(statusUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
+      const data = await res.json();
 
-          const data = await res.json();
+      if (!data || !data.ok || !data.hasInstance) return;
 
-          if (data.ok) {
-            result.textContent = data.message || 'Conexão OK';
-          } else {
-            result.textContent = data.message || 'Falha ao testar conexão';
-          }
-        } catch (e) {
-          result.textContent = 'Erro ao testar conexão';
-        }
+      const state = data.state || '';
+      const connected = (state === 'open');
 
-        if (window.feather) feather.replace();
-      });
-    }
+      const badge = document.getElementById('js-wa-status-badge');
+      const overlay = document.getElementById('js-wa-overlay');
 
-    if (window.feather) feather.replace();
-  })();
+      if (badge) {
+        badge.classList.remove('badge-success', 'badge-secondary');
+        badge.classList.add(connected ? 'badge-success' : 'badge-secondary');
+        badge.textContent = connected ? 'Conectado' : (state || 'Sem conexão');
+      }
+
+      if (overlay) {
+        overlay.style.display = connected ? '' : 'none';
+      }
+    } catch (e) {}
+  }
+
+  // a cada 10s
+  setInterval(refreshStatus, 10000);
+})();
 </script>
 @endpush
