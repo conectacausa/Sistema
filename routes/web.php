@@ -14,6 +14,7 @@ use App\Http\Controllers\Config\UsuariosController;
 use App\Http\Controllers\Config\GrupoPermissaoController;
 use App\Http\Controllers\Config\FiliaisController;
 use App\Http\Controllers\Config\WhatsappIntegracoesController;
+use App\Http\Controllers\Config\ConfiguracoesController;
 
 // COLABORADORES
 use App\Http\Controllers\Colaboradores\ColaboradoresController;
@@ -201,6 +202,9 @@ Route::domain('{sub}.conecttarh.com.br')
                     
                     Route::post('/config/whatsapp-integracoes/test', [WhatsappIntegracoesController::class, 'testConnection'])
                         ->name('config.whatsapp_integracoes.test');
+
+                    Route::get('/config', [ConfiguracoesController::class, 'index'])
+                        ->name('config.index');
                 });
 
             /*
