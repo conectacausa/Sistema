@@ -194,18 +194,29 @@ Route::domain('{sub}.conecttarh.com.br')
                         ->whereNumber('id')
                         ->name('config.grupos.permissoes.toggle');
 
-                    Route::get('/config/whatsapp-integracoes', [WhatsappIntegracoesController::class, 'index'])
-                        ->name('config.whatsapp_integracoes');
-                    
-                    Route::post('/config/whatsapp-integracoes', [WhatsappIntegracoesController::class, 'store'])
-                        ->name('config.whatsapp_integracoes.store');
-                    
-                    Route::post('/config/whatsapp-integracoes/test', [WhatsappIntegracoesController::class, 'testConnection'])
-                        ->name('config.whatsapp_integracoes.test');
-
-                    Route::get('/config', [ConfiguracoesController::class, 'index'])
-                        ->name('config.index');
                 });
+        /*
+        |--------------------------------------------------------------------------
+        | CONFIGURAÇÕES → CENTRAL (/config)
+        |--------------------------------------------------------------------------
+        | Tela ID: 15
+        */
+        Route::prefix('config')
+            ->middleware('screen:15')
+            ->group(function () {
+        
+                // /config
+                Route::get('/', [ConfiguracoesController::class, 'index'])
+                    ->name('config.index');
+        
+                // WhatsApp (Evolution) - ficará como aba dentro do /config,
+                // mas as rotas continuam existindo para salvar e testar
+                Route::post('/whatsapp-integracoes', [WhatsappIntegracoesController::class, 'store'])
+                    ->name('config.whatsapp_integracoes.store');
+        
+                Route::post('/whatsapp-integracoes/test', [WhatsappIntegracoesController::class, 'testConnection'])
+                    ->name('config.whatsapp_integracoes.test');
+            });
 
             /*
             |--------------------------------------------------------------------------
