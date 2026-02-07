@@ -15,6 +15,7 @@ use App\Http\Controllers\Config\GrupoPermissaoController;
 use App\Http\Controllers\Config\FiliaisController;
 use App\Http\Controllers\Config\WhatsappIntegracoesController;
 use App\Http\Controllers\Config\ConfiguracoesController;
+use App\Http\Controllers\Config\FilaMensagensController; // ✅ NOVO
 
 // WEBHOOKS
 use App\Http\Controllers\Webhooks\EvolutionWebhookController;
@@ -110,6 +111,25 @@ Route::domain('{sub}.conecttarh.com.br')
 
                     Route::get('/whatsapp/status', [ConfiguracoesController::class, 'whatsappStatus'])
                         ->name('config.whatsapp.status');
+                });
+
+            /*
+            |--------------------------------------------------------------------------
+            | CONFIGURAÇÕES → FILA DE MENSAGENS
+            |--------------------------------------------------------------------------
+            | Tela ID: 16
+            | Slug: config/fila
+            */
+            Route::prefix('config/fila')
+                ->middleware('screen:16')
+                ->group(function () {
+
+                    Route::get('/', [FilaMensagensController::class, 'index'])
+                        ->name('config.fila.index');
+
+                    Route::post('/{id}/cancelar', [FilaMensagensController::class, 'cancelar'])
+                        ->whereNumber('id')
+                        ->name('config.fila.cancelar');
                 });
 
             /*
