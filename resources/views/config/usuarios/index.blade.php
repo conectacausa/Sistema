@@ -157,7 +157,7 @@
    title="Editar"
    onclick="window.location.href='{{ $editUrl }}'; return false;">
   <i data-feather="edit"></i>
-</a> <small class="text-muted">{{ $editUrl }}</small>
+</a>
 
 
 
