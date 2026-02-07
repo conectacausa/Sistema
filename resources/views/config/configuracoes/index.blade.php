@@ -68,7 +68,7 @@
 
                     @php
                       $state = $empresa->wa_connection_state ?? null;
-                      $connected = ($state === 'open'); // refinado no poll via data.connected
+                      $connected = ($state === 'open') && ($qrCode === '');
                       $hasInstance = !empty($empresa->wa_instance_id) && !empty($empresa->wa_instance_name);
                       $qrCode = (string) ($empresa->wa_qrcode_base64 ?? '');
                       $sub = request()->route('sub');
@@ -153,7 +153,7 @@
                           {{-- Overlay verde quando conectado (controlado pelo poll) --}}
                           <div id="js-wa-overlay"
                                class="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
-                               style="background: rgba(40,167,69,.18); border-radius:8px; {{ $connected ? '' : 'display:none;' }}">
+                               style="background: rgba(40,167,69,.18); border-radius:8px; display:none;" }}">
                             <div class="text-center">
                               <div class="mb-5">
                                 <span class="badge badge-success" style="font-size:14px; padding:8px 12px;">
@@ -259,6 +259,11 @@
     btnRefresh.addEventListener('click', function () {
       refreshStatus();
     });
+  }
+
+  // Atualiza imediatamente ao carregar
+  refreshStatus();
+})();
   }
 })();
 </script>
