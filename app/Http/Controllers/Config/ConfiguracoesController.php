@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class ConfiguracoesController extends Controller
 {
@@ -16,18 +17,40 @@ class ConfiguracoesController extends Controller
 
     private function evolutionBaseUrl(): string
     {
-        return rtrim(config('services.evolution.base_url', env('EVOLUTION_BASE_URL', 'https://evolution.conecttarh.com.br')), '/');
+        // Ideal: http://127.0.0.1:8080 (para não passar pelo Basic Auth do Nginx)
+        $base = (string) config('services.evolution.base_url', env('EVOLUTION_BASE_URL', 'http://127.0.0.1:8080'));
+        return rtrim($base, '/');
+    }
+
+    private function evolutionAdminKey(): string
+    {
+        // Chave global/admin do Evolution
+        return (string) config('services.evolution.global_apikey', env('EVOLUTION_GLOBAL_APIKEY', ''));
+    }
+
+    private function evolutionHeaders(): array
+    {
+        return [
+            'apikey' => $this->evolutionAdminKey(),
+            'Accept' => 'application/json',
+        ];
+    }
+
+    private function makeInstanceName(string $nomeEmpresa, int $empresaId): string
+    {
+        $base = trim($nomeEmpresa) !== '' ? $nomeEmpresa : ('empresa_' . $empresaId);
+        $slug = Str::slug($base, '_');
+        if ($slug === '') $slug = 'empresa_' . $empresaId;
+
+        // garante unicidade por empresa
+        $slug .= '_' . $empresaId;
+
+        return Str::limit($slug, 50, '');
     }
 
     /**
-     * Chave ADMIN da Evolution (global) para gerenciar instâncias.
+     * Tela /config (Tela ID 15)
      */
-    private function evolutionAdminKey(): string
-    {
-        // Se você estiver usando EVOLUTION_GLOBAL_APIKEY no .env, use este:
-        return (string) env('EVOLUTION_GLOBAL_APIKEY', env('EVOLUTION_ADMIN_API_KEY', ''));
-    }
-
     public function index(Request $request, string $sub)
     {
         $empresaId = $this->empresaId();
@@ -39,7 +62,7 @@ class ConfiguracoesController extends Controller
                 'razao_social',
                 'wa_instance_id',
                 'wa_instance_name',
-                'wa_instance_apikey',     // ✅ nome correto
+                'wa_instance_apikey',
                 'wa_phone',
                 'wa_connection_state',
                 'wa_qrcode_base64',
@@ -54,8 +77,143 @@ class ConfiguracoesController extends Controller
     }
 
     /**
-     * Poll do status (JS) — Regra rígida:
-     * Se existir QRCode salvo no banco, NÃO está conectado.
+     * Criar instância (1 por empresa)
+     * - instanceName = nome da empresa (slug) + _{empresaId}
+     * - Evolution retorna token/hash e instanceId (salvar, não exibir)
+     */
+    public function whatsappCriarInstancia(Request $request, string $sub)
+    {
+        $empresaId = $this->empresaId();
+
+        $empresa = DB::table('empresas')
+            ->select(['id', 'nome_fantasia', 'razao_social', 'wa_instance_name'])
+            ->where('id', $empresaId)
+            ->first();
+
+        if (!$empresa) {
+            return back()->with('error', 'Empresa não encontrada.');
+        }
+
+        if (!empty($empresa->wa_instance_name)) {
+            return back()->with('info', 'Esta empresa já possui instância criada.');
+        }
+
+        $telefone = preg_replace('/\D+/', '', (string) $request->input('wa_phone', ''));
+
+        $nomeEmpresa = (string) ($empresa->nome_fantasia ?: $empresa->razao_social ?: ('Empresa ' . $empresaId));
+        $instanceName = $this->makeInstanceName($nomeEmpresa, $empresaId);
+
+        $payload = [
+            'instanceName' => $instanceName,
+            'integration'  => 'WHATSAPP-BAILEYS',
+            'token'        => '',
+            'qrcode'       => true,
+            'number'       => $telefone ?: '',
+        ];
+
+        try {
+            $resp = Http::timeout(30)
+                ->withHeaders($this->evolutionHeaders())
+                ->contentType('application/json')
+                ->post($this->evolutionBaseUrl() . '/instance/create', $payload);
+
+            if (!$resp->successful()) {
+                return back()->with('error', 'Falha ao criar instância no Evolution: ' . $resp->body());
+            }
+
+            $data = $resp->json();
+
+            $instanceId = (string) (data_get($data, 'instance.instanceId') ?? data_get($data, 'instanceId') ?? '');
+            $apiKey     = (string) (data_get($data, 'hash.apikey') ?? data_get($data, 'apikey') ?? '');
+
+            DB::table('empresas')->where('id', $empresaId)->update([
+                'wa_instance_name'     => $instanceName,
+                'wa_instance_id'       => $instanceId ?: null,
+                'wa_instance_apikey'   => $apiKey ?: null,
+                'wa_phone'             => $telefone ?: null,
+                'wa_connection_state'  => 'created',
+                'wa_qrcode_base64'     => null,
+                'updated_at'           => now(),
+            ]);
+
+            return back()->with('success', 'Instância criada! Agora solicite o QRCode.');
+
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Erro ao criar instância: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Solicitar QR (dispara connect no Evolution).
+     * O QR real deve chegar via Webhook (QRCODE_UPDATED).
+     */
+    public function whatsappRequestQr(Request $request, string $sub)
+    {
+        $empresaId = $this->empresaId();
+
+        $empresa = DB::table('empresas')
+            ->select(['id', 'wa_instance_name', 'wa_phone'])
+            ->where('id', $empresaId)
+            ->first();
+
+        if (!$empresa || empty($empresa->wa_instance_name)) {
+            return response()->json(['ok' => false, 'error' => 'Instância não encontrada'], 404);
+        }
+
+        try {
+            $url = $this->evolutionBaseUrl() . '/instance/connect/' . urlencode((string) $empresa->wa_instance_name);
+
+            $telefone = preg_replace('/\D+/', '', (string) ($empresa->wa_phone ?? ''));
+            if ($telefone) {
+                $url .= '?number=' . urlencode($telefone);
+            }
+
+            $resp = Http::timeout(20)
+                ->withHeaders($this->evolutionHeaders())
+                ->get($url);
+
+            // Mesmo que não venha o QR aqui, o webhook deve enviar o QR real.
+            if (!$resp->successful()) {
+                return response()->json(['ok' => false, 'error' => $resp->body()], 500);
+            }
+
+            // Se por acaso vier base64 real aqui (algumas configs retornam), salvamos:
+            $json = $resp->json();
+
+            $qr = (string) (
+                data_get($json, 'base64') ??
+                data_get($json, 'qrcode') ??
+                data_get($json, 'qr') ??
+                data_get($json, 'data.base64') ??
+                data_get($json, 'data.qrcode') ??
+                ''
+            );
+            $qr = trim($qr);
+
+            if ($qr !== '' && (str_starts_with($qr, 'data:image') || preg_match('/^[A-Za-z0-9+\/=]+$/', $qr))) {
+                DB::table('empresas')->where('id', $empresaId)->update([
+                    'wa_qrcode_base64'    => $qr,
+                    'wa_connection_state' => 'waiting_qr',
+                    'updated_at'          => now(),
+                ]);
+            } else {
+                // não grava "code" textual aqui, para não gerar QR inválido
+                DB::table('empresas')->where('id', $empresaId)->update([
+                    'wa_connection_state' => 'waiting_qr',
+                    'updated_at'          => now(),
+                ]);
+            }
+
+            return response()->json(['ok' => true]);
+
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Status para o frontend (poll)
+     * Regra: se existir wa_qrcode_base64 => NÃO está conectado.
      */
     public function whatsappStatus(Request $request, string $sub)
     {
@@ -80,21 +238,15 @@ class ConfiguracoesController extends Controller
             ]);
         }
 
-        $baseUrl = $this->evolutionBaseUrl();
-        $adminKey = $this->evolutionAdminKey();
-
         $qrFromDb = (string) ($empresa->wa_qrcode_base64 ?? '');
         $hasQrPending = ($qrFromDb !== '');
 
         $state = null;
 
         try {
-            $resp = Http::withHeaders([
-                    'apikey' => $adminKey,
-                    'Accept' => 'application/json',
-                ])
-                ->timeout(15)
-                ->get($baseUrl . '/instance/connectionState/' . $empresa->wa_instance_name);
+            $resp = Http::timeout(15)
+                ->withHeaders($this->evolutionHeaders())
+                ->get($this->evolutionBaseUrl() . '/instance/connectionState/' . urlencode((string) $empresa->wa_instance_name));
 
             if ($resp->ok()) {
                 $json = $resp->json();
@@ -108,168 +260,31 @@ class ConfiguracoesController extends Controller
             $state = (string) ($empresa->wa_connection_state ?? '');
         }
 
-        // ✅ conectado SOMENTE se state=open e NÃO existe QR pendente no banco
+        // ✅ conectado SOMENTE se state=open E NÃO existe QR pendente no banco
         $connected = ($state === 'open') && !$hasQrPending;
 
         if ($connected) {
-            // ao conectar, limpa QR pendente
-            DB::table('empresas')
-                ->where('id', $empresaId)
-                ->update([
-                    'wa_connection_state' => 'open',
-                    'wa_qrcode_base64'    => null,
-                    'updated_at'          => now(),
-                ]);
+            DB::table('empresas')->where('id', $empresaId)->update([
+                'wa_connection_state' => 'open',
+                'wa_qrcode_base64'    => null,
+                'updated_at'          => now(),
+            ]);
+            $qrFromDb = '';
         } else {
-            DB::table('empresas')
-                ->where('id', $empresaId)
-                ->update([
-                    'wa_connection_state' => $state ?: ($hasQrPending ? 'waiting_qr' : null),
-                    'updated_at'          => now(),
-                ]);
+            DB::table('empresas')->where('id', $empresaId)->update([
+                'wa_connection_state' => $state ?: ($hasQrPending ? 'waiting_qr' : null),
+                'updated_at'          => now(),
+            ]);
         }
 
         return response()->json([
-            'ok' => true,
+            'ok'        => true,
             'hasInstance' => true,
             'connected' => $connected,
-            'state' => $state ?: null,
-            'needsQr' => !$connected,
-            'qrCode' => $connected ? null : ($qrFromDb ?: null),
+            'state'     => $state ?: null,
+            'needsQr'   => !$connected,
+            // qrCode aqui deve ser base64 real (webhook). Se for texto, a view mostra aviso "não é QR válido".
+            'qrCode'    => $connected ? null : ($qrFromDb ?: null),
         ]);
-    }
-
-    /**
-     * Criar instância
-     */
-    public function whatsappCriarInstancia(Request $request, string $sub)
-    {
-        $empresaId = $this->empresaId();
-
-        $empresa = DB::table('empresas')
-            ->select(['id', 'nome_fantasia', 'razao_social', 'wa_instance_name'])
-            ->where('id', $empresaId)
-            ->first();
-
-        if (!$empresa) {
-            return back()->with('error', 'Empresa não encontrada.');
-        }
-
-        if (!empty($empresa->wa_instance_name)) {
-            return back()->with('info', 'Esta empresa já possui instância criada.');
-        }
-
-        $instanceName = trim((string) ($empresa->nome_fantasia ?: $empresa->razao_social ?: ('empresa_' . $empresaId)));
-        $instanceName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $instanceName) . '_' . $empresaId;
-
-        $telefone = preg_replace('/\D+/', '', (string) $request->input('wa_phone', ''));
-
-        $baseUrl = $this->evolutionBaseUrl();
-        $adminKey = $this->evolutionAdminKey();
-
-        try {
-            $resp = Http::withHeaders([
-                    'apikey' => $adminKey,
-                    'Accept' => 'application/json',
-                ])
-                ->timeout(30)
-                ->post($baseUrl . '/instance/create', [
-                    'instanceName' => $instanceName,
-                    'integration'  => 'WHATSAPP-BAILEYS',
-                    'token'        => '',
-                    'qrcode'       => true,
-                    'number'       => $telefone ?: '',
-                ]);
-
-            if (!$resp->ok()) {
-                return back()->with('error', 'Falha ao criar instância no Evolution: ' . $resp->body());
-            }
-
-            $json = $resp->json();
-
-            $instanceId = data_get($json, 'instance.instanceId') ?: data_get($json, 'instanceId');
-            $apiKey     = data_get($json, 'hash.apikey') ?: data_get($json, 'apikey');
-
-            DB::table('empresas')
-                ->where('id', $empresaId)
-                ->update([
-                    'wa_instance_name'     => $instanceName,
-                    'wa_instance_id'       => $instanceId,
-                    'wa_instance_apikey'   => $apiKey,  // ✅ nome correto
-                    'wa_phone'             => $telefone ?: null,
-                    'wa_connection_state'  => 'created',
-                    'wa_qrcode_base64'     => null,
-                    'updated_at'           => now(),
-                ]);
-
-            return back()->with('success', 'Instância criada com sucesso.');
-
-        } catch (\Throwable $e) {
-            return back()->with('error', 'Erro ao criar instância: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Gerar/Atualizar QR
-     */
-    public function whatsappGerarQrCode(Request $request, string $sub)
-    {
-        $empresaId = $this->empresaId();
-
-        $empresa = DB::table('empresas')
-            ->select(['id', 'wa_instance_name'])
-            ->where('id', $empresaId)
-            ->first();
-
-        if (!$empresa || empty($empresa->wa_instance_name)) {
-            return back()->with('error', 'Instância não encontrada para esta empresa.');
-        }
-
-        $baseUrl = $this->evolutionBaseUrl();
-        $adminKey = $this->evolutionAdminKey();
-
-        try {
-            $resp = Http::withHeaders([
-                    'apikey' => $adminKey,
-                    'Accept' => 'application/json',
-                ])
-                ->timeout(30)
-                ->get($baseUrl . '/instance/connect/' . $empresa->wa_instance_name);
-
-            if (!$resp->ok()) {
-                return back()->with('error', 'Falha ao gerar QRCode: ' . $resp->body());
-            }
-
-            $json = $resp->json();
-
-            $qr = data_get($json, 'base64')
-                ?: data_get($json, 'qrcode')
-                ?: data_get($json, 'qr')
-                ?: data_get($json, 'code');
-
-            if (!$qr) {
-                DB::table('empresas')
-                    ->where('id', $empresaId)
-                    ->update([
-                        'wa_connection_state' => 'waiting_qr',
-                        'updated_at'          => now(),
-                    ]);
-
-                return back()->with('info', 'Evolution não retornou QRCode no momento. Tente novamente.');
-            }
-
-            DB::table('empresas')
-                ->where('id', $empresaId)
-                ->update([
-                    'wa_qrcode_base64'     => $qr,
-                    'wa_connection_state'  => 'waiting_qr',
-                    'updated_at'           => now(),
-                ]);
-
-            return back()->with('success', 'QRCode atualizado! Escaneie com o WhatsApp.');
-
-        } catch (\Throwable $e) {
-            return back()->with('error', 'Erro ao gerar QRCode: ' . $e->getMessage());
-        }
     }
 }
