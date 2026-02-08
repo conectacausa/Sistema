@@ -58,7 +58,7 @@
 
                 <div class="row">
 
-                  {{-- ESQUERDA: CAMPOS / AÇÕES (MAIS LARGO E SEM TRUNCAR) --}}
+                  {{-- ESQUERDA: CAMPOS / AÇÕES --}}
                   <div class="col-12 col-lg-5">
 
                     <div class="mb-10">
@@ -109,21 +109,28 @@
 
                   </div>
 
-                  {{-- DIREITA: QRCode (MAIOR) --}}
+                  {{-- DIREITA: QRCode (travado na caixa) --}}
                   <div class="col-12 col-lg-7">
                     <label class="form-label">QRCode</label>
 
                     <div class="position-relative p-10"
-                         style="border:1px dashed #d9d9d9; border-radius:8px; height:460px;">
+                         style="border:1px dashed #d9d9d9; border-radius:8px; height:460px; overflow:hidden;">
 
+                      {{-- slot interno para garantir limite --}}
                       <div class="h-100 d-flex align-items-center justify-content-center">
-                        <img id="js-qr-img"
-                             src="{{ $qrImgSrc }}"
-                             alt="QRCode"
-                             style="{{ $qrImgSrc ? '' : 'display:none;' }} max-width:360px; max-height:360px;">
+                        <div class="d-flex align-items-center justify-content-center"
+                             style="width:360px; height:360px; max-width:100%; max-height:100%;">
 
-                        <div id="js-qr-empty" class="text-muted text-center" style="{{ $qrImgSrc ? 'display:none;' : '' }}">
-                          Nenhum QRCode disponível no momento.
+                          <img id="js-qr-img"
+                               src="{{ $qrImgSrc }}"
+                               alt="QRCode"
+                               style="{{ $qrImgSrc ? '' : 'display:none;' }} width:100%; height:100%; object-fit:contain;">
+
+                          <div id="js-qr-empty"
+                               class="text-muted text-center"
+                               style="{{ $qrImgSrc ? 'display:none;' : '' }}">
+                            Nenhum QRCode disponível no momento.
+                          </div>
                         </div>
                       </div>
 
@@ -171,7 +178,6 @@
   const btnRefresh   = document.getElementById('btn-refresh-status');
   const btnRequestQr = document.getElementById('btn-request-qr');
 
-  // máscara telefone (somente no campo de criação)
   const phoneInput = document.getElementById('wa_phone');
   if (phoneInput) {
     if (window.Inputmask) {
@@ -238,7 +244,7 @@
       return;
     }
 
-    // senão: trata como "code" e gera QR
+    // "code" -> gera QR
     try {
       const dataUrl = await QRCode.toDataURL(value, { margin: 1, width: 360 });
       img.src = dataUrl;
@@ -285,7 +291,6 @@
 
       const data = await res.json();
 
-      // ✅ renderiza imediatamente se o controller devolver qrCode
       if (data && data.ok && data.qrCode) {
         await renderQrValueToImg(data.qrCode);
       }
