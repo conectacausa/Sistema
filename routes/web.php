@@ -33,6 +33,11 @@ use App\Http\Controllers\Beneficios\BolsaAprovacoesController;
 // RECRUTAMENTO
 use App\Http\Controllers\Recrutamento\FluxoAprovacaoController;
 
+// ✅ AVD (Avaliação de Desempenho)
+use App\Http\Controllers\AVD\CiclosController;
+use App\Http\Controllers\AVD\MinhasAvaliacoesController;
+use App\Http\Controllers\AVD\PublicAvaliacaoController;
+
 Route::domain('{sub}.conecttarh.com.br')
     ->middleware(['web', 'tenant'])
     ->group(function () {
@@ -55,6 +60,19 @@ Route::domain('{sub}.conecttarh.com.br')
         */
         Route::post('/webhooks/evolution', [EvolutionWebhookController::class, 'handle'])
             ->name('webhooks.evolution');
+
+        /*
+        |--------------------------------------------------------------------------
+        | AVD (PÚBLICO POR TOKEN) - SEM AUTH (mas dentro do tenant/subdomínio)
+        |--------------------------------------------------------------------------
+        | URL pública segura:
+        | /avaliacao/{token}
+        */
+        Route::get('/avaliacao/{token}', [PublicAvaliacaoController::class, 'show'])
+            ->name('avd.public.show');
+
+        Route::post('/avaliacao/{token}', [PublicAvaliacaoController::class, 'submit'])
+            ->name('avd.public.submit');
 
         Route::middleware(['auth', 'tenant.user'])->group(function () {
 
@@ -88,6 +106,58 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->whereNumber('id')
                 ->middleware('screen:14')
                 ->name('colaboradores.importar.rejeitados');
+
+            /*
+            |----------------------------------------------------------------------
+            | AVD → AVALIAÇÃO DE DESEMPENHO
+            |----------------------------------------------------------------------
+            | Telas:
+            | 17 = Ciclos (listagem + cadastro/edição)
+            | 18 = Minhas Avaliações (pendências do usuário)
+            */
+            Route::prefix('avd')
+                ->group(function () {
+
+                    // Tela 01/02 — Ciclos (listagem + cadastro/edição)
+                    Route::prefix('desempenho')
+                        ->middleware('screen:17')
+                        ->group(function () {
+
+                            Route::get('/', [CiclosController::class, 'index'])
+                                ->name('avd.ciclos.index');
+
+                            Route::get('/criar', [CiclosController::class, 'create'])
+                                ->name('avd.ciclos.create');
+
+                            Route::post('/', [CiclosController::class, 'store'])
+                                ->name('avd.ciclos.store');
+
+                            Route::get('/{id}/editar', [CiclosController::class, 'edit'])
+                                ->whereNumber('id')
+                                ->name('avd.ciclos.edit');
+
+                            Route::put('/{id}', [CiclosController::class, 'update'])
+                                ->whereNumber('id')
+                                ->name('avd.ciclos.update');
+
+                            Route::delete('/{id}', [CiclosController::class, 'destroy'])
+                                ->whereNumber('id')
+                                ->name('avd.ciclos.destroy');
+
+                            Route::post('/{id}/iniciar', [CiclosController::class, 'iniciar'])
+                                ->whereNumber('id')
+                                ->name('avd.ciclos.iniciar');
+
+                            Route::post('/{id}/encerrar', [CiclosController::class, 'encerrar'])
+                                ->whereNumber('id')
+                                ->name('avd.ciclos.encerrar');
+                        });
+
+                    // Tela 03 — Pendências do usuário
+                    Route::get('/gestor', [MinhasAvaliacoesController::class, 'index'])
+                        ->middleware('screen:18')
+                        ->name('avd.minhas.index');
+                });
 
             /*
             |--------------------------------------------------------------------------
