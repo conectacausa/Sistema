@@ -3,42 +3,55 @@
   $sub = request()->route('sub');
 @endphp
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="m-0">Unidades vinculadas</h4>
+{{-- força ocupar toda largura da tab --}}
+<div class="w-100">
 
-  <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modal-vincular-unidade">
-    Adicionar
-  </button>
-</div>
+  <div class="clearfix mb-3">
+    <h4 class="m-0 d-inline-block">Unidades vinculadas</h4>
 
-<div class="table-responsive">
-  <table class="table table-hover align-middle w-100">
-    <thead class="bg-primary">
-      <tr>
-        <th>Nome fantasia</th>
-        <th>CNPJ</th>
-        <th style="width:120px;" class="text-end">Ações</th>
-      </tr>
-    </thead>
-    <tbody>
-      @forelse($unidadesVinculadas as $u)
-        <tr data-row="{{ $u->id }}">
-          <td>{{ $u->nome_fantasia ?? $u->razao_social }}</td>
-          <td>{{ $u->cnpj }}</td>
-          <td class="text-end">
-            <button type="button"
-              class="btn btn-sm btn-outline-danger avd-btn-desvincular-unidade"
-              data-url="{{ route('avd.ciclos.unidades.desvincular', ['sub'=>$sub,'id'=>$ciclo->id,'vinculo_id'=>$u->id]) }}"
-              title="Desvincular">
-              <i data-feather="trash-2"></i>
-            </button>
-          </td>
+    {{-- botão no canto direito (float-end) e cor primária --}}
+    <button type="button"
+            class="btn btn-primary float-end"
+            data-bs-toggle="modal"
+            data-bs-target="#modal-vincular-unidade">
+      Adicionar
+    </button>
+  </div>
+
+  {{-- tabela 100% --}}
+  <div class="table-responsive w-100">
+    <table class="table table-hover align-middle w-100 mb-0">
+      <thead class="bg-primary">
+        <tr>
+          <th>Nome fantasia</th>
+          <th>CNPJ</th>
+          <th style="width:120px;" class="text-end">Ações</th>
         </tr>
-      @empty
-        <tr><td colspan="3" class="text-center text-muted py-4">Nenhuma unidade vinculada.</td></tr>
-      @endforelse
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        @forelse($unidadesVinculadas as $u)
+          <tr data-row="{{ $u->id }}">
+            <td>{{ $u->nome_fantasia ?? $u->razao_social }}</td>
+            <td>{{ $u->cnpj }}</td>
+            <td class="text-end">
+              <button type="button"
+                class="btn btn-sm btn-outline-danger avd-btn-desvincular-unidade"
+                data-url="{{ route('avd.ciclos.unidades.desvincular', ['sub'=>$sub,'id'=>$ciclo->id,'vinculo_id'=>$u->id]) }}"
+                title="Desvincular">
+                <i data-feather="trash-2"></i>
+              </button>
+            </td>
+          </tr>
+        @empty
+          <tr>
+            <td colspan="3" class="text-center text-muted py-4">
+              Nenhuma unidade vinculada.
+            </td>
+          </tr>
+        @endforelse
+      </tbody>
+    </table>
+  </div>
 </div>
 
 {{-- MODAL: Vincular unidade --}}
@@ -54,7 +67,6 @@
       <div class="modal-body">
         <label class="form-label">Selecione</label>
 
-        {{-- opções: "Todas" + filiais --}}
         <select id="avd-modal-filial-select" class="form-select">
           <option value="">Selecione...</option>
           <option value="all">Todas</option>
@@ -74,7 +86,7 @@
 
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-success" id="avd-btn-confirmar-vinculo-unidade">
+        <button type="button" class="btn btn-primary" id="avd-btn-confirmar-vinculo-unidade">
           Vincular
         </button>
       </div>
@@ -126,11 +138,9 @@
     }
     alertEl?.classList.add('d-none');
 
-    // fecha modal
     const modalEl = document.getElementById('modal-vincular-unidade');
     const modal = modalEl ? bootstrap.Modal.getInstance(modalEl) : null;
 
-    // vincular todas
     if(val === 'all'){
       const ids = [
         @foreach($filiais as $f)
@@ -139,31 +149,17 @@
       ];
 
       Promise.all(ids.map(id => postVincular(id)))
-        .then(()=>{
-          modal?.hide();
-          refresh();
-        })
-        .catch(()=>{
-          modal?.hide();
-          refresh();
-        });
+        .then(()=>{ modal?.hide(); refresh(); })
+        .catch(()=>{ modal?.hide(); refresh(); });
 
       return;
     }
 
-    // vincular individual
     postVincular(val)
-      .then(()=>{
-        modal?.hide();
-        refresh();
-      })
-      .catch(()=>{
-        modal?.hide();
-        refresh();
-      });
+      .then(()=>{ modal?.hide(); refresh(); })
+      .catch(()=>{ modal?.hide(); refresh(); });
   });
 
-  // desvincular
   document.querySelectorAll('.avd-btn-desvincular-unidade').forEach(b=>{
     b.addEventListener('click', function(){
       const url = this.dataset.url;
@@ -177,7 +173,6 @@
     });
   });
 
-  // reset do select ao abrir
   document.getElementById('modal-vincular-unidade')?.addEventListener('show.bs.modal', function(){
     if(selectEl) selectEl.value = '';
     alertEl?.classList.add('d-none');
