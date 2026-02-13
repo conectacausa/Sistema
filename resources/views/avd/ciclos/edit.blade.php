@@ -22,9 +22,7 @@
           <li class="breadcrumb-item">
             <a href="{{ route('avd.ciclos.index', ['sub' => request()->route('sub')]) }}">Avaliação de Desempenho</a>
           </li>
-          <li class="breadcrumb-item active" aria-current="page">
-            @yield('title')
-          </li>
+          <li class="breadcrumb-item active" aria-current="page">@yield('title')</li>
         </ol>
       </nav>
     </div>
@@ -67,9 +65,11 @@
 
             <div class="vtabs">
               <ul class="nav nav-tabs tabs-vertical" role="tablist">
+
+                {{-- 1) Renomeada: Cadastro do Ciclo -> Dados --}}
                 <li class="nav-item">
                   <a class="nav-link active" data-bs-toggle="tab" href="#tab-ciclo" role="tab">
-                    <i data-feather="clipboard"></i> Cadastro do Ciclo
+                    <i data-feather="file-text"></i> Dados
                   </a>
                 </li>
 
@@ -106,7 +106,7 @@
 
               <div class="tab-content">
 
-                {{-- TAB 1: Cadastro --}}
+                {{-- TAB 1: Dados --}}
                 <div class="tab-pane active" id="tab-ciclo" role="tabpanel">
                   <div class="row g-3">
 
@@ -190,16 +190,13 @@
 
                     <div class="col-md-4">
                       <label class="form-label">Status</label>
-                      <input type="text"
-                             class="form-control"
-                             value="{{ $ciclo->status ?? 'aguardando' }}"
-                             disabled>
+                      <input type="text" class="form-control" value="{{ $ciclo->status ?? 'aguardando' }}" disabled>
                       <small class="text-muted">Status é automático (aguardando/iniciada/encerrada/em consenso).</small>
                     </div>
 
                     <div class="col-12"><hr></div>
 
-                    {{-- 3) Pesos com labels por input --}}
+                    {{-- Pesos --}}
                     <div class="col-12">
                       <h5 class="mb-2">Pesos do cálculo</h5>
                       <small class="text-muted d-block mb-2">A soma deve ser 100. Em 180°, Pares fica 0 e bloqueado.</small>
@@ -207,22 +204,12 @@
 
                     <div class="col-md-4">
                       <label class="form-label">Autoavaliação (%)</label>
-                      <input type="number"
-                             step="0.01"
-                             name="peso_auto"
-                             id="peso_auto"
-                             class="form-control"
-                             value="{{ $pesoAuto }}">
+                      <input type="number" step="0.01" name="peso_auto" id="peso_auto" class="form-control" value="{{ $pesoAuto }}">
                     </div>
 
                     <div class="col-md-4">
                       <label class="form-label">Gestor (%)</label>
-                      <input type="number"
-                             step="0.01"
-                             name="peso_gestor"
-                             id="peso_gestor"
-                             class="form-control"
-                             value="{{ $pesoGestor }}">
+                      <input type="number" step="0.01" name="peso_gestor" id="peso_gestor" class="form-control" value="{{ $pesoGestor }}">
                     </div>
 
                     <div class="col-md-4">
@@ -267,35 +254,33 @@
                   @endif
                 </div>
 
-                {{-- TAB 4: Pilares (placeholder por enquanto) --}}
+                {{-- TAB 4: Pilares (placeholder) --}}
                 <div class="tab-pane" id="tab-pilares" role="tabpanel">
                   <div class="alert alert-info mb-0">
                     Esta aba será implementada no próximo passo (pilares + regra soma = 100%).
                   </div>
                 </div>
 
-                {{-- TAB 5: Perguntas (placeholder por enquanto) --}}
+                {{-- TAB 5: Perguntas (placeholder) --}}
                 <div class="tab-pane" id="tab-perguntas" role="tabpanel">
                   <div class="alert alert-info mb-0">
                     Esta aba será implementada no próximo passo (perguntas por pilar + pesos).
                   </div>
                 </div>
 
-                {{-- TAB 6: Automações (placeholder por enquanto) --}}
+                {{-- TAB 6: Automações (placeholder) --}}
                 <div class="tab-pane" id="tab-automacoes" role="tabpanel">
                   <div class="alert alert-info mb-0">
                     Esta aba será implementada no próximo passo (mensagens WhatsApp + lembretes).
                   </div>
                 </div>
 
-              </div> {{-- tab-content --}}
-            </div> {{-- vtabs --}}
+              </div>
+            </div>
 
-            {{-- Botão Salvar FORA das abas --}}
+            {{-- Salvar fora das abas --}}
             <div class="d-flex justify-content-end mt-4">
-              <button type="submit" class="btn btn-primary">
-                Salvar
-              </button>
+              <button type="submit" class="btn btn-primary">Salvar</button>
             </div>
 
           </form>
@@ -317,10 +302,21 @@
 
   function renderFeather(){ if(window.feather) feather.replace(); }
 
-  // 1) Regra tipo 180: pares = 0 e desabilitado
+  function validarSomaPesos(){
+    const a = parseFloat(pesoAutoEl?.value || '0') || 0;
+    const g = parseFloat(pesoGestorEl?.value || '0') || 0;
+    const p = (pesoParesEl && !pesoParesEl.disabled) ? (parseFloat(pesoParesEl.value || '0') || 0) : 0;
+
+    const soma = (a + g + p);
+    if(alerta){
+      if(Math.abs(soma - 100) > 0.001) alerta.classList.remove('d-none');
+      else alerta.classList.add('d-none');
+    }
+  }
+
+  // Regra: 180 => pares=0 e desabilitado
   function aplicarRegraTipo(){
     const tipo = (tipoEl?.value || '180');
-
     if(tipo === '180'){
       if(pesoParesEl){
         pesoParesEl.value = '0';
@@ -329,34 +325,13 @@
     } else {
       if(pesoParesEl){
         pesoParesEl.removeAttribute('disabled');
-        if(parseFloat(pesoParesEl.value || '0') === 0){
-          // não obriga, apenas deixa editável; usuário decide o peso
-        }
       }
     }
     validarSomaPesos();
   }
 
-  // 3) Valida soma = 100 (alerta visual)
-  function validarSomaPesos(){
-    const a = parseFloat(pesoAutoEl?.value || '0') || 0;
-    const g = parseFloat(pesoGestorEl?.value || '0') || 0;
-    const p = (pesoParesEl && !pesoParesEl.disabled) ? (parseFloat(pesoParesEl.value || '0') || 0) : 0;
-
-    const soma = (a + g + p);
-    if(alerta){
-      if(Math.abs(soma - 100) > 0.001){
-        alerta.classList.remove('d-none');
-      } else {
-        alerta.classList.add('d-none');
-      }
-    }
-  }
-
   tipoEl?.addEventListener('change', aplicarRegraTipo);
-  [pesoAutoEl, pesoGestorEl, pesoParesEl].forEach(el=>{
-    el?.addEventListener('input', validarSomaPesos);
-  });
+  [pesoAutoEl, pesoGestorEl, pesoParesEl].forEach(el => el?.addEventListener('input', validarSomaPesos));
 
   aplicarRegraTipo();
   renderFeather();
