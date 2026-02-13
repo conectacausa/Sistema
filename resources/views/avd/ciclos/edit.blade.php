@@ -153,95 +153,23 @@
                   @if(!$ciclo)
                     <div class="alert alert-info">Salve o ciclo primeiro para vincular unidades.</div>
                   @else
-                    {{-- Implementaremos: botão + modal + tabela vinculadas --}}
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                      <h4 class="m-0">Unidades vinculadas</h4>
-                      <button type="button" class="btn btn-success">Vincular unidade</button>
-                    </div>
-
-                    <div class="table-responsive">
-                      <table class="table">
-                        <thead class="bg-primary">
-                          <tr>
-                            <th>Nome fantasia</th>
-                            <th>CNPJ</th>
-                            <th style="width:120px;">Ações</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          @forelse(($unidadesVinculadas ?? []) as $u)
-                            <tr>
-                              <td>{{ $u->nome_fantasia }}</td>
-                              <td>{{ $u->cnpj }}</td>
-                              <td>
-                                <button class="btn btn-danger btn-sm">
-                                  <i data-feather="trash-2"></i>
-                                </button>
-                              </td>
-                            </tr>
-                          @empty
-                            <tr><td colspan="3" class="text-center">Nenhuma unidade vinculada.</td></tr>
-                          @endforelse
-                        </tbody>
-                      </table>
+                    <div id="avd-tab-unidades-wrapper">
+                      @include('avd.ciclos.partials.tab_unidades')
                     </div>
                   @endif
                 </div>
 
                 {{-- TAB 3 --}}
-                <div class="tab-pane" id="tab-colab" role="tabpanel">
+                                <div class="tab-pane" id="tab-colab" role="tabpanel">
                   @if(!$ciclo)
                     <div class="alert alert-info">Salve o ciclo primeiro para vincular colaboradores.</div>
                   @else
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                      <h4 class="m-0">Participantes</h4>
-                      <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-success">Vincular individual</button>
-                        <button type="button" class="btn btn-primary">Vincular em lote</button>
-                      </div>
-                    </div>
-
-                    <div class="table-responsive">
-                      <table class="table">
-                        <thead class="bg-primary">
-                          <tr>
-                            <th>Nome</th>
-                            <th>Filial</th>
-                            <th>Nota auto</th>
-                            <th>Nota pares</th>
-                            <th>Nota gestor</th>
-                            <th>Nota final</th>
-                            <th>Status</th>
-                            <th style="width:160px;">Ações</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          @forelse(($participantes ?? []) as $p)
-                            <tr>
-                              <td>{{ $p->colaborador_nome }}</td>
-                              <td>{{ $p->filial_nome ?? '-' }}</td>
-                              <td>{{ $p->nota_auto ?? '-' }}</td>
-                              <td>{{ $p->nota_pares ?? '-' }}</td>
-                              <td>{{ $p->nota_gestor ?? '-' }}</td>
-                              <td>{{ $p->nota_final ?? '-' }}</td>
-                              <td>{{ $p->status }}</td>
-                              <td>
-                                <button class="btn btn-sm btn-outline-primary" title="Editar">
-                                  <i data-feather="edit"></i>
-                                </button>
-                                <button class="btn btn-danger btn-sm" title="Remover">
-                                  <i data-feather="trash-2"></i>
-                                </button>
-                              </td>
-                            </tr>
-                          @empty
-                            <tr><td colspan="8" class="text-center">Nenhum colaborador vinculado.</td></tr>
-                          @endforelse
-                        </tbody>
-                      </table>
+                    <div id="avd-tab-participantes-wrapper">
+                      @include('avd.ciclos.partials.tab_participantes')
                     </div>
                   @endif
                 </div>
+
 
                 {{-- TAB 4 --}}
                 <div class="tab-pane" id="tab-pilares" role="tabpanel">
