@@ -1,5 +1,10 @@
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h4 class="m-0">Participantes</h4>
+{{-- resources/views/avd/ciclos/partials/tab_participantes.blade.php --}}
+@php
+  $sub = request()->route('sub');
+@endphp
+
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  <h4 class="m-0 text-truncate">Participantes</h4>
 </div>
 
 <div class="row g-2 mb-3">
@@ -42,8 +47,8 @@
   </div>
 </div>
 
-<div class="table-responsive">
-  <table class="table">
+<div class="table-responsive w-100">
+  <table class="table w-100">
     <thead class="bg-primary">
       <tr>
         <th>Nome</th>
@@ -73,7 +78,7 @@
               <button type="button" class="btn btn-sm btn-outline-secondary avd-copy"
                 data-copy="{{ url('/avaliacao/'.$p->token_gestor) }}">Copiar link gestor</button>
 
-              @if($ciclo->tipo === '360' && $p->token_pares)
+              @if(($ciclo->tipo ?? '180') === '360' && $p->token_pares)
                 <button type="button" class="btn btn-sm btn-outline-secondary avd-copy"
                   data-copy="{{ url('/avaliacao/'.$p->token_pares) }}">Copiar link pares</button>
               @endif
@@ -83,13 +88,13 @@
           <td>
             <button type="button"
               class="btn btn-danger btn-sm avd-btn-remover"
-              data-url="{{ route('avd.ciclos.participantes.remover', ['sub'=>request()->route('sub'),'id'=>$ciclo->id,'pid'=>$p->id]) }}">
+              data-url="{{ route('avd.ciclos.participantes.remover', ['sub'=>$sub,'id'=>$ciclo->id,'pid'=>$p->id]) }}">
               <i data-feather="trash-2"></i>
             </button>
           </td>
         </tr>
       @empty
-        <tr><td colspan="6" class="text-center">Nenhum colaborador vinculado.</td></tr>
+        <tr><td colspan="6" class="text-center text-muted py-4">Nenhum colaborador vinculado.</td></tr>
       @endforelse
     </tbody>
   </table>
@@ -100,7 +105,7 @@
   const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
   function refresh(){
-    fetch(`{{ route('avd.ciclos.tab.participantes', ['sub'=>request()->route('sub'),'id'=>$ciclo->id]) }}`, {
+    fetch(`{{ route('avd.ciclos.tab.participantes', ['sub'=>$sub,'id'=>$ciclo->id]) }}`, {
       headers: {'X-Requested-With':'XMLHttpRequest'}
     }).then(r=>r.text()).then(html=>{
       document.getElementById('avd-tab-participantes-wrapper').innerHTML = html;
@@ -113,7 +118,7 @@
     const whatsapp = document.getElementById('avd-colab-whatsapp')?.value || '';
     if(!colaborador_id) return;
 
-    fetch(`{{ route('avd.ciclos.participantes.vincular', ['sub'=>request()->route('sub'),'id'=>$ciclo->id]) }}`, {
+    fetch(`{{ route('avd.ciclos.participantes.vincular', ['sub'=>$sub,'id'=>$ciclo->id]) }}`, {
       method:'POST',
       headers:{
         'X-Requested-With':'XMLHttpRequest',
@@ -128,7 +133,7 @@
     const filial_id = document.getElementById('avd-filial-lote')?.value;
     if(!filial_id) return;
 
-    fetch(`{{ route('avd.ciclos.participantes.vincular_lote', ['sub'=>request()->route('sub'),'id'=>$ciclo->id]) }}`, {
+    fetch(`{{ route('avd.ciclos.participantes.vincular_lote', ['sub'=>$sub,'id'=>$ciclo->id]) }}`, {
       method:'POST',
       headers:{
         'X-Requested-With':'XMLHttpRequest',
@@ -154,7 +159,10 @@
       const pid = this.dataset.pid;
       const whatsapp = this.value || '';
 
-      fetch(`{{ route('avd.ciclos.participantes.atualizar', ['sub'=>request()->route('sub'),'id'=>$ciclo->id,'pid'=>0]) }}`.replace('/0/atualizar','/'+pid+'/atualizar'), {
+      const urlBase = `{{ route('avd.ciclos.participantes.atualizar', ['sub'=>$sub,'id'=>$ciclo->id,'pid'=>0]) }}`;
+      const url = urlBase.replace('/0/atualizar', '/' + pid + '/atualizar');
+
+      fetch(url, {
         method:'PUT',
         headers:{
           'X-Requested-With':'XMLHttpRequest',
@@ -170,9 +178,7 @@
     b.addEventListener('click', async function(){
       const text = this.dataset.copy || '';
       if(!text) return;
-      try {
-        await navigator.clipboard.writeText(text);
-      } catch(e) {}
+      try { await navigator.clipboard.writeText(text); } catch(e) {}
     });
   });
 
