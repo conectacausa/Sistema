@@ -4,27 +4,29 @@
 
 @section('content')
 <div class="content-header">
-  <div class="d-flex align-items-center">
-    <div class="me-auto">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+
+    {{-- ESQUERDA: Título + Breadcrumb (1 linha) --}}
+    <div class="d-flex align-items-center flex-wrap gap-10">
       <h3 class="m-0">@yield('title')</h3>
-      <div class="d-inline-block align-items-center">
-        <nav>
-          <ol class="breadcrumb">
-            <li class="breadcrumb-item">
-              <a href="{{ route('dashboard', ['sub' => request()->route('sub')]) }}">
-                <i class="mdi mdi-home-outline"></i>
-              </a>
-            </li>
-            <li class="breadcrumb-item">AVD</li>
-            <li class="breadcrumb-item active">@yield('title')</li>
-          </ol>
-        </nav>
-      </div>
+
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb m-0 p-0">
+          <li class="breadcrumb-item">
+            <a href="{{ route('dashboard', ['sub' => request()->route('sub')]) }}">
+              <i class="mdi mdi-home-outline"></i>
+            </a>
+          </li>
+          <li class="breadcrumb-item">AVD</li>
+          <li class="breadcrumb-item active" aria-current="page">@yield('title')</li>
+        </ol>
+      </nav>
     </div>
 
+    {{-- DIREITA: Botão criar (sem +) --}}
     <a href="{{ route('avd.ciclos.create', ['sub' => request()->route('sub')]) }}"
        class="waves-effect waves-light btn mb-5 bg-gradient-success">
-      ➕ Criar avaliação
+      Criar avaliação
     </a>
   </div>
 </div>
@@ -39,6 +41,8 @@
 
   <div class="row">
     <div class="col-12">
+
+      {{-- Filtros --}}
       <div class="box">
         <div class="box-header with-border">
           <h4 class="box-title">Filtros</h4>
@@ -73,6 +77,7 @@
         </div>
       </div>
 
+      {{-- Tabela --}}
       <div class="box">
         <div class="box-header with-border">
           <h4 class="box-title">Ciclos</h4>
