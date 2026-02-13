@@ -1,17 +1,34 @@
+{{-- resources/views/avd/ciclos/edit.blade.php --}}
 @extends('layouts.app')
 
-@section('title', $ciclo ? 'Editar Avaliação' : 'Criar Avaliação')
+@section('title', isset($ciclo) ? 'Editar Ciclo de Avaliação' : 'Criar Ciclo de Avaliação')
 
 @section('content')
 <div class="content-header">
-  <div class="d-flex align-items-center">
-    <div class="me-auto">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+
+    {{-- ESQUERDA: Título + Breadcrumb (1 linha) --}}
+    <div class="d-flex align-items-center flex-wrap gap-10">
       <h3 class="m-0">@yield('title')</h3>
+
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb m-0 p-0">
+          <li class="breadcrumb-item">
+            <a href="{{ route('dashboard', ['sub' => request()->route('sub')]) }}">
+              <i class="mdi mdi-home-outline"></i>
+            </a>
+          </li>
+          <li class="breadcrumb-item">AVD</li>
+          <li class="breadcrumb-item">
+            <a href="{{ route('avd.ciclos.index', ['sub' => request()->route('sub')]) }}">Avaliação de Desempenho</a>
+          </li>
+          <li class="breadcrumb-item active" aria-current="page">
+            @yield('title')
+          </li>
+        </ol>
+      </nav>
     </div>
-    <a href="{{ route('avd.ciclos.index', ['sub'=>request()->route('sub')]) }}"
-       class="waves-effect waves-light btn mb-5 bg-gradient-secondary">
-      Voltar
-    </a>
+
   </div>
 </div>
 
@@ -23,134 +40,214 @@
     </div>
   @endif
 
+  @php
+    $isEdit = !empty($ciclo) && !empty($ciclo->id);
+    $sub = request()->route('sub');
+
+    $tipo = $ciclo->tipo ?? '180';
+    $pesoAuto = old('peso_auto', $ciclo->peso_auto ?? 30);
+    $pesoGestor = old('peso_gestor', $ciclo->peso_gestor ?? 70);
+    $pesoPares = old('peso_pares', $ciclo->peso_pares ?? 0);
+
+    if ($tipo === '180') {
+      $pesoPares = 0;
+    }
+  @endphp
+
   <div class="row">
     <div class="col-12">
       <div class="box">
         <div class="box-body">
-
           <form method="POST"
-                action="{{ $ciclo
-                  ? route('avd.ciclos.update', ['sub'=>request()->route('sub'),'id'=>$ciclo->id])
-                  : route('avd.ciclos.store',  ['sub'=>request()->route('sub')]) }}">
+                action="{{ $isEdit ? route('avd.ciclos.update', ['sub'=>$sub,'id'=>$ciclo->id]) : route('avd.ciclos.store', ['sub'=>$sub]) }}">
             @csrf
-            @if($ciclo) @method('PUT') @endif
+            @if($isEdit)
+              @method('PUT')
+            @endif
 
             <div class="vtabs">
               <ul class="nav nav-tabs tabs-vertical" role="tablist">
                 <li class="nav-item">
                   <a class="nav-link active" data-bs-toggle="tab" href="#tab-ciclo" role="tab">
-                    <i data-feather="lock"></i> Cadastro do Ciclo
+                    <i data-feather="clipboard"></i> Cadastro do Ciclo
                   </a>
                 </li>
+
                 <li class="nav-item">
                   <a class="nav-link" data-bs-toggle="tab" href="#tab-unidades" role="tab">
-                    <i data-feather="users"></i> Unidades
+                    <i data-feather="map-pin"></i> Unidades
                   </a>
                 </li>
+
                 <li class="nav-item">
                   <a class="nav-link" data-bs-toggle="tab" href="#tab-colab" role="tab">
-                    <i data-feather="user"></i> Colaboradores
+                    <i data-feather="users"></i> Colaboradores
                   </a>
                 </li>
+
                 <li class="nav-item">
                   <a class="nav-link" data-bs-toggle="tab" href="#tab-pilares" role="tab">
-                    <i data-feather="users"></i> Pilares
+                    <i data-feather="layers"></i> Pilares
                   </a>
                 </li>
+
                 <li class="nav-item">
                   <a class="nav-link" data-bs-toggle="tab" href="#tab-perguntas" role="tab">
-                    <i data-feather="users"></i> Perguntas
+                    <i data-feather="help-circle"></i> Perguntas
                   </a>
                 </li>
+
                 <li class="nav-item">
-                  <a class="nav-link" data-bs-toggle="tab" href="#tab-auto" role="tab">
-                    <i data-feather="lock"></i> Automações
+                  <a class="nav-link" data-bs-toggle="tab" href="#tab-automacoes" role="tab">
+                    <i data-feather="settings"></i> Automações
                   </a>
                 </li>
               </ul>
 
               <div class="tab-content">
 
-                {{-- TAB 1 --}}
+                {{-- TAB 1: Cadastro --}}
                 <div class="tab-pane active" id="tab-ciclo" role="tabpanel">
                   <div class="row g-3">
-                    <div class="col-md-6">
+
+                    <div class="col-12">
                       <label class="form-label">Título do ciclo</label>
-                      <input class="form-control" name="titulo" value="{{ old('titulo', $ciclo->titulo ?? '') }}" required>
-                    </div>
-                    <div class="col-md-3">
-                      <label class="form-label">Início</label>
-                      <input type="datetime-local" class="form-control" name="inicio_em"
-                        value="{{ old('inicio_em', isset($ciclo->inicio_em) ? \Carbon\Carbon::parse($ciclo->inicio_em)->format('Y-m-d\TH:i') : '') }}">
-                    </div>
-                    <div class="col-md-3">
-                      <label class="form-label">Fim</label>
-                      <input type="datetime-local" class="form-control" name="fim_em"
-                        value="{{ old('fim_em', isset($ciclo->fim_em) ? \Carbon\Carbon::parse($ciclo->fim_em)->format('Y-m-d\TH:i') : '') }}">
+                      <input type="text"
+                             name="titulo"
+                             class="form-control"
+                             value="{{ old('titulo', $ciclo->titulo ?? '') }}"
+                             required>
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="col-md-6">
+                      <label class="form-label">Data/hora início</label>
+                      <input type="datetime-local"
+                             name="inicio_em"
+                             class="form-control"
+                             value="{{ old('inicio_em', !empty($ciclo->inicio_em) ? \Carbon\Carbon::parse($ciclo->inicio_em)->format('Y-m-d\TH:i') : '') }}">
+                    </div>
+
+                    <div class="col-md-6">
+                      <label class="form-label">Data/hora fim</label>
+                      <input type="datetime-local"
+                             name="fim_em"
+                             class="form-control"
+                             value="{{ old('fim_em', !empty($ciclo->fim_em) ? \Carbon\Carbon::parse($ciclo->fim_em)->format('Y-m-d\TH:i') : '') }}">
+                    </div>
+
+                    <div class="col-md-4">
                       <label class="form-label">Tipo</label>
-                      <select class="form-select" name="tipo" required>
-                        <option value="180" @selected(old('tipo', $ciclo->tipo ?? '180')=='180')>180°</option>
-                        <option value="360" @selected(old('tipo', $ciclo->tipo ?? '')=='360')>360°</option>
+                      <select name="tipo" id="avd-tipo" class="form-select">
+                        <option value="180" @selected(old('tipo', $ciclo->tipo ?? '180') === '180')>180°</option>
+                        <option value="360" @selected(old('tipo', $ciclo->tipo ?? '180') === '360')>360°</option>
                       </select>
                     </div>
 
-                    <div class="col-md-3">
-                      <label class="form-label">Divergência</label>
-                      <div class="d-flex gap-2">
-                        <select class="form-select" name="divergencia_tipo">
-                          <option value="percent" @selected(old('divergencia_tipo', $ciclo->divergencia_tipo ?? 'percent')=='percent')>%</option>
-                          <option value="pontos" @selected(old('divergencia_tipo', $ciclo->divergencia_tipo ?? '')=='pontos')>Pontos</option>
-                        </select>
-                        <input class="form-control" name="divergencia_valor"
-                               value="{{ old('divergencia_valor', $ciclo->divergencia_valor ?? 0) }}">
-                      </div>
+                    <div class="col-md-4">
+                      <label class="form-label">Margem de divergência (tipo)</label>
+                      <select name="divergencia_tipo" class="form-select">
+                        <option value="percent" @selected(old('divergencia_tipo', $ciclo->divergencia_tipo ?? 'percent') === 'percent')>%</option>
+                        <option value="pontos" @selected(old('divergencia_tipo', $ciclo->divergencia_tipo ?? 'percent') === 'pontos')>Pontos</option>
+                      </select>
                     </div>
 
-                    <div class="col-md-6">
-                      <label class="form-label">Pesos do cálculo (%)</label>
-                      <div class="row g-2">
-                        <div class="col-md-4">
-                          <input class="form-control" name="peso_auto" placeholder="Auto"
-                                 value="{{ old('peso_auto', $ciclo->peso_auto ?? 30) }}">
-                        </div>
-                        <div class="col-md-4">
-                          <input class="form-control" name="peso_gestor" placeholder="Gestor"
-                                 value="{{ old('peso_gestor', $ciclo->peso_gestor ?? 70) }}">
-                        </div>
-                        <div class="col-md-4">
-                          <input class="form-control" name="peso_pares" placeholder="Pares"
-                                 value="{{ old('peso_pares', $ciclo->peso_pares ?? 0) }}">
-                        </div>
-                      </div>
-                      <small class="text-muted">No 180°, peso_pares normalmente fica 0.</small>
+                    <div class="col-md-4">
+                      <label class="form-label">Margem de divergência (valor)</label>
+                      <input type="number"
+                             step="0.01"
+                             name="divergencia_valor"
+                             class="form-control"
+                             value="{{ old('divergencia_valor', $ciclo->divergencia_valor ?? 0) }}">
                     </div>
 
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                       <div class="form-check mt-4">
-                        <input class="form-check-input" type="checkbox" name="permitir_inicio_manual" value="1"
-                          @checked(old('permitir_inicio_manual', $ciclo->permitir_inicio_manual ?? true))>
-                        <label class="form-check-label">Permitir iniciar manualmente</label>
-                      </div>
-                      <div class="form-check mt-2">
-                        <input class="form-check-input" type="checkbox" name="permitir_reabrir" value="1"
-                          @checked(old('permitir_reabrir', $ciclo->permitir_reabrir ?? false))>
-                        <label class="form-check-label">Permitir reabrir após encerrado</label>
+                        <input class="form-check-input"
+                               type="checkbox"
+                               name="permitir_inicio_manual"
+                               id="permitir_inicio_manual"
+                               value="1"
+                               @checked(old('permitir_inicio_manual', (bool)($ciclo->permitir_inicio_manual ?? true)))>
+                        <label class="form-check-label" for="permitir_inicio_manual">
+                          Permitir iniciar manualmente?
+                        </label>
                       </div>
                     </div>
 
-                    <div class="col-md-3">
-                      <label class="form-label">Status</label>
-                      <input class="form-control" value="{{ $ciclo->status ?? 'aguardando' }}" disabled>
+                    <div class="col-md-4">
+                      <div class="form-check mt-4">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               name="permitir_reabrir"
+                               id="permitir_reabrir"
+                               value="1"
+                               @checked(old('permitir_reabrir', (bool)($ciclo->permitir_reabrir ?? false)))>
+                        <label class="form-check-label" for="permitir_reabrir">
+                          Permitir reabrir após encerrado?
+                        </label>
+                      </div>
                     </div>
+
+                    <div class="col-md-4">
+                      <label class="form-label">Status</label>
+                      <input type="text"
+                             class="form-control"
+                             value="{{ $ciclo->status ?? 'aguardando' }}"
+                             disabled>
+                      <small class="text-muted">Status é automático (aguardando/iniciada/encerrada/em consenso).</small>
+                    </div>
+
+                    <div class="col-12"><hr></div>
+
+                    {{-- 3) Pesos com labels por input --}}
+                    <div class="col-12">
+                      <h5 class="mb-2">Pesos do cálculo</h5>
+                      <small class="text-muted d-block mb-2">A soma deve ser 100. Em 180°, Pares fica 0 e bloqueado.</small>
+                    </div>
+
+                    <div class="col-md-4">
+                      <label class="form-label">Autoavaliação (%)</label>
+                      <input type="number"
+                             step="0.01"
+                             name="peso_auto"
+                             id="peso_auto"
+                             class="form-control"
+                             value="{{ $pesoAuto }}">
+                    </div>
+
+                    <div class="col-md-4">
+                      <label class="form-label">Gestor (%)</label>
+                      <input type="number"
+                             step="0.01"
+                             name="peso_gestor"
+                             id="peso_gestor"
+                             class="form-control"
+                             value="{{ $pesoGestor }}">
+                    </div>
+
+                    <div class="col-md-4">
+                      <label class="form-label">Pares (%)</label>
+                      <input type="number"
+                             step="0.01"
+                             name="peso_pares"
+                             id="peso_pares"
+                             class="form-control"
+                             value="{{ $pesoPares }}"
+                             @disabled($tipo === '180')>
+                    </div>
+
+                    <div class="col-12">
+                      <div id="peso-alerta" class="alert alert-warning d-none mb-0">
+                        A soma dos pesos precisa ser <strong>100</strong>. Ajuste os campos.
+                      </div>
+                    </div>
+
                   </div>
                 </div>
 
-                {{-- TAB 2 --}}
+                {{-- TAB 2: Unidades --}}
                 <div class="tab-pane" id="tab-unidades" role="tabpanel">
-                  @if(!$ciclo)
+                  @if(!$isEdit)
                     <div class="alert alert-info">Salve o ciclo primeiro para vincular unidades.</div>
                   @else
                     <div id="avd-tab-unidades-wrapper">
@@ -159,9 +256,9 @@
                   @endif
                 </div>
 
-                {{-- TAB 3 --}}
-                                <div class="tab-pane" id="tab-colab" role="tabpanel">
-                  @if(!$ciclo)
+                {{-- TAB 3: Colaboradores --}}
+                <div class="tab-pane" id="tab-colab" role="tabpanel">
+                  @if(!$isEdit)
                     <div class="alert alert-info">Salve o ciclo primeiro para vincular colaboradores.</div>
                   @else
                     <div id="avd-tab-participantes-wrapper">
@@ -170,87 +267,38 @@
                   @endif
                 </div>
 
-
-                {{-- TAB 4 --}}
+                {{-- TAB 4: Pilares (placeholder por enquanto) --}}
                 <div class="tab-pane" id="tab-pilares" role="tabpanel">
-                  @if(!$ciclo)
-                    <div class="alert alert-info">Salve o ciclo primeiro para cadastrar pilares.</div>
-                  @else
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                      <h4 class="m-0">Pilares</h4>
-                      <button type="button" class="btn btn-success">Adicionar pilar</button>
-                    </div>
-                    <small class="text-muted">Regra: soma dos pilares = 100%</small>
-                    <hr>
-                    {{-- tabela de pilares --}}
-                  @endif
-                </div>
-
-                {{-- TAB 5 --}}
-                <div class="tab-pane" id="tab-perguntas" role="tabpanel">
-                  @if(!$ciclo)
-                    <div class="alert alert-info">Salve o ciclo primeiro para cadastrar perguntas.</div>
-                  @else
-                    <div class="alert alert-warning">
-                      Estrutura por pilar. Regra: soma das perguntas do pilar = 100%.
-                    </div>
-                    {{-- aqui entra UI por pilar --}}
-                  @endif
-                </div>
-
-                {{-- TAB 6 --}}
-                <div class="tab-pane" id="tab-auto" role="tabpanel">
-                  <div class="row g-3">
-                    <div class="col-md-6">
-                      <label class="form-label">Mensagem autoavaliação</label>
-                      <textarea class="form-control" rows="4" name="msg_auto">{{ old('msg_auto', $ciclo->msg_auto ?? '') }}</textarea>
-                    </div>
-                    <div class="col-md-6">
-                      <label class="form-label">Mensagem gestor</label>
-                      <textarea class="form-control" rows="4" name="msg_gestor">{{ old('msg_gestor', $ciclo->msg_gestor ?? '') }}</textarea>
-                    </div>
-                    <div class="col-md-6">
-                      <label class="form-label">Mensagem pares</label>
-                      <textarea class="form-control" rows="4" name="msg_pares">{{ old('msg_pares', $ciclo->msg_pares ?? '') }}</textarea>
-                    </div>
-                    <div class="col-md-6">
-                      <label class="form-label">Mensagem consenso</label>
-                      <textarea class="form-control" rows="4" name="msg_consenso">{{ old('msg_consenso', $ciclo->msg_consenso ?? '') }}</textarea>
-                    </div>
-
-                    <div class="col-md-6">
-                      <label class="form-label">Mensagem lembrete</label>
-                      <textarea class="form-control" rows="3" name="msg_lembrete">{{ old('msg_lembrete', $ciclo->msg_lembrete ?? '') }}</textarea>
-                      <small class="text-muted">Shortcodes: {nome}, {empresa}, {link}, {data_limite}</small>
-                    </div>
-
-                    <div class="col-md-3">
-                      <label class="form-label">Lembrete a cada (dias)</label>
-                      <input class="form-control" name="lembrete_cada_dias" value="{{ old('lembrete_cada_dias', $ciclo->lembrete_cada_dias ?? 0) }}">
-                    </div>
-
-                    <div class="col-md-3">
-                      <div class="form-check mt-4">
-                        <input class="form-check-input" type="checkbox" name="parar_lembrete_apos_responder" value="1"
-                          @checked(old('parar_lembrete_apos_responder', $ciclo->parar_lembrete_apos_responder ?? true))>
-                        <label class="form-check-label">Parar após responder</label>
-                      </div>
-                    </div>
+                  <div class="alert alert-info mb-0">
+                    Esta aba será implementada no próximo passo (pilares + regra soma = 100%).
                   </div>
                 </div>
 
-              </div>
-            </div>
+                {{-- TAB 5: Perguntas (placeholder por enquanto) --}}
+                <div class="tab-pane" id="tab-perguntas" role="tabpanel">
+                  <div class="alert alert-info mb-0">
+                    Esta aba será implementada no próximo passo (perguntas por pilar + pesos).
+                  </div>
+                </div>
 
-            {{-- ✅ BOTÃO SALVAR FORA DAS ABAS --}}
-            <div class="mt-4 d-flex justify-content-end">
+                {{-- TAB 6: Automações (placeholder por enquanto) --}}
+                <div class="tab-pane" id="tab-automacoes" role="tabpanel">
+                  <div class="alert alert-info mb-0">
+                    Esta aba será implementada no próximo passo (mensagens WhatsApp + lembretes).
+                  </div>
+                </div>
+
+              </div> {{-- tab-content --}}
+            </div> {{-- vtabs --}}
+
+            {{-- Botão Salvar FORA das abas --}}
+            <div class="d-flex justify-content-end mt-4">
               <button type="submit" class="btn btn-primary">
                 Salvar
               </button>
             </div>
 
           </form>
-
         </div>
       </div>
     </div>
@@ -260,6 +308,58 @@
 
 @push('scripts')
 <script>
-(function(){ if(window.feather) feather.replace(); })();
+(function(){
+  const tipoEl = document.getElementById('avd-tipo');
+  const pesoParesEl = document.getElementById('peso_pares');
+  const pesoAutoEl = document.getElementById('peso_auto');
+  const pesoGestorEl = document.getElementById('peso_gestor');
+  const alerta = document.getElementById('peso-alerta');
+
+  function renderFeather(){ if(window.feather) feather.replace(); }
+
+  // 1) Regra tipo 180: pares = 0 e desabilitado
+  function aplicarRegraTipo(){
+    const tipo = (tipoEl?.value || '180');
+
+    if(tipo === '180'){
+      if(pesoParesEl){
+        pesoParesEl.value = '0';
+        pesoParesEl.setAttribute('disabled','disabled');
+      }
+    } else {
+      if(pesoParesEl){
+        pesoParesEl.removeAttribute('disabled');
+        if(parseFloat(pesoParesEl.value || '0') === 0){
+          // não obriga, apenas deixa editável; usuário decide o peso
+        }
+      }
+    }
+    validarSomaPesos();
+  }
+
+  // 3) Valida soma = 100 (alerta visual)
+  function validarSomaPesos(){
+    const a = parseFloat(pesoAutoEl?.value || '0') || 0;
+    const g = parseFloat(pesoGestorEl?.value || '0') || 0;
+    const p = (pesoParesEl && !pesoParesEl.disabled) ? (parseFloat(pesoParesEl.value || '0') || 0) : 0;
+
+    const soma = (a + g + p);
+    if(alerta){
+      if(Math.abs(soma - 100) > 0.001){
+        alerta.classList.remove('d-none');
+      } else {
+        alerta.classList.add('d-none');
+      }
+    }
+  }
+
+  tipoEl?.addEventListener('change', aplicarRegraTipo);
+  [pesoAutoEl, pesoGestorEl, pesoParesEl].forEach(el=>{
+    el?.addEventListener('input', validarSomaPesos);
+  });
+
+  aplicarRegraTipo();
+  renderFeather();
+})();
 </script>
 @endpush
