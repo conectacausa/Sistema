@@ -10,14 +10,15 @@
       <div class="box">
         <div class="box-body">
 
+          {{-- Header da página (dentro do box-body, seguindo padrão do projeto) --}}
           <div class="d-flex align-items-center mb-3">
             <div class="me-auto">
-              <h4 class="page-title mb-0">Transporte</h4>
-              <small class="text-muted">Benefícios • Transporte • Linhas</small>
+              <h3 class="m-0">Transporte</h3>
+              <div class="text-muted">Benefícios • Transporte • Linhas</div>
             </div>
 
             <a href="{{ route('beneficios.transporte.linhas.create', ['sub' => $sub]) }}"
-               class="waves-effect waves-light btn bg-gradient-success">
+               class="waves-effect waves-light btn mb-0 bg-gradient-success">
               Nova Linha
             </a>
           </div>
@@ -30,7 +31,10 @@
                   <h4 class="box-title">Filtros</h4>
                 </div>
                 <div class="box-body">
-                  <form id="formFiltros" method="GET" action="{{ route('beneficios.transporte.linhas.index', ['sub' => $sub]) }}">
+                  <form id="formFiltros"
+                        method="GET"
+                        action="{{ route('beneficios.transporte.linhas.index', ['sub' => $sub]) }}">
+
                     <div class="row">
                       <div class="col-md-12">
                         <div class="form-group">
@@ -72,7 +76,7 @@
                       </div>
                     </div>
 
-                    {{-- sem botão: filtro é automático --}}
+                    {{-- sem botão: auto-submit --}}
                   </form>
                 </div>
               </div>
@@ -98,6 +102,7 @@
                           <th class="text-end">Ações</th>
                         </tr>
                       </thead>
+
                       <tbody>
                         @forelse($linhas as $l)
                           @php
@@ -142,6 +147,7 @@
                                     class="d-inline js-form-delete">
                                 @csrf
                                 @method('DELETE')
+
                                 <button type="button"
                                         class="btn btn-danger btn-sm js-btn-delete"
                                         data-title="Confirmar exclusão"
@@ -164,7 +170,7 @@
                     </table>
                   </div>
 
-                  {{-- Paginação --}}
+                  {{-- Paginação (25 por página no controller) --}}
                   <div class="d-flex justify-content-end mt-3">
                     {!! $linhas->links() !!}
                   </div>
@@ -191,11 +197,7 @@
   // Toastr (se estiver disponível no vendors)
   function toast(type, msg, title) {
     if (window.toastr) {
-      toastr.options = {
-        closeButton: true,
-        progressBar: true,
-        timeOut: 3500
-      };
+      toastr.options = { closeButton:true, progressBar:true, timeOut:3500 };
       toastr[type || 'info'](msg, title || '');
     }
   }
