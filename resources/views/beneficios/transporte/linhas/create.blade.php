@@ -36,6 +36,7 @@
         </div>
 
         <div class="box-body">
+
           <form method="POST"
                 action="{{ route('beneficios.transporte.linhas.store', ['sub' => $sub]) }}"
                 id="formLinha">
@@ -81,7 +82,7 @@
                 </div>
               </div>
 
-              {{-- ✅ Filial agora é SINGLE select --}}
+              {{-- ✅ Filial = dropdown simples --}}
               <div class="col-md-4">
                 <div class="form-group">
                   <label class="form-label">Filial</label>
@@ -89,9 +90,7 @@
                     <select class="form-select" name="filial_id" id="filial_id">
                       <option value="">Selecione...</option>
                       @foreach(($filiais ?? []) as $f)
-                        @php
-                          $label = $f->nome_fantasia ?? $f->nome ?? ('Filial #'.$f->id);
-                        @endphp
+                        @php $label = $f->nome_fantasia ?? $f->nome ?? ('Filial #'.$f->id); @endphp
                         <option value="{{ $f->id }}" {{ (string)old('filial_id') === (string)$f->id ? 'selected' : '' }}>
                           {{ $label }}
                         </option>
@@ -119,7 +118,7 @@
                 <div class="form-group">
                   <label class="form-label">Veículo</label>
                   <div class="input-group">
-                    <select class="form-select select2bs4" name="veiculo_id" id="veiculo_id">
+                    <select class="form-select" name="veiculo_id" id="veiculo_id">
                       <option value="">Selecione...</option>
                       @foreach(($veiculos ?? []) as $v)
                         @php
@@ -139,7 +138,7 @@
                 <div class="form-group">
                   <label class="form-label">Motorista</label>
                   <div class="input-group">
-                    <select class="form-select select2bs4" name="motorista_id" id="motorista_id">
+                    <select class="form-select" name="motorista_id" id="motorista_id">
                       <option value="">Selecione...</option>
                       @foreach(($motoristas ?? []) as $m)
                         <option value="{{ $m->id }}" {{ (string)old('motorista_id') === (string)$m->id ? 'selected' : '' }}>
@@ -175,20 +174,17 @@
 @endsection
 
 @push('scripts')
-{{-- Select2 (seu pacote tem apenas o padrão) --}}
+{{-- Select2 --}}
 <link rel="stylesheet" href="{{ asset('assets/vendor_components/select2/dist/css/select2.min.css') }}">
 <script src="{{ asset('assets/vendor_components/select2/dist/js/select2.full.min.js') }}"></script>
 
-{{-- Toastr --}}
-<script src="{{ asset('assets/js/pages/toastr.js') }}"></script>
-
 <style>
-  /* Faz o Select2 parecer um input do template */
+  /* Mantém o Select2 com visual de input do template */
   .select2-container { width: 100% !important; }
 
   .select2-container .select2-selection--single{
     height: calc(2.25rem + 2px) !important;
-    border: 1px solid #d7dce3 !important; /* borda padrão “clean” */
+    border: 1px solid #d7dce3 !important;
     border-radius: .25rem !important;
     background-color: #fff !important;
   }
@@ -201,14 +197,10 @@
     height: calc(2.25rem + 2px) !important;
     right: 6px !important;
   }
-
-  /* Dropdown */
   .select2-dropdown{
     border: 1px solid #d7dce3 !important;
     border-radius: .25rem !important;
   }
-
-  /* Corrige quando está dentro de .input-group */
   .input-group .select2-container--default{
     flex: 1 1 auto;
   }
@@ -218,7 +210,6 @@
 (function () {
   if (window.feather) feather.replace();
 
-  // Select2 sem tema (porque você não tem bootstrap4 theme no pacote)
   if (window.jQuery && jQuery.fn.select2) {
     $('#veiculo_id, #motorista_id').select2({
       width: '100%',
@@ -226,21 +217,6 @@
       allowClear: true
     });
   }
-
-  function toast(type, msg) {
-    if (window.toastr) {
-      toastr.options = { closeButton:true, progressBar:true, timeOut:4000 };
-      toastr[type || 'info'](msg);
-    }
-  }
-
-  @if(session('success'))
-    toast('success', @json(session('success')));
-  @endif
-  @if(session('error'))
-    toast('error', @json(session('error')));
-  @endif
 })();
 </script>
 @endpush
-
