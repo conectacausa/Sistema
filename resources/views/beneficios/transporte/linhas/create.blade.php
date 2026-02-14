@@ -30,6 +30,7 @@
   <div class="row">
     <div class="col-12">
       <div class="box">
+
         <div class="box-header with-border">
           <h4 class="box-title">Cadastro de Linha</h4>
         </div>
@@ -80,24 +81,23 @@
                 </div>
               </div>
 
+              {{-- ✅ Filial agora é SINGLE select --}}
               <div class="col-md-4">
                 <div class="form-group">
                   <label class="form-label">Filial</label>
                   <div class="input-group">
-                    {{-- linha pode ter mais de uma filial: multiselect --}}
-                    <select class="form-select" name="filiais[]" multiple id="filiais_select">
+                    <select class="form-select" name="filial_id" id="filial_id">
+                      <option value="">Selecione...</option>
                       @foreach(($filiais ?? []) as $f)
                         @php
                           $label = $f->nome_fantasia ?? $f->nome ?? ('Filial #'.$f->id);
-                          $selected = in_array((int)$f->id, array_map('intval', (array)old('filiais', [])), true);
                         @endphp
-                        <option value="{{ $f->id }}" {{ $selected ? 'selected' : '' }}>
+                        <option value="{{ $f->id }}" {{ (string)old('filial_id') === (string)$f->id ? 'selected' : '' }}>
                           {{ $label }}
                         </option>
                       @endforeach
                     </select>
                   </div>
-                  <small class="text-muted">Selecione uma ou mais filiais vinculadas à linha.</small>
                 </div>
               </div>
 
@@ -119,8 +119,7 @@
                 <div class="form-group">
                   <label class="form-label">Veículo</label>
                   <div class="input-group">
-                    {{-- Select2 live search --}}
-                    <select class="form-select" name="veiculo_id" id="veiculo_id">
+                    <select class="form-select select2bs4" name="veiculo_id" id="veiculo_id">
                       <option value="">Selecione...</option>
                       @foreach(($veiculos ?? []) as $v)
                         @php
@@ -140,8 +139,7 @@
                 <div class="form-group">
                   <label class="form-label">Motorista</label>
                   <div class="input-group">
-                    {{-- Select2 live search --}}
-                    <select class="form-select" name="motorista_id" id="motorista_id">
+                    <select class="form-select select2bs4" name="motorista_id" id="motorista_id">
                       <option value="">Selecione...</option>
                       @foreach(($motoristas ?? []) as $m)
                         <option value="{{ $m->id }}" {{ (string)old('motorista_id') === (string)$m->id ? 'selected' : '' }}>
@@ -154,16 +152,16 @@
               </div>
             </div>
 
-            {{-- Botão salvar fora "das abas" (aqui não tem abas, mas fica no final do box) --}}
-            <div class="mt-3 d-flex gap-2">
-              <button type="submit" class="btn btn-primary">
-                Salvar
-              </button>
-
+            {{-- ✅ Botões no canto direito --}}
+            <div class="mt-4 d-flex justify-content-end gap-2">
               <a href="{{ route('beneficios.transporte.linhas.index', ['sub' => $sub]) }}"
                  class="btn btn-secondary">
                 Voltar
               </a>
+
+              <button type="submit" class="btn btn-primary">
+                Salvar
+              </button>
             </div>
 
           </form>
@@ -177,32 +175,27 @@
 @endsection
 
 @push('scripts')
-{{-- Select2 --}}
+{{-- ✅ Select2 + tema Bootstrap4 para manter o estilo do template --}}
 <link rel="stylesheet" href="{{ asset('assets/vendor_components/select2/dist/css/select2.min.css') }}">
+<link rel="stylesheet" href="{{ asset('assets/vendor_components/select2/dist/css/select2-bootstrap4.min.css') }}">
 <script src="{{ asset('assets/vendor_components/select2/dist/js/select2.full.js') }}"></script>
 
-{{-- Toastr (você citou esse caminho) --}}
+{{-- Toastr --}}
 <script src="{{ asset('assets/js/pages/toastr.js') }}"></script>
 
 <script>
 (function () {
   if (window.feather) feather.replace();
 
-  // Select2 (live search)
-  function initSelect2(el) {
-    if (!el || !window.jQuery || !jQuery.fn.select2) return;
-    $(el).select2({
+  // Select2 com tema bootstrap4 (mantém estilo)
+  if (window.jQuery && jQuery.fn.select2) {
+    $('.select2bs4').select2({
+      theme: 'bootstrap4',
       width: '100%',
       placeholder: 'Selecione...',
       allowClear: true
     });
   }
-
-  initSelect2('#veiculo_id');
-  initSelect2('#motorista_id');
-
-  // Filiais multi-select (pode também usar select2 para facilitar)
-  initSelect2('#filiais_select');
 
   // Toastr sessions
   function toast(type, msg) {
@@ -219,10 +212,22 @@
     toast('error', @json(session('error')));
   @endif
 
-  // Erros de validação (Laravel)
   @if($errors && $errors->any())
     toast('error', 'Revise os campos do formulário. Existem erros de validação.');
   @endif
 })();
 </script>
+
+{{-- ✅ Pequeno ajuste de altura para ficar idêntico aos inputs do template --}}
+<style>
+  .select2-container--bootstrap4 .select2-selection--single {
+    height: calc(2.25rem + 2px);
+  }
+  .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
+    line-height: calc(2.25rem);
+  }
+  .select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow {
+    height: calc(2.25rem + 2px);
+  }
+</style>
 @endpush
