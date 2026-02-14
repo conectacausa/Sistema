@@ -2,339 +2,429 @@
 
 namespace App\Http\Controllers\Beneficios;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use App\Models\Beneficios\Transporte\TransporteLinha;
-use App\Models\Beneficios\Transporte\TransporteParada;
-use App\Models\Beneficios\Transporte\TransporteVinculo;
-use App\Models\Beneficios\Transporte\TransporteMotorista;
-use App\Models\Beneficios\Transporte\TransporteVeiculo;
+use Symfony\Component\HttpFoundation\Response;
 
-class TransporteLinhasController extends TransporteBaseController
+class TransporteLinhasController extends Controller
 {
-    private int $TELA_ID = 21;
+    // ✅ Ajuste apenas se seus migrations usaram outros nomes
+    private const T_LINHAS   = 'transporte_linhas';
+    private const T_LINHA_FILIAIS = 'transporte_linha_filiais';
+    private const T_PARADAS  = 'transporte_paradas';
+    private const T_VINCULOS = 'transporte_vinculos';
+    private const T_MOTORISTAS = 'transporte_motoristas';
+    private const T_VEICULOS = 'transporte_veiculos';
+    private const T_FILIAIS  = 'filiais';
+    private const T_COLABS   = 'colaboradores';
+    private const T_CUSTOS   = 'transporte_linha_custos';
+
+    private function empresaId(): int
+    {
+        return (int) (auth()->user()->empresa_id ?? 0);
+    }
+
+    private function now()
+    {
+        return now();
+    }
 
     public function index(Request $request, string $sub)
     {
-        if ($r = $this->requireTela($request, $sub, $this->TELA_ID)) return $r;
-
         $empresaId = $this->empresaId();
+
         $q = trim((string) $request->get('q', ''));
 
-        $linhas = TransporteLinha::query()
-            ->where('empresa_id', $empresaId)
-            ->when($q, fn($qq) => $qq->where('nome', 'ilike', "%{$q}%"))
-            ->with(['motorista:id,nome', 'veiculo:id,placa,modelo'])
-            ->orderBy('id', 'desc')
+        $linhas = DB::table(self::T_LINHAS . ' as l')
+            ->select('l.*')
+            ->where('l.empresa_id', $empresaId)
+            ->whereNull('l.deleted_at')
+            ->when($q !== '', function ($qq) use ($q) {
+                $qq->where(function ($w) use ($q) {
+                    $w->where('l.nome', 'ilike', "%{$q}%")
+                      ->orWhere('l.tipo_linha', 'ilike', "%{$q}%")
+                      ->orWhere('l.controle_acesso', 'ilike', "%{$q}%");
+                });
+            })
+            ->orderBy('l.id', 'desc')
             ->paginate(20)
-            ->appends($request->all());
+            ->withQueryString();
 
         return view('beneficios.transporte.linhas.index', compact('sub', 'linhas', 'q'));
     }
 
     public function create(Request $request, string $sub)
     {
-        if ($r = $this->requireTela($request, $sub, $this->TELA_ID)) return $r;
-
         $empresaId = $this->empresaId();
 
-        $motoristas = TransporteMotorista::query()->where('empresa_id', $empresaId)->where('status', 'ativo')->orderBy('nome')->get();
-        $veiculos   = TransporteVeiculo::query()->where('empresa_id', $empresaId)->where('status', 'ativo')->orderBy('placa')->get();
+        $motoristas = DB::table(self::T_MOTORISTAS)
+            ->where('empresa_id', $empresaId)->whereNull('deleted_at')
+            ->orderBy('nome')->get();
 
-        // Filiais: ajuste o Model se o seu for outro
-        $filiais = DB::table('filiais')->where('empresa_id', $empresaId)->orderBy('nome')->get();
+        $veiculos = DB::table(self::T_VEICULOS)
+            ->where('empresa_id', $empresaId)->whereNull('deleted_at')
+            ->orderBy('id', 'desc')->get();
 
-        return view('beneficios.transporte.linhas.create', compact('sub','motoristas','veiculos','filiais'));
+        $filiais = DB::table(self::T_FILIAIS)
+            ->where('empresa_id', $empresaId)->whereNull('deleted_at')
+            ->orderBy('id', 'asc')->get();
+
+        return view('beneficios.transporte.linhas.create', compact('sub', 'motoristas', 'veiculos', 'filiais'));
     }
 
     public function store(Request $request, string $sub)
     {
-        if ($r = $this->requireTela($request, $sub, $this->TELA_ID)) return $r;
-
         $empresaId = $this->empresaId();
 
         $v = Validator::make($request->all(), [
-            'nome' => 'required|string|max:191',
-            'tipo_linha' => 'required|in:publica,fretada',
-            'controle_acesso' => 'required|in:cartao,ticket',
-            'motorista_id' => 'required|integer',
-            'veiculo_id' => 'required|integer',
-            'filiais' => 'required|array|min:1',
-            'filiais.*' => 'integer',
-            'status' => 'nullable|in:ativo,inativo',
-            'observacoes' => 'nullable|string',
+            'nome'           => 'required|string|max:255',
+            'tipo_linha'     => 'required|in:publica,fretada',
+            'controle_acesso'=> 'required|in:cartao,ticket',
+            'motorista_id'   => 'required|integer|min:1',
+            'veiculo_id'     => 'required|integer|min:1',
+            'status'         => 'nullable|in:ativo,inativo',
+            'filiais'        => 'required|array|min:1',
+            'filiais.*'      => 'integer|min:1',
+            'observacoes'    => 'nullable|string',
         ]);
 
         if ($v->fails()) {
             return back()->withErrors($v)->withInput();
         }
 
-        DB::transaction(function () use ($request, $empresaId) {
-            $linha = TransporteLinha::create([
-                'empresa_id' => $empresaId,
-                'nome' => $request->nome,
-                'tipo_linha' => $request->tipo_linha,
-                'controle_acesso' => $request->controle_acesso,
-                'motorista_id' => (int) $request->motorista_id,
-                'veiculo_id' => (int) $request->veiculo_id,
-                'status' => $request->status ?: 'ativo',
-                'observacoes' => $request->observacoes,
+        return DB::transaction(function () use ($request, $sub, $empresaId) {
+            $id = DB::table(self::T_LINHAS)->insertGetId([
+                'empresa_id'      => $empresaId,
+                'nome'            => $request->string('nome')->toString(),
+                'tipo_linha'      => $request->string('tipo_linha')->toString(),
+                'controle_acesso' => $request->string('controle_acesso')->toString(),
+                'motorista_id'    => (int) $request->get('motorista_id'),
+                'veiculo_id'      => (int) $request->get('veiculo_id'),
+                'status'          => $request->get('status', 'ativo'),
+                'observacoes'     => $request->get('observacoes'),
+                'created_at'      => $this->now(),
+                'updated_at'      => $this->now(),
             ]);
 
-            $linha->filiais()->sync(array_map('intval', (array) $request->filiais));
-        });
+            // vincula filiais
+            $filiais = array_values(array_unique(array_map('intval', (array) $request->get('filiais', []))));
+            foreach ($filiais as $filialId) {
+                DB::table(self::T_LINHA_FILIAIS)->insert([
+                    'linha_id'   => $id,
+                    'filial_id'  => $filialId,
+                    'created_at' => $this->now(),
+                    'updated_at' => $this->now(),
+                ]);
+            }
 
-        return redirect()->route('beneficios.transporte.linhas.index', ['sub' => $sub])
-            ->with('success', 'Linha criada com sucesso.');
+            return redirect()->route('beneficios.transporte.linhas.edit', ['sub' => $sub, 'id' => $id])
+                ->with('success', 'Linha criada com sucesso.');
+        });
     }
 
     public function edit(Request $request, string $sub, int $id)
     {
-        if ($r = $this->requireTela($request, $sub, $this->TELA_ID)) return $r;
-
         $empresaId = $this->empresaId();
 
-        $linha = TransporteLinha::query()
+        $linha = DB::table(self::T_LINHAS)
             ->where('empresa_id', $empresaId)
-            ->with('filiais')
-            ->findOrFail($id);
+            ->where('id', $id)
+            ->whereNull('deleted_at')
+            ->first();
 
-        $motoristas = TransporteMotorista::query()->where('empresa_id', $empresaId)->orderBy('nome')->get();
-        $veiculos   = TransporteVeiculo::query()->where('empresa_id', $empresaId)->orderBy('placa')->get();
-        $filiais    = DB::table('filiais')->where('empresa_id', $empresaId)->orderBy('nome')->get();
+        abort_unless($linha, 404);
 
-        $filiaisSelecionadas = $linha->filiais->pluck('id')->map(fn($x) => (int)$x)->all();
+        $motoristas = DB::table(self::T_MOTORISTAS)
+            ->where('empresa_id', $empresaId)->whereNull('deleted_at')
+            ->orderBy('nome')->get();
 
-        return view('beneficios.transporte.linhas.edit', compact('sub','linha','motoristas','veiculos','filiais','filiaisSelecionadas'));
+        $veiculos = DB::table(self::T_VEICULOS)
+            ->where('empresa_id', $empresaId)->whereNull('deleted_at')
+            ->orderBy('id', 'desc')->get();
+
+        $filiais = DB::table(self::T_FILIAIS)
+            ->where('empresa_id', $empresaId)->whereNull('deleted_at')
+            ->orderBy('id', 'asc')->get();
+
+        $linhaFiliais = DB::table(self::T_LINHA_FILIAIS)
+            ->where('linha_id', $id)
+            ->pluck('filial_id')
+            ->map(fn($x) => (int) $x)
+            ->toArray();
+
+        return view('beneficios.transporte.linhas.edit', compact('sub', 'linha', 'motoristas', 'veiculos', 'filiais', 'linhaFiliais'));
     }
 
     public function update(Request $request, string $sub, int $id)
     {
-        if ($r = $this->requireTela($request, $sub, $this->TELA_ID)) return $r;
-
         $empresaId = $this->empresaId();
 
-        $linha = TransporteLinha::query()->where('empresa_id', $empresaId)->findOrFail($id);
-
         $v = Validator::make($request->all(), [
-            'nome' => 'required|string|max:191',
-            'tipo_linha' => 'required|in:publica,fretada',
-            'controle_acesso' => 'required|in:cartao,ticket',
-            'motorista_id' => 'required|integer',
-            'veiculo_id' => 'required|integer',
-            'filiais' => 'required|array|min:1',
-            'filiais.*' => 'integer',
-            'status' => 'nullable|in:ativo,inativo',
-            'observacoes' => 'nullable|string',
+            'nome'           => 'required|string|max:255',
+            'tipo_linha'     => 'required|in:publica,fretada',
+            'controle_acesso'=> 'required|in:cartao,ticket',
+            'motorista_id'   => 'required|integer|min:1',
+            'veiculo_id'     => 'required|integer|min:1',
+            'status'         => 'nullable|in:ativo,inativo',
+            'filiais'        => 'required|array|min:1',
+            'filiais.*'      => 'integer|min:1',
+            'observacoes'    => 'nullable|string',
         ]);
 
-        if ($v->fails()) return back()->withErrors($v)->withInput();
+        if ($v->fails()) {
+            return back()->withErrors($v)->withInput();
+        }
 
-        DB::transaction(function () use ($request, $linha) {
-            $linha->update([
-                'nome' => $request->nome,
-                'tipo_linha' => $request->tipo_linha,
-                'controle_acesso' => $request->controle_acesso,
-                'motorista_id' => (int) $request->motorista_id,
-                'veiculo_id' => (int) $request->veiculo_id,
-                'status' => $request->status ?: 'ativo',
-                'observacoes' => $request->observacoes,
-            ]);
+        return DB::transaction(function () use ($request, $sub, $empresaId, $id) {
+            $ok = DB::table(self::T_LINHAS)
+                ->where('empresa_id', $empresaId)
+                ->where('id', $id)
+                ->whereNull('deleted_at')
+                ->update([
+                    'nome'            => $request->string('nome')->toString(),
+                    'tipo_linha'      => $request->string('tipo_linha')->toString(),
+                    'controle_acesso' => $request->string('controle_acesso')->toString(),
+                    'motorista_id'    => (int) $request->get('motorista_id'),
+                    'veiculo_id'      => (int) $request->get('veiculo_id'),
+                    'status'          => $request->get('status', 'ativo'),
+                    'observacoes'     => $request->get('observacoes'),
+                    'updated_at'      => $this->now(),
+                ]);
 
-            $linha->filiais()->sync(array_map('intval', (array) $request->filiais));
+            if (!$ok) {
+                return back()->with('error', 'Linha não encontrada.');
+            }
+
+            // sync filiais
+            DB::table(self::T_LINHA_FILIAIS)->where('linha_id', $id)->delete();
+
+            $filiais = array_values(array_unique(array_map('intval', (array) $request->get('filiais', []))));
+            foreach ($filiais as $filialId) {
+                DB::table(self::T_LINHA_FILIAIS)->insert([
+                    'linha_id'   => $id,
+                    'filial_id'  => $filialId,
+                    'created_at' => $this->now(),
+                    'updated_at' => $this->now(),
+                ]);
+            }
+
+            return back()->with('success', 'Linha atualizada com sucesso.');
         });
-
-        return redirect()->route('beneficios.transporte.linhas.index', ['sub' => $sub])
-            ->with('success', 'Linha atualizada com sucesso.');
     }
 
     public function destroy(Request $request, string $sub, int $id)
     {
-        if ($r = $this->requireTela($request, $sub, $this->TELA_ID)) return $r;
-
         $empresaId = $this->empresaId();
 
-        $linha = TransporteLinha::query()->where('empresa_id', $empresaId)->findOrFail($id);
-        $linha->delete();
+        DB::table(self::T_LINHAS)
+            ->where('empresa_id', $empresaId)
+            ->where('id', $id)
+            ->update([
+                'deleted_at' => $this->now(),
+                'updated_at' => $this->now(),
+            ]);
 
         return redirect()->route('beneficios.transporte.linhas.index', ['sub' => $sub])
             ->with('success', 'Linha removida com sucesso.');
     }
 
-    /**
-     * OPERAÇÃO DA LINHA (Paradas + Vínculos) — depende da permissão 21 (você pediu).
-     */
     public function operacao(Request $request, string $sub, int $id)
     {
-        if ($r = $this->requireTela($request, $sub, $this->TELA_ID)) return $r;
-
         $empresaId = $this->empresaId();
 
-        $linha = TransporteLinha::query()
-            ->where('empresa_id', $empresaId)
-            ->with(['motorista','veiculo','filiais'])
-            ->findOrFail($id);
+        $linha = DB::table(self::T_LINHAS . ' as l')
+            ->leftJoin(self::T_MOTORISTAS . ' as m', 'm.id', '=', 'l.motorista_id')
+            ->leftJoin(self::T_VEICULOS . ' as v', 'v.id', '=', 'l.veiculo_id')
+            ->select('l.*', 'm.nome as motorista_nome', 'v.placa as veiculo_placa', 'v.modelo as veiculo_modelo')
+            ->where('l.empresa_id', $empresaId)
+            ->where('l.id', $id)
+            ->whereNull('l.deleted_at')
+            ->first();
 
-        $paradas = TransporteParada::query()
-            ->where('empresa_id', $empresaId)
-            ->where('linha_id', $linha->id)
-            ->orderBy('ordem')
+        abort_unless($linha, 404);
+
+        $paradas = DB::table(self::T_PARADAS)
+            ->where('linha_id', $id)
+            ->whereNull('deleted_at')
+            ->orderBy('hora', 'asc')
             ->get();
 
-        $vinculos = TransporteVinculo::query()
-            ->where('empresa_id', $empresaId)
-            ->where('linha_id', $linha->id)
-            ->orderBy('id', 'desc')
-            ->paginate(20)
-            ->appends($request->all());
+        $vinculos = DB::table(self::T_VINCULOS . ' as tv')
+            ->leftJoin(self::T_COLABS . ' as c', 'c.id', '=', 'tv.colaborador_id')
+            ->leftJoin(self::T_PARADAS . ' as p', 'p.id', '=', 'tv.parada_id')
+            ->select('tv.*', 'c.nome_completo as colaborador_nome', 'c.matricula as colaborador_matricula', 'p.nome as parada_nome', 'p.hora as parada_hora')
+            ->where('tv.linha_id', $id)
+            ->whereNull('tv.deleted_at')
+            ->orderBy('tv.id', 'desc')
+            ->get();
 
-        // Colaboradores (tabela usuarios): ajuste se seu campo de nome for diferente
-        $usuarios = DB::table('usuarios')
+        // Para selects
+        $colaboradores = DB::table(self::T_COLABS)
             ->where('empresa_id', $empresaId)
+            ->whereNull('deleted_at')
             ->orderBy('nome_completo')
-            ->get(['id','nome_completo','cpf','matricula']);
+            ->limit(5000)
+            ->get();
 
-        return view('beneficios.transporte.linhas.operacao', compact('sub','linha','paradas','vinculos','usuarios'));
+        return view('beneficios.transporte.linhas.operacao', compact('sub', 'linha', 'paradas', 'vinculos', 'colaboradores'));
     }
 
-    // ---------- PARADAS ----------
     public function paradaStore(Request $request, string $sub, int $linhaId)
     {
-        if ($r = $this->requireTela($request, $sub, $this->TELA_ID)) return $r;
-
-        $empresaId = $this->empresaId();
-
         $v = Validator::make($request->all(), [
-            'nome' => 'required|string|max:191',
-            'endereco' => 'nullable|string|max:255',
-            'horario' => 'nullable|date_format:H:i',
-            'valor' => 'required|numeric|min:0',
-            'ordem' => 'nullable|integer|min:0',
+            'nome'  => 'required|string|max:255',
+            'hora'  => 'required|string|max:10', // HH:MM
+            'valor' => 'nullable|numeric|min:0',
         ]);
 
-        if ($v->fails()) return back()->withErrors($v)->withInput();
+        if ($v->fails()) {
+            return back()->withErrors($v)->withInput();
+        }
 
-        TransporteParada::create([
-            'empresa_id' => $empresaId,
-            'linha_id' => $linhaId,
-            'nome' => $request->nome,
-            'endereco' => $request->endereco,
-            'horario' => $request->horario,
-            'valor' => (float) $request->valor,
-            'ordem' => (int) ($request->ordem ?? 0),
+        DB::table(self::T_PARADAS)->insert([
+            'linha_id'   => $linhaId,
+            'nome'       => $request->string('nome')->toString(),
+            'hora'       => $request->string('hora')->toString(),
+            'valor'      => $request->get('valor'),
+            'created_at' => $this->now(),
+            'updated_at' => $this->now(),
         ]);
 
-        return back()->with('success', 'Parada criada com sucesso.');
+        return back()->with('success', 'Parada adicionada.');
     }
 
     public function paradaUpdate(Request $request, string $sub, int $linhaId, int $paradaId)
     {
-        if ($r = $this->requireTela($request, $sub, $this->TELA_ID)) return $r;
-
-        $empresaId = $this->empresaId();
-
-        $parada = TransporteParada::query()
-            ->where('empresa_id', $empresaId)
-            ->where('linha_id', $linhaId)
-            ->findOrFail($paradaId);
-
         $v = Validator::make($request->all(), [
-            'nome' => 'required|string|max:191',
-            'endereco' => 'nullable|string|max:255',
-            'horario' => 'nullable|date_format:H:i',
-            'valor' => 'required|numeric|min:0',
-            'ordem' => 'nullable|integer|min:0',
+            'nome'  => 'required|string|max:255',
+            'hora'  => 'required|string|max:10',
+            'valor' => 'nullable|numeric|min:0',
         ]);
 
-        if ($v->fails()) return back()->withErrors($v)->withInput();
+        if ($v->fails()) {
+            return back()->withErrors($v)->withInput();
+        }
 
-        $parada->update([
-            'nome' => $request->nome,
-            'endereco' => $request->endereco,
-            'horario' => $request->horario,
-            'valor' => (float) $request->valor,
-            'ordem' => (int) ($request->ordem ?? 0),
-        ]);
+        DB::table(self::T_PARADAS)
+            ->where('linha_id', $linhaId)
+            ->where('id', $paradaId)
+            ->update([
+                'nome'       => $request->string('nome')->toString(),
+                'hora'       => $request->string('hora')->toString(),
+                'valor'      => $request->get('valor'),
+                'updated_at' => $this->now(),
+            ]);
 
-        return back()->with('success', 'Parada atualizada com sucesso.');
+        return back()->with('success', 'Parada atualizada.');
     }
 
     public function paradaDestroy(Request $request, string $sub, int $linhaId, int $paradaId)
     {
-        if ($r = $this->requireTela($request, $sub, $this->TELA_ID)) return $r;
-
-        $empresaId = $this->empresaId();
-
-        $parada = TransporteParada::query()
-            ->where('empresa_id', $empresaId)
+        DB::table(self::T_PARADAS)
             ->where('linha_id', $linhaId)
-            ->findOrFail($paradaId);
+            ->where('id', $paradaId)
+            ->update([
+                'deleted_at' => $this->now(),
+                'updated_at' => $this->now(),
+            ]);
 
-        $parada->delete();
-
-        return back()->with('success', 'Parada removida com sucesso.');
+        return back()->with('success', 'Parada removida.');
     }
 
-    // ---------- VÍNCULOS ----------
     public function vinculoStore(Request $request, string $sub, int $linhaId)
     {
-        if ($r = $this->requireTela($request, $sub, $this->TELA_ID)) return $r;
-        $empresaId = $this->empresaId();
-
-        $linha = TransporteLinha::query()->where('empresa_id', $empresaId)->findOrFail($linhaId);
-
         $v = Validator::make($request->all(), [
-            'usuario_id' => 'required|integer',
-            'parada_id' => 'nullable|integer',
-            'numero_cartao' => 'nullable|string|max:50',
-            'numero_vale_ticket' => 'nullable|string|max:50',
+            'colaborador_id' => 'required|integer|min:1',
+            'parada_id'      => 'required|integer|min:1',
+            'tipo'           => 'required|in:cartao,ticket',
+            'cartao_numero'  => 'nullable|string|max:50',
+            'ticket_ref'     => 'nullable|string|max:50',
             'valor_passagem' => 'required|numeric|min:0',
-            'data_inicio' => 'required|date',
-            'observacoes' => 'nullable|string',
+            'data_inicio'    => 'required|date',
         ]);
 
-        if ($v->fails()) return back()->withErrors($v)->withInput();
+        if ($v->fails()) {
+            return back()->withErrors($v)->withInput();
+        }
 
-        TransporteVinculo::create([
-            'empresa_id' => $empresaId,
-            'usuario_id' => (int) $request->usuario_id,
-            'linha_id' => $linha->id,
-            'parada_id' => $request->parada_id ? (int)$request->parada_id : null,
-            'tipo_acesso' => $linha->controle_acesso, // grava histórico
-            'numero_cartao' => $request->numero_cartao,
-            'numero_vale_ticket' => $request->numero_vale_ticket,
-            'valor_passagem' => (float) $request->valor_passagem,
-            'data_inicio' => $request->data_inicio,
-            'data_fim' => null,
-            'status' => 'ativo',
-            'observacoes' => $request->observacoes,
+        DB::table(self::T_VINCULOS)->insert([
+            'linha_id'       => $linhaId,
+            'parada_id'      => (int) $request->get('parada_id'),
+            'colaborador_id' => (int) $request->get('colaborador_id'),
+            'tipo'           => $request->string('tipo')->toString(),
+            'cartao_numero'  => $request->get('cartao_numero'),
+            'ticket_ref'     => $request->get('ticket_ref'),
+            'valor_passagem' => $request->get('valor_passagem'),
+            'data_inicio'    => $request->get('data_inicio'),
+            'data_fim'       => null,
+            'created_at'     => $this->now(),
+            'updated_at'     => $this->now(),
         ]);
 
-        return back()->with('success', 'Colaborador vinculado com sucesso.');
+        return back()->with('success', 'Colaborador vinculado à linha.');
     }
 
     public function vinculoEncerrar(Request $request, string $sub, int $linhaId, int $vinculoId)
     {
-        if ($r = $this->requireTela($request, $sub, $this->TELA_ID)) return $r;
-        $empresaId = $this->empresaId();
-
         $v = Validator::make($request->all(), [
             'data_fim' => 'required|date',
         ]);
 
-        if ($v->fails()) return back()->withErrors($v)->withInput();
+        if ($v->fails()) {
+            return back()->withErrors($v)->withInput();
+        }
 
-        $vinculo = TransporteVinculo::query()
-            ->where('empresa_id', $empresaId)
+        DB::table(self::T_VINCULOS)
             ->where('linha_id', $linhaId)
-            ->findOrFail($vinculoId);
+            ->where('id', $vinculoId)
+            ->update([
+                'data_fim'   => $request->get('data_fim'),
+                'updated_at' => $this->now(),
+            ]);
 
-        $vinculo->update([
-            'data_fim' => $request->data_fim,
-            'status' => 'encerrado',
+        return back()->with('success', 'Vínculo encerrado.');
+    }
+
+    public function importarCustosForm(Request $request, string $sub)
+    {
+        $empresaId = $this->empresaId();
+
+        $linhas = DB::table(self::T_LINHAS)
+            ->where('empresa_id', $empresaId)
+            ->whereNull('deleted_at')
+            ->orderBy('nome')
+            ->get();
+
+        return view('beneficios.transporte.linhas.importar_custos', compact('sub', 'linhas'));
+    }
+
+    public function importarCustos(Request $request, string $sub)
+    {
+        $empresaId = $this->empresaId();
+
+        $v = Validator::make($request->all(), [
+            'linha_id' => 'required|integer|min:1',
+            'mes'      => 'required|date_format:Y-m',
+            'valor'    => 'required|numeric|min:0',
+            'observacao' => 'nullable|string|max:255',
         ]);
 
-        return back()->with('success', 'Vínculo encerrado com sucesso.');
+        if ($v->fails()) {
+            return back()->withErrors($v)->withInput();
+        }
+
+        DB::table(self::T_CUSTOS)->insert([
+            'empresa_id'  => $empresaId,
+            'linha_id'    => (int) $request->get('linha_id'),
+            'mes'         => $request->string('mes')->toString(), // YYYY-MM
+            'valor'       => $request->get('valor'),
+            'observacao'  => $request->get('observacao'),
+            'created_at'  => $this->now(),
+            'updated_at'  => $this->now(),
+        ]);
+
+        return back()->with('success', 'Custo importado/registrado com sucesso.');
     }
 }
