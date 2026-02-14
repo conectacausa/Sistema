@@ -36,53 +36,104 @@ class TransporteLinhasController extends Controller
     |--------------------------------------------------------------------------
     */
     public function index(Request $request, string $sub)
-    {
-        $empresaId = $this->empresaId();
-        $q = trim((string) $request->get('q', ''));
+{
+    $empresaId = $this->empresaId();
 
-        // ✅ A view usa $motoristas, $veiculos e $filiais
-        $motoristas = DB::table(self::T_MOTORISTAS)
-            ->where('empresa_id', $empresaId)
-            ->whereNull('deleted_at')
-            ->orderBy('nome')
-            ->get();
+    $q        = trim((string) $request->get('q', ''));
+    $tipo     = trim((string) $request->get('tipo', '')); // publica|fretada
+    $filialId = (int) $request->get('filial_id', 0);
 
-        $veiculos = DB::table(self::T_VEICULOS)
-            ->where('empresa_id', $empresaId)
-            ->whereNull('deleted_at')
-            ->orderBy('id', 'desc')
-            ->get();
+    // Filtros (combos)
+    $motoristas = DB::table(self::T_MOTORISTAS)
+        ->where('empresa_id', $empresaId)
+        ->whereNull('deleted_at')
+        ->orderBy('nome')
+        ->get();
 
-        $filiais = DB::table(self::T_FILIAIS)
-            ->where('empresa_id', $empresaId)
-            ->whereNull('deleted_at')
-            ->orderBy('id', 'asc')
-            ->get();
+    $veiculos = DB::table(self::T_VEICULOS)
+        ->where('empresa_id', $empresaId)
+        ->whereNull('deleted_at')
+        ->orderBy('id', 'desc')
+        ->get();
 
-        $linhas = DB::table(self::T_LINHAS . ' as l')
-            ->select('l.*')
-            ->where('l.empresa_id', $empresaId)
-            ->whereNull('l.deleted_at')
-            ->when($q !== '', function ($qq) use ($q) {
-                $qq->where(function ($w) use ($q) {
-                    $w->where('l.nome', 'ilike', "%{$q}%")
-                        ->orWhere('l.tipo_linha', 'ilike', "%{$q}%")
-                        ->orWhere('l.controle_acesso', 'ilike', "%{$q}%");
-                });
-            })
-            ->orderBy('l.id', 'desc')
-            ->paginate(20)
-            ->withQueryString();
+    $filiais = DB::table(self::T_FILIAIS)
+        ->where('empresa_id', $empresaId)
+        ->whereNull('deleted_at')
+        ->orderBy('id', 'asc')
+        ->get();
 
-        return view('beneficios.transporte.linhas.index', compact(
-            'sub',
-            'linhas',
-            'q',
-            'motoristas',
-            'veiculos',
-            'filiais'
-        ));
+    // Listagem
+    $linhasQuery = DB::table(self::T_LINHAS . ' as l')
+        ->leftJoin(self::T_MOTORISTAS . ' as m', 'm.id', '=', 'l.motorista_id')
+        ->leftJoin(self::T_VEICULOS . ' as v', 'v.id', '=', 'l.veiculo_id')
+        ->select([
+            'l.id',
+            'l.nome',
+            'l.tipo_linha',
+            'l.controle_acesso',
+            'l.status',
+            'l.motorista_id',
+            'l.veiculo_id',
+            'm.nome as motorista_nome',
+            'v.modelo as veiculo_modelo',
+            'v.placa as veiculo_placa',
+            'v.capacidade as capacidade',
+        ])
+        // ✅ qtd vinculados ativos (data_fim null ou >= hoje)
+        ->selectRaw("
+            (
+                SELECT COUNT(1)
+                FROM " . self::T_VINCULOS . " tv
+                WHERE tv.linha_id = l.id
+                  AND tv.deleted_at IS NULL
+                  AND (tv.data_fim IS NULL OR tv.data_fim >= CURRENT_DATE)
+            ) as vinculados_ativos
+        ")
+        ->where('l.empresa_id', $empresaId)
+        ->whereNull('l.deleted_at');
+
+    // Busca (linha, motorista, veiculo)
+    if ($q !== '') {
+        $linhasQuery->where(function ($w) use ($q) {
+            $w->where('l.nome', 'ilike', "%{$q}%")
+              ->orWhere('m.nome', 'ilike', "%{$q}%")
+              ->orWhere('v.modelo', 'ilike', "%{$q}%")
+              ->orWhere('v.placa', 'ilike', "%{$q}%");
+        });
     }
+
+    // Tipo
+    if (in_array($tipo, ['publica', 'fretada'], true)) {
+        $linhasQuery->where('l.tipo_linha', $tipo);
+    }
+
+    // Filial (linha pode ter várias -> whereExists no pivot)
+    if ($filialId > 0) {
+        $linhasQuery->whereExists(function ($sq) use ($filialId) {
+            $sq->select(DB::raw(1))
+                ->from(self::T_LINHA_FILIAIS . ' as lf')
+                ->whereColumn('lf.linha_id', 'l.id')
+                ->where('lf.filial_id', $filialId);
+        });
+    }
+
+    $linhas = $linhasQuery
+        ->orderBy('l.id', 'desc')
+        ->paginate(25)
+        ->withQueryString();
+
+    return view('beneficios.transporte.linhas.index', compact(
+        'sub',
+        'linhas',
+        'q',
+        'tipo',
+        'filialId',
+        'motoristas',
+        'veiculos',
+        'filiais'
+    ));
+}
+
 
     public function create(Request $request, string $sub)
     {
