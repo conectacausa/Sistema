@@ -25,6 +25,63 @@ class TransporteLinhasController extends Controller
         return "COALESCE(nome_fantasia, razao_social, ('Filial #'||id::text)) as nome";
     }
 
+    private function tableHas(string $table, string $column): bool
+    {
+        try {
+            return Schema::hasColumn($table, $column);
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    private function lfTable(): string
+    {
+        return 'transporte_linha_filiais';
+    }
+
+    /**
+     * Monta um payload de insert/update somente com colunas que existem.
+     */
+    private function lfPayload(int $linhaId, int $filialId, int $empresaId, bool $withTimestamps = true): array
+    {
+        $table = $this->lfTable();
+        $p = [];
+
+        if ($this->tableHas($table, 'empresa_id')) $p['empresa_id'] = $empresaId;
+        if ($this->tableHas($table, 'linha_id'))   $p['linha_id']   = $linhaId;
+        if ($this->tableHas($table, 'filial_id'))  $p['filial_id']  = $filialId;
+
+        if ($withTimestamps) {
+            if ($this->tableHas($table, 'created_at')) $p['created_at'] = now();
+            if ($this->tableHas($table, 'updated_at')) $p['updated_at'] = now();
+        } else {
+            if ($this->tableHas($table, 'updated_at')) $p['updated_at'] = now();
+        }
+
+        return $p;
+    }
+
+    private function lfBaseQuery(int $empresaId, int $linhaId = 0)
+    {
+        $table = $this->lfTable();
+
+        $q = DB::table($table);
+
+        if ($this->tableHas($table, 'empresa_id')) {
+            $q->where('empresa_id', $empresaId);
+        }
+
+        if ($linhaId > 0 && $this->tableHas($table, 'linha_id')) {
+            $q->where('linha_id', $linhaId);
+        }
+
+        if ($this->tableHas($table, 'deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
+
+        return $q;
+    }
+
     /*
     |--------------------------------------------------------------------------
     | LISTAGEM
@@ -75,13 +132,27 @@ class TransporteLinhasController extends Controller
             ]);
 
         // Filtro filial (se existir tabela de vínculo)
-        if ($filialId > 0 && Schema::hasTable('transporte_linha_filiais')) {
-            $query->whereExists(function ($sq) use ($filialId) {
+        if ($filialId > 0 && Schema::hasTable($this->lfTable())) {
+            $lfTable = $this->lfTable();
+
+            $query->whereExists(function ($sq) use ($filialId, $lfTable, $empresaId) {
                 $sq->select(DB::raw(1))
-                    ->from('transporte_linha_filiais as lf')
-                    ->whereColumn('lf.linha_id', 'l.id')
-                    ->where('lf.filial_id', $filialId)
-                    ->whereNull('lf.deleted_at');
+                    ->from($lfTable . ' as lf');
+
+                // whereColumn só se a coluna existir
+                $sq->whereColumn('lf.linha_id', 'l.id');
+
+                if ($this->tableHas($lfTable, 'filial_id')) {
+                    $sq->where('lf.filial_id', $filialId);
+                }
+
+                if ($this->tableHas($lfTable, 'empresa_id')) {
+                    $sq->where('lf.empresa_id', $empresaId);
+                }
+
+                if ($this->tableHas($lfTable, 'deleted_at')) {
+                    $sq->whereNull('lf.deleted_at');
+                }
             });
         }
 
@@ -191,14 +262,14 @@ class TransporteLinhasController extends Controller
                 'updated_at'      => now(),
             ]);
 
-            if (Schema::hasTable('transporte_linha_filiais')) {
-                DB::table('transporte_linha_filiais')->insert([
-                    'empresa_id' => $empresaId,
-                    'linha_id'   => $linhaId,
-                    'filial_id'  => (int) $data['filial_id'],
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+            // Vínculo com filial (se a tabela existir)
+            if (Schema::hasTable($this->lfTable())) {
+                $payload = $this->lfPayload($linhaId, (int)$data['filial_id'], $empresaId, true);
+
+                // Só insere se tiver pelo menos linha_id + filial_id
+                if (!empty($payload) && (isset($payload['linha_id']) || $this->tableHas($this->lfTable(), 'linha_id')) && (isset($payload['filial_id']) || $this->tableHas($this->lfTable(), 'filial_id'))) {
+                    DB::table($this->lfTable())->insert($payload);
+                }
             }
 
             DB::commit();
@@ -252,12 +323,12 @@ class TransporteLinhasController extends Controller
             ->orderBy('id')
             ->get();
 
+        // ✅ Aqui estava quebrando por causa do empresa_id inexistente
         $filialSelecionada = null;
-        if (Schema::hasTable('transporte_linha_filiais')) {
-            $filialSelecionada = DB::table('transporte_linha_filiais')
-                ->where('empresa_id', $empresaId)
-                ->where('linha_id', $id)
-                ->whereNull('deleted_at')
+        if (Schema::hasTable($this->lfTable()) && $this->tableHas($this->lfTable(), 'filial_id')) {
+            $filialSelecionada = $this->lfBaseQuery($empresaId, $id)
+                ->select('filial_id')
+                ->limit(1)
                 ->value('filial_id');
         }
 
@@ -280,11 +351,11 @@ class TransporteLinhasController extends Controller
             ->orderBy('ordem')
             ->get();
 
+        // Vínculos: sua tabela usa usuario_id (não colaborador_id)
         $vinculos = DB::table('transporte_vinculos as tv')
             ->leftJoin('usuarios as u', 'u.id', '=', 'tv.usuario_id')
             ->leftJoin('colaboradores as c', 'c.id', '=', 'u.colaborador_id')
             ->leftJoin('transporte_paradas as p', 'p.id', '=', 'tv.parada_id')
-            ->where('tv.empresa_id', $empresaId)
             ->where('tv.linha_id', $id)
             ->whereNull('tv.deleted_at')
             ->select([
@@ -297,7 +368,7 @@ class TransporteLinhasController extends Controller
                 DB::raw("(
                     SELECT s.saldo
                     FROM transporte_cartoes_saldos s
-                    WHERE s.empresa_id = tv.empresa_id
+                    WHERE s.empresa_id = u.empresa_id
                       AND s.numero_cartao = tv.numero_cartao
                     ORDER BY s.data_referencia DESC NULLS LAST, s.id DESC
                     LIMIT 1
@@ -307,7 +378,6 @@ class TransporteLinhasController extends Controller
             ->get();
 
         $usuariosAtivos = DB::table('transporte_vinculos as tv')
-            ->where('tv.empresa_id', $empresaId)
             ->where('tv.linha_id', $id)
             ->whereNull('tv.deleted_at')
             ->where(function ($w) use ($hoje) {
@@ -333,6 +403,7 @@ class TransporteLinhasController extends Controller
             'disponivel' => $disponivel,
             'paradas' => $paradas,
             'vinculos' => $vinculos,
+            // financeiro será implementado depois
             'pedidos' => collect(),
             'valorLinhaMes' => 0,
             'valorPorUsuario' => 0,
@@ -373,19 +444,18 @@ class TransporteLinhasController extends Controller
                     'updated_at'      => now(),
                 ]);
 
-            if (Schema::hasTable('transporte_linha_filiais')) {
-                DB::table('transporte_linha_filiais')
-                    ->where('empresa_id', $empresaId)
-                    ->where('linha_id', $id)
-                    ->update(['deleted_at' => now()]);
+            if (Schema::hasTable($this->lfTable()) && $this->tableHas($this->lfTable(), 'linha_id') && $this->tableHas($this->lfTable(), 'filial_id')) {
+                // Se tiver deleted_at, faz soft-delete dos atuais
+                if ($this->tableHas($this->lfTable(), 'deleted_at')) {
+                    $this->lfBaseQuery($empresaId, $id)->update(['deleted_at' => now()]);
+                } else {
+                    // Se não tiver deleted_at, apaga direto os vínculos da linha (se existir)
+                    $this->lfBaseQuery($empresaId, $id)->delete();
+                }
 
-                DB::table('transporte_linha_filiais')->insert([
-                    'empresa_id' => $empresaId,
-                    'linha_id'   => $id,
-                    'filial_id'  => (int) $data['filial_id'],
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+                DB::table($this->lfTable())->insert(
+                    $this->lfPayload($id, (int)$data['filial_id'], $empresaId, true)
+                );
             }
 
             DB::commit();
@@ -421,6 +491,11 @@ class TransporteLinhasController extends Controller
             ->route('beneficios.transporte.linhas.edit', ['sub' => $sub, 'id' => $id]);
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | PARADAS
+    |--------------------------------------------------------------------------
+    */
     public function paradaStore(Request $request, string $sub, int $linhaId)
     {
         $empresaId = $this->empresaId();
@@ -481,7 +556,6 @@ class TransporteLinhasController extends Controller
         $empresaId = $this->empresaId();
 
         $temVinculo = DB::table('transporte_vinculos')
-            ->where('empresa_id', $empresaId)
             ->where('linha_id', $linhaId)
             ->where('parada_id', $paradaId)
             ->whereNull('deleted_at')
@@ -500,6 +574,11 @@ class TransporteLinhasController extends Controller
         return back()->with('alert_success', 'Parada removida.');
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | VÍNCULOS
+    |--------------------------------------------------------------------------
+    */
     public function vinculoStore(Request $request, string $sub, int $linhaId)
     {
         $empresaId = $this->empresaId();
