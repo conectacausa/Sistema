@@ -126,12 +126,6 @@ Route::domain('{sub}.conecttarh.com.br')
             */
             Route::prefix('avd')->group(function () {
 
-                /*
-                |--------------------------------------------------------------------------
-                | Tela 17 — Ciclos (listagem + cadastro/edição)
-                |--------------------------------------------------------------------------
-                | Slug: avd/desempenho
-                */
                 Route::prefix('desempenho')
                     ->middleware('screen:17')
                     ->group(function () {
@@ -565,32 +559,52 @@ Route::domain('{sub}.conecttarh.com.br')
                             ->whereNumber('id')
                             ->name('beneficios.transporte.linhas.operacao');
 
-                        // Paradas
-                        Route::post('/{linhaId}/paradas', [TransporteLinhasController::class, 'paradaStore'])
-                            ->whereNumber('linhaId')
+                        /*
+                        |--------------------------------------------------------------
+                        | ✅ EDIT (/linhas/{id}/editar) - MODAIS/TABS
+                        |--------------------------------------------------------------
+                        | Paradas
+                        */
+                        Route::post('/{id}/paradas', [TransporteLinhasController::class, 'paradasStore'])
+                            ->whereNumber('id')
                             ->name('beneficios.transporte.linhas.paradas.store');
 
-                        Route::put('/{linhaId}/paradas/{paradaId}', [TransporteLinhasController::class, 'paradaUpdate'])
-                            ->whereNumber('linhaId')
-                            ->whereNumber('paradaId')
+                        Route::put('/{id}/paradas/{parada_id}', [TransporteLinhasController::class, 'paradasUpdate'])
+                            ->whereNumber('id')
+                            ->whereNumber('parada_id')
                             ->name('beneficios.transporte.linhas.paradas.update');
 
-                        Route::delete('/{linhaId}/paradas/{paradaId}', [TransporteLinhasController::class, 'paradaDestroy'])
-                            ->whereNumber('linhaId')
-                            ->whereNumber('paradaId')
+                        Route::delete('/{id}/paradas/{parada_id}', [TransporteLinhasController::class, 'paradasDestroy'])
+                            ->whereNumber('id')
+                            ->whereNumber('parada_id')
                             ->name('beneficios.transporte.linhas.paradas.destroy');
 
-                        // Vínculos
-                        Route::post('/{linhaId}/vinculos', [TransporteLinhasController::class, 'vinculoStore'])
-                            ->whereNumber('linhaId')
-                            ->name('beneficios.transporte.linhas.vinculos.store');
+                        // Usuários/Vínculos
+                        Route::post('/{id}/usuarios', [TransporteLinhasController::class, 'usuariosStore'])
+                            ->whereNumber('id')
+                            ->name('beneficios.transporte.linhas.usuarios.store');
 
-                        Route::post('/{linhaId}/vinculos/{vinculoId}/encerrar', [TransporteLinhasController::class, 'vinculoEncerrar'])
-                            ->whereNumber('linhaId')
-                            ->whereNumber('vinculoId')
-                            ->name('beneficios.transporte.linhas.vinculos.encerrar');
+                        Route::put('/{id}/usuarios/{vinculo_id}', [TransporteLinhasController::class, 'usuariosUpdate'])
+                            ->whereNumber('id')
+                            ->whereNumber('vinculo_id')
+                            ->name('beneficios.transporte.linhas.usuarios.update');
 
-                        // Importar custos (Tela 27)
+                        // Pedidos
+                        Route::post('/{id}/pedidos', [TransporteLinhasController::class, 'pedidosStore'])
+                            ->whereNumber('id')
+                            ->name('beneficios.transporte.linhas.pedidos.store');
+
+                        Route::delete('/{id}/pedidos/{pedido_id}', [TransporteLinhasController::class, 'pedidosDestroy'])
+                            ->whereNumber('id')
+                            ->whereNumber('pedido_id')
+                            ->name('beneficios.transporte.linhas.pedidos.destroy');
+
+                        /*
+                        |--------------------------------------------------------------
+                        | ✅ Rotas que você já tinha (mantidas)
+                        |--------------------------------------------------------------
+                        | Importar custos (Tela 27) - se existir no controller
+                        */
                         Route::get('/importar-custos', [TransporteLinhasController::class, 'importarCustosForm'])
                             ->middleware('screen:27')
                             ->name('beneficios.transporte.linhas.importar_custos.form');
@@ -682,7 +696,7 @@ Route::domain('{sub}.conecttarh.com.br')
                         ->middleware('screen:25')
                         ->name('beneficios.transporte.cartoes.importar_saldos.store');
 
-                    // Usos do cartão (usa também o ID 25)
+                    // Usos do cartão (Tela 25)
                     Route::get('/usos', [TransporteCartoesController::class, 'usos'])
                         ->middleware('screen:25')
                         ->name('beneficios.transporte.cartoes.usos');
