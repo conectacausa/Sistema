@@ -30,6 +30,15 @@ use App\Http\Controllers\Beneficios\BolsaDocumentosController;
 use App\Http\Controllers\Beneficios\BolsaRelatoriosController;
 use App\Http\Controllers\Beneficios\BolsaAprovacoesController;
 
+// BENEFÍCIOS → TRANSPORTE
+use App\Http\Controllers\Beneficios\TransporteLinhasController;
+use App\Http\Controllers\Beneficios\TransporteMotoristasController;
+use App\Http\Controllers\Beneficios\TransporteVeiculosController;
+use App\Http\Controllers\Beneficios\TransporteInspecoesController;
+use App\Http\Controllers\Beneficios\TransporteCartoesController;
+use App\Http\Controllers\Beneficios\TransporteRelatoriosController;
+use App\Http\Controllers\Beneficios\TransporteTicketsController;
+
 // RECRUTAMENTO
 use App\Http\Controllers\Recrutamento\FluxoAprovacaoController;
 
@@ -553,6 +562,275 @@ Route::domain('{sub}.conecttarh.com.br')
                     Route::get('/relatorios', [BolsaRelatoriosController::class, 'index'])
                         ->name('beneficios.bolsa.relatorios.index');
                 });
+
+            /*
+            |--------------------------------------------------------------------------
+            | BENEFÍCIOS → TRANSPORTE
+            |--------------------------------------------------------------------------
+            | Telas:
+            | 21 = Linhas (inclui Operação)
+            | 22 = Motoristas
+            | 23 = Veículos
+            | 24 = Inspeções
+            | 25 = Importar Saldos + Usos do Cartão
+            | 26 = Consulta Cartão
+            | 27 = Relatórios + Exportação folha + Importar custos + Tickets
+            */
+            Route::prefix('beneficios/transporte')->group(function () {
+
+                /*
+                |----------------------------------------------------------------------
+                | LINHAS (Tela 21)
+                |----------------------------------------------------------------------
+                | Slug: beneficios/transporte/linhas
+                */
+                Route::prefix('linhas')
+                    ->middleware('screen:21')
+                    ->group(function () {
+
+                        Route::get('/', [TransporteLinhasController::class, 'index'])
+                            ->name('beneficios.transporte.linhas.index');
+
+                        Route::get('/novo', [TransporteLinhasController::class, 'create'])
+                            ->name('beneficios.transporte.linhas.create');
+
+                        Route::post('/', [TransporteLinhasController::class, 'store'])
+                            ->name('beneficios.transporte.linhas.store');
+
+                        Route::get('/{id}/editar', [TransporteLinhasController::class, 'edit'])
+                            ->whereNumber('id')
+                            ->name('beneficios.transporte.linhas.edit');
+
+                        Route::put('/{id}', [TransporteLinhasController::class, 'update'])
+                            ->whereNumber('id')
+                            ->name('beneficios.transporte.linhas.update');
+
+                        Route::delete('/{id}', [TransporteLinhasController::class, 'destroy'])
+                            ->whereNumber('id')
+                            ->name('beneficios.transporte.linhas.destroy');
+
+                        // Operação (tabs: paradas, vínculos, encerrar)
+                        Route::get('/{id}/operacao', [TransporteLinhasController::class, 'operacao'])
+                            ->whereNumber('id')
+                            ->name('beneficios.transporte.linhas.operacao');
+
+                        // Paradas (CRUD mínimo dentro da operação)
+                        Route::post('/{linhaId}/paradas', [TransporteLinhasController::class, 'paradaStore'])
+                            ->whereNumber('linhaId')
+                            ->name('beneficios.transporte.linhas.parada.store');
+
+                        Route::put('/{linhaId}/paradas/{paradaId}', [TransporteLinhasController::class, 'paradaUpdate'])
+                            ->whereNumber('linhaId')
+                            ->whereNumber('paradaId')
+                            ->name('beneficios.transporte.linhas.parada.update');
+
+                        Route::delete('/{linhaId}/paradas/{paradaId}', [TransporteLinhasController::class, 'paradaDestroy'])
+                            ->whereNumber('linhaId')
+                            ->whereNumber('paradaId')
+                            ->name('beneficios.transporte.linhas.parada.destroy');
+
+                        // Vínculos (dentro da operação)
+                        Route::post('/{linhaId}/vinculos', [TransporteLinhasController::class, 'vinculoStore'])
+                            ->whereNumber('linhaId')
+                            ->name('beneficios.transporte.linhas.vinculo.store');
+
+                        Route::put('/{linhaId}/vinculos/{vinculoId}/encerrar', [TransporteLinhasController::class, 'vinculoEncerrar'])
+                            ->whereNumber('linhaId')
+                            ->whereNumber('vinculoId')
+                            ->name('beneficios.transporte.linhas.vinculo.encerrar');
+                    });
+
+                /*
+                |----------------------------------------------------------------------
+                | IMPORTAR CUSTOS (Tela 27) - view em /linhas/importar_custos.blade.php
+                |----------------------------------------------------------------------
+                | Slug: beneficios/transporte/linhas/importar-custos (ID 27)
+                */
+                Route::prefix('linhas')
+                    ->middleware('screen:27')
+                    ->group(function () {
+
+                        Route::get('/importar-custos', [TransporteLinhasController::class, 'importarCustosForm'])
+                            ->name('beneficios.transporte.linhas.importar_custos.form');
+
+                        Route::post('/importar-custos', [TransporteLinhasController::class, 'importarCustos'])
+                            ->name('beneficios.transporte.linhas.importar_custos');
+                    });
+
+                /*
+                |----------------------------------------------------------------------
+                | MOTORISTAS (Tela 22)
+                |----------------------------------------------------------------------
+                | Slug: beneficios/transporte/motoristas
+                */
+                Route::prefix('motoristas')
+                    ->middleware('screen:22')
+                    ->group(function () {
+
+                        Route::get('/', [TransporteMotoristasController::class, 'index'])
+                            ->name('beneficios.transporte.motoristas.index');
+
+                        Route::get('/novo', [TransporteMotoristasController::class, 'create'])
+                            ->name('beneficios.transporte.motoristas.create');
+
+                        Route::post('/', [TransporteMotoristasController::class, 'store'])
+                            ->name('beneficios.transporte.motoristas.store');
+
+                        Route::get('/{id}/editar', [TransporteMotoristasController::class, 'edit'])
+                            ->whereNumber('id')
+                            ->name('beneficios.transporte.motoristas.edit');
+
+                        Route::put('/{id}', [TransporteMotoristasController::class, 'update'])
+                            ->whereNumber('id')
+                            ->name('beneficios.transporte.motoristas.update');
+
+                        Route::delete('/{id}', [TransporteMotoristasController::class, 'destroy'])
+                            ->whereNumber('id')
+                            ->name('beneficios.transporte.motoristas.destroy');
+                    });
+
+                /*
+                |----------------------------------------------------------------------
+                | VEÍCULOS (Tela 23)
+                |----------------------------------------------------------------------
+                | Slug: beneficios/transporte/veiculos
+                */
+                Route::prefix('veiculos')
+                    ->middleware('screen:23')
+                    ->group(function () {
+
+                        Route::get('/', [TransporteVeiculosController::class, 'index'])
+                            ->name('beneficios.transporte.veiculos.index');
+
+                        Route::get('/novo', [TransporteVeiculosController::class, 'create'])
+                            ->name('beneficios.transporte.veiculos.create');
+
+                        Route::post('/', [TransporteVeiculosController::class, 'store'])
+                            ->name('beneficios.transporte.veiculos.store');
+
+                        Route::get('/{id}/editar', [TransporteVeiculosController::class, 'edit'])
+                            ->whereNumber('id')
+                            ->name('beneficios.transporte.veiculos.edit');
+
+                        Route::put('/{id}', [TransporteVeiculosController::class, 'update'])
+                            ->whereNumber('id')
+                            ->name('beneficios.transporte.veiculos.update');
+
+                        Route::delete('/{id}', [TransporteVeiculosController::class, 'destroy'])
+                            ->whereNumber('id')
+                            ->name('beneficios.transporte.veiculos.destroy');
+                    });
+
+                /*
+                |----------------------------------------------------------------------
+                | INSPEÇÕES (Tela 24)
+                |----------------------------------------------------------------------
+                | Slug: beneficios/transporte/inspecoes
+                */
+                Route::prefix('inspecoes')
+                    ->middleware('screen:24')
+                    ->group(function () {
+
+                        Route::get('/', [TransporteInspecoesController::class, 'index'])
+                            ->name('beneficios.transporte.inspecoes.index');
+
+                        Route::get('/novo', [TransporteInspecoesController::class, 'create'])
+                            ->name('beneficios.transporte.inspecoes.create');
+
+                        Route::post('/', [TransporteInspecoesController::class, 'store'])
+                            ->name('beneficios.transporte.inspecoes.store');
+
+                        Route::get('/{id}', [TransporteInspecoesController::class, 'show'])
+                            ->whereNumber('id')
+                            ->name('beneficios.transporte.inspecoes.show');
+                    });
+
+                /*
+                |----------------------------------------------------------------------
+                | CARTÕES (IDs 25 e 26)
+                |----------------------------------------------------------------------
+                */
+                Route::prefix('cartoes')->group(function () {
+
+                    /*
+                    |------------------------------------------------------------------
+                    | Importar Saldos (Tela 25)
+                    |------------------------------------------------------------------
+                    | Slug: beneficios/transporte/cartoes/importar-saldos
+                    */
+                    Route::get('/importar-saldos', [TransporteCartoesController::class, 'importarSaldosForm'])
+                        ->middleware('screen:25')
+                        ->name('beneficios.transporte.cartoes.importar_saldos.form');
+
+                    Route::post('/importar-saldos', [TransporteCartoesController::class, 'importarSaldos'])
+                        ->middleware('screen:25')
+                        ->name('beneficios.transporte.cartoes.importar_saldos');
+
+                    /*
+                    |------------------------------------------------------------------
+                    | Usos do Cartão (Tela 25 - mesmo ID)
+                    |------------------------------------------------------------------
+                    | Slug: beneficios/transporte/cartoes/usos
+                    */
+                    Route::get('/usos', [TransporteCartoesController::class, 'usos'])
+                        ->middleware('screen:25')
+                        ->name('beneficios.transporte.cartoes.usos');
+
+                    /*
+                    |------------------------------------------------------------------
+                    | Consulta Cartão (Tela 26)
+                    |------------------------------------------------------------------
+                    | Slug: beneficios/transporte/cartoes/consulta
+                    */
+                    Route::get('/consulta', [TransporteCartoesController::class, 'consulta'])
+                        ->middleware('screen:26')
+                        ->name('beneficios.transporte.cartoes.consulta');
+                });
+
+                /*
+                |----------------------------------------------------------------------
+                | RELATÓRIOS (Tela 27)
+                |----------------------------------------------------------------------
+                | Slugs:
+                | - beneficios/transporte/relatorios/recarga (ID 27)
+                | - beneficios/transporte/relatorios/exportacao-folha (ID 27)
+                */
+                Route::prefix('relatorios')
+                    ->middleware('screen:27')
+                    ->group(function () {
+
+                        Route::get('/recarga', [TransporteRelatoriosController::class, 'recarga'])
+                            ->name('beneficios.transporte.relatorios.recarga');
+
+                        Route::get('/exportacao-folha', [TransporteRelatoriosController::class, 'exportacaoFolha'])
+                            ->name('beneficios.transporte.relatorios.exportacao_folha');
+                    });
+
+                /*
+                |----------------------------------------------------------------------
+                | TICKETS (Tela 27)
+                |----------------------------------------------------------------------
+                | Slugs:
+                | - beneficios/transporte/tickets/blocos (ID 27)
+                | - beneficios/transporte/tickets/entregas (ID 27)
+                */
+                Route::prefix('tickets')
+                    ->middleware('screen:27')
+                    ->group(function () {
+
+                        Route::get('/blocos', [TransporteTicketsController::class, 'blocos'])
+                            ->name('beneficios.transporte.tickets.blocos');
+
+                        Route::post('/blocos', [TransporteTicketsController::class, 'blocosStore'])
+                            ->name('beneficios.transporte.tickets.blocos.store');
+
+                        Route::get('/entregas', [TransporteTicketsController::class, 'entregas'])
+                            ->name('beneficios.transporte.tickets.entregas');
+
+                        Route::post('/entregas', [TransporteTicketsController::class, 'entregasStore'])
+                            ->name('beneficios.transporte.tickets.entregas.store');
+                    });
+            });
 
             /*
             |--------------------------------------------------------------------------
