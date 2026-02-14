@@ -108,7 +108,7 @@
                 </tr>
               </thead>
               <tbody>
-                @forelse($linhas as $l)
+                @forelse($rows as $l)
                   @php
                     $cap = (int) ($l->capacidade ?? 0);
                     $vinc = (int) ($l->vinculados_ativos ?? 0);
@@ -169,7 +169,7 @@
           </div>
 
           <div class="d-flex justify-content-end mt-3">
-            {!! $linhas->links() !!}
+            {!! $rows->links() !!}
           </div>
 
         </div>
