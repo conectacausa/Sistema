@@ -19,11 +19,16 @@ class TransporteLinhasController extends Controller
         return date('Y-m-d');
     }
 
+    private function filialLabelSelect(): string
+    {
+        // filiais NÃO tem coluna "nome" no seu banco
+        return "COALESCE(nome_fantasia, razao_social, ('Filial #'||id::text)) as nome";
+    }
+
     /*
     |--------------------------------------------------------------------------
     | LISTAGEM
     |--------------------------------------------------------------------------
-    | GET /beneficios/transporte/linhas
     */
     public function index(Request $request, string $sub)
     {
@@ -36,13 +41,12 @@ class TransporteLinhasController extends Controller
 
         // Filiais para o filtro (dropdown simples)
         $filiais = DB::table('filiais')
-            ->select('id', DB::raw("COALESCE(nome_fantasia, nome, ('Filial #'||id::text)) as nome"))
+            ->select('id', DB::raw($this->filialLabelSelect()))
             ->where('empresa_id', $empresaId)
             ->whereNull('deleted_at')
             ->orderBy('id')
             ->get();
 
-        // Query base
         $query = DB::table('transporte_linhas as l')
             ->leftJoin('transporte_motoristas as m', 'm.id', '=', 'l.motorista_id')
             ->leftJoin('transporte_veiculos as v', 'v.id', '=', 'l.veiculo_id')
@@ -70,7 +74,7 @@ class TransporteLinhasController extends Controller
                 ) as vinculados_ativos"),
             ]);
 
-        // Filtro: filial (linha vinculada a pelo menos 1 filial)
+        // Filtro filial (se existir tabela de vínculo)
         if ($filialId > 0 && Schema::hasTable('transporte_linha_filiais')) {
             $query->whereExists(function ($sq) use ($filialId) {
                 $sq->select(DB::raw(1))
@@ -81,18 +85,16 @@ class TransporteLinhasController extends Controller
             });
         }
 
-        // Filtro: tipo
         if ($tipo !== '') {
             $query->where('l.tipo_linha', $tipo);
         }
 
-        // Filtro: busca por linha/veículo/motorista
         if ($q !== '') {
             $query->where(function ($w) use ($q) {
                 $w->where('l.nome', 'ilike', "%{$q}%")
-                  ->orWhere('m.nome', 'ilike', "%{$q}%")
-                  ->orWhere('v.modelo', 'ilike', "%{$q}%")
-                  ->orWhere('v.placa', 'ilike', "%{$q}%");
+                    ->orWhere('m.nome', 'ilike', "%{$q}%")
+                    ->orWhere('v.modelo', 'ilike', "%{$q}%")
+                    ->orWhere('v.placa', 'ilike', "%{$q}%");
             });
         }
 
@@ -101,7 +103,6 @@ class TransporteLinhasController extends Controller
             ->paginate(25)
             ->appends($request->query());
 
-        // Calcula disponibilidade (capacidade - ativos) no PHP
         $linhas->getCollection()->transform(function ($row) {
             $cap = (int) ($row->capacidade ?? 0);
             $atv = (int) ($row->vinculados_ativos ?? 0);
@@ -125,14 +126,13 @@ class TransporteLinhasController extends Controller
     |--------------------------------------------------------------------------
     | CREATE
     |--------------------------------------------------------------------------
-    | GET /beneficios/transporte/linhas/novo
     */
     public function create(Request $request, string $sub)
     {
         $empresaId = $this->empresaId();
 
         $filiais = DB::table('filiais')
-            ->select('id', DB::raw("COALESCE(nome_fantasia, nome, ('Filial #'||id::text)) as nome"))
+            ->select('id', DB::raw($this->filialLabelSelect()))
             ->where('empresa_id', $empresaId)
             ->whereNull('deleted_at')
             ->orderBy('id')
@@ -162,20 +162,19 @@ class TransporteLinhasController extends Controller
     |--------------------------------------------------------------------------
     | STORE
     |--------------------------------------------------------------------------
-    | POST /beneficios/transporte/linhas
     */
     public function store(Request $request, string $sub)
     {
         $empresaId = $this->empresaId();
 
         $data = $request->validate([
-            'nome'           => ['required', 'string', 'max:255'],
-            'tipo_linha'     => ['required', 'in:fretada,publica'],
-            'controle_acesso'=> ['required', 'in:cartao,ticket'],
-            'status'         => ['required', 'in:ativo,inativo'],
-            'filial_id'      => ['required', 'integer', 'min:1'], // dropdown simples
-            'veiculo_id'     => ['required', 'integer', 'min:1'],
-            'motorista_id'   => ['required', 'integer', 'min:1'],
+            'nome'            => ['required', 'string', 'max:255'],
+            'tipo_linha'      => ['required', 'in:fretada,publica'],
+            'controle_acesso' => ['required', 'in:cartao,ticket'],
+            'status'          => ['required', 'in:ativo,inativo'],
+            'filial_id'       => ['required', 'integer', 'min:1'],
+            'veiculo_id'      => ['required', 'integer', 'min:1'],
+            'motorista_id'    => ['required', 'integer', 'min:1'],
         ]);
 
         DB::beginTransaction();
@@ -192,7 +191,6 @@ class TransporteLinhasController extends Controller
                 'updated_at'      => now(),
             ]);
 
-            // Vincula filial (se existir tabela)
             if (Schema::hasTable('transporte_linha_filiais')) {
                 DB::table('transporte_linha_filiais')->insert([
                     'empresa_id' => $empresaId,
@@ -205,7 +203,6 @@ class TransporteLinhasController extends Controller
 
             DB::commit();
 
-            // alerta simples (layout já exibe)
             return redirect()
                 ->route('beneficios.transporte.linhas.edit', ['sub' => $sub, 'id' => $linhaId])
                 ->with('alert_success', 'Linha cadastrada com sucesso.');
@@ -221,7 +218,6 @@ class TransporteLinhasController extends Controller
     |--------------------------------------------------------------------------
     | EDIT
     |--------------------------------------------------------------------------
-    | GET /beneficios/transporte/linhas/{id}/editar
     */
     public function edit(Request $request, string $sub, int $id)
     {
@@ -250,7 +246,7 @@ class TransporteLinhasController extends Controller
         }
 
         $filiais = DB::table('filiais')
-            ->select('id', DB::raw("COALESCE(nome_fantasia, nome, ('Filial #'||id::text)) as nome"))
+            ->select('id', DB::raw($this->filialLabelSelect()))
             ->where('empresa_id', $empresaId)
             ->whereNull('deleted_at')
             ->orderBy('id')
@@ -277,7 +273,6 @@ class TransporteLinhasController extends Controller
             ->orderBy('nome')
             ->get();
 
-        // Paradas
         $paradas = DB::table('transporte_paradas')
             ->where('empresa_id', $empresaId)
             ->where('linha_id', $id)
@@ -285,7 +280,6 @@ class TransporteLinhasController extends Controller
             ->orderBy('ordem')
             ->get();
 
-        // Vínculos (tv.usuario_id) -> usuarios -> colaboradores
         $vinculos = DB::table('transporte_vinculos as tv')
             ->leftJoin('usuarios as u', 'u.id', '=', 'tv.usuario_id')
             ->leftJoin('colaboradores as c', 'c.id', '=', 'u.colaborador_id')
@@ -300,7 +294,6 @@ class TransporteLinhasController extends Controller
                 DB::raw("COALESCE(c.cpf, '') as colaborador_cpf"),
                 DB::raw("COALESCE(p.identificacao,'') as parada_nome"),
                 DB::raw("COALESCE(p.horario,'') as parada_horario"),
-                // saldo atual do cartão (mais recente)
                 DB::raw("(
                     SELECT s.saldo
                     FROM transporte_cartoes_saldos s
@@ -313,7 +306,6 @@ class TransporteLinhasController extends Controller
             ->orderBy(DB::raw("COALESCE(c.nome, u.nome_completo, '')"))
             ->get();
 
-        // Usuários ativos (regra solicitada)
         $usuariosAtivos = DB::table('transporte_vinculos as tv')
             ->where('tv.empresa_id', $empresaId)
             ->where('tv.linha_id', $id)
@@ -329,46 +321,6 @@ class TransporteLinhasController extends Controller
         $capacidade = (int) ($linha->capacidade_passageiros ?? 0);
         $disponivel = max(0, $capacidade - $usuariosAtivos);
 
-        // Financeiro (pedidos) — se existir tabela, carrega, senão evita quebrar
-        $pedidos = collect();
-        $valorLinhaMes = 0;
-        $valorPorUsuario = 0;
-
-        if (Schema::hasTable('transporte_pedidos')) {
-            $mes = date('m');
-            $ano = date('Y');
-
-            $pedidos = DB::table('transporte_pedidos')
-                ->where('empresa_id', $empresaId)
-                ->where('linha_id', $id)
-                ->whereNull('deleted_at')
-                ->whereMonth('data_pedido', $mes)
-                ->whereYear('data_pedido', $ano)
-                ->orderByDesc('id')
-                ->get();
-
-            $valorLinhaMes = (float) ($pedidos->sum('valor_total') ?? 0);
-
-            // "usuários que usaram transporte no mês corrente"
-            $usuariosMes = DB::table('transporte_vinculos as tv')
-                ->where('tv.empresa_id', $empresaId)
-                ->where('tv.linha_id', $id)
-                ->whereNull('tv.deleted_at')
-                ->where(function ($w) use ($ano, $mes) {
-                    // vínculo existente em algum dia do mês (aproximação segura)
-                    $iniMes = "{$ano}-{$mes}-01";
-                    $fimMes = date('Y-m-t', strtotime($iniMes));
-                    $w->whereNull('tv.data_inicio')->orWhere('tv.data_inicio', '<=', $fimMes);
-                })
-                ->where(function ($w) use ($ano, $mes) {
-                    $iniMes = "{$ano}-{$mes}-01";
-                    $w->whereNull('tv.data_fim')->orWhere('tv.data_fim', '>=', $iniMes);
-                })
-                ->count();
-
-            $valorPorUsuario = ($usuariosMes > 0) ? ($valorLinhaMes / $usuariosMes) : 0;
-        }
-
         return view('beneficios.transporte.linhas.edit', [
             'sub' => $sub,
             'linha' => $linha,
@@ -381,9 +333,9 @@ class TransporteLinhasController extends Controller
             'disponivel' => $disponivel,
             'paradas' => $paradas,
             'vinculos' => $vinculos,
-            'pedidos' => $pedidos,
-            'valorLinhaMes' => $valorLinhaMes,
-            'valorPorUsuario' => $valorPorUsuario,
+            'pedidos' => collect(),
+            'valorLinhaMes' => 0,
+            'valorPorUsuario' => 0,
         ]);
     }
 
@@ -391,20 +343,19 @@ class TransporteLinhasController extends Controller
     |--------------------------------------------------------------------------
     | UPDATE
     |--------------------------------------------------------------------------
-    | PUT /beneficios/transporte/linhas/{id}
     */
     public function update(Request $request, string $sub, int $id)
     {
         $empresaId = $this->empresaId();
 
         $data = $request->validate([
-            'nome'           => ['required', 'string', 'max:255'],
-            'tipo_linha'     => ['required', 'in:fretada,publica'],
-            'controle_acesso'=> ['required', 'in:cartao,ticket'],
-            'status'         => ['required', 'in:ativo,inativo'],
-            'filial_id'      => ['required', 'integer', 'min:1'],
-            'veiculo_id'     => ['required', 'integer', 'min:1'],
-            'motorista_id'   => ['required', 'integer', 'min:1'],
+            'nome'            => ['required', 'string', 'max:255'],
+            'tipo_linha'      => ['required', 'in:fretada,publica'],
+            'controle_acesso' => ['required', 'in:cartao,ticket'],
+            'status'          => ['required', 'in:ativo,inativo'],
+            'filial_id'       => ['required', 'integer', 'min:1'],
+            'veiculo_id'      => ['required', 'integer', 'min:1'],
+            'motorista_id'    => ['required', 'integer', 'min:1'],
         ]);
 
         DB::beginTransaction();
@@ -423,7 +374,6 @@ class TransporteLinhasController extends Controller
                 ]);
 
             if (Schema::hasTable('transporte_linha_filiais')) {
-                // mantém apenas 1 filial (dropdown simples)
                 DB::table('transporte_linha_filiais')
                     ->where('empresa_id', $empresaId)
                     ->where('linha_id', $id)
@@ -451,11 +401,6 @@ class TransporteLinhasController extends Controller
         }
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | DESTROY (soft)
-    |--------------------------------------------------------------------------
-    */
     public function destroy(Request $request, string $sub, int $id)
     {
         $empresaId = $this->empresaId();
@@ -470,22 +415,12 @@ class TransporteLinhasController extends Controller
             ->with('alert_success', 'Linha removida.');
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | OPERAÇÃO (se estiver usando)
-    |--------------------------------------------------------------------------
-    */
     public function operacao(Request $request, string $sub, int $id)
     {
         return redirect()
             ->route('beneficios.transporte.linhas.edit', ['sub' => $sub, 'id' => $id]);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | PARADAS
-    |--------------------------------------------------------------------------
-    */
     public function paradaStore(Request $request, string $sub, int $linhaId)
     {
         $empresaId = $this->empresaId();
@@ -545,7 +480,6 @@ class TransporteLinhasController extends Controller
     {
         $empresaId = $this->empresaId();
 
-        // Se tiver usuário vinculado, não pode remover
         $temVinculo = DB::table('transporte_vinculos')
             ->where('empresa_id', $empresaId)
             ->where('linha_id', $linhaId)
@@ -566,43 +500,38 @@ class TransporteLinhasController extends Controller
         return back()->with('alert_success', 'Parada removida.');
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | VÍNCULOS
-    |--------------------------------------------------------------------------
-    */
     public function vinculoStore(Request $request, string $sub, int $linhaId)
     {
         $empresaId = $this->empresaId();
 
         $data = $request->validate([
-            'usuario_id'        => ['required', 'integer', 'min:1'],
-            'parada_id'         => ['nullable', 'integer', 'min:1'],
-            'tipo_acesso'       => ['required', 'in:cartao,ticket'],
-            'numero_cartao'     => ['nullable', 'string', 'max:50'],
-            'numero_vale_ticket'=> ['nullable', 'string', 'max:50'],
-            'valor_passagem'    => ['required', 'numeric', 'min:0'],
-            'data_inicio'       => ['nullable', 'date'],
-            'data_fim'          => ['nullable', 'date'],
-            'status'            => ['required', 'in:ativo,inativo'],
-            'observacoes'       => ['nullable', 'string'],
+            'usuario_id'         => ['required', 'integer', 'min:1'],
+            'parada_id'          => ['nullable', 'integer', 'min:1'],
+            'tipo_acesso'        => ['required', 'in:cartao,ticket'],
+            'numero_cartao'      => ['nullable', 'string', 'max:50'],
+            'numero_vale_ticket' => ['nullable', 'string', 'max:50'],
+            'valor_passagem'     => ['required', 'numeric', 'min:0'],
+            'data_inicio'        => ['nullable', 'date'],
+            'data_fim'           => ['nullable', 'date'],
+            'status'             => ['required', 'in:ativo,inativo'],
+            'observacoes'        => ['nullable', 'string'],
         ]);
 
         DB::table('transporte_vinculos')->insert([
-            'empresa_id'        => $empresaId,
-            'usuario_id'        => (int) $data['usuario_id'],
-            'linha_id'          => $linhaId,
-            'parada_id'         => !empty($data['parada_id']) ? (int) $data['parada_id'] : null,
-            'tipo_acesso'       => $data['tipo_acesso'],
-            'numero_cartao'     => $data['numero_cartao'] ?? null,
-            'numero_vale_ticket'=> $data['numero_vale_ticket'] ?? null,
-            'valor_passagem'    => $data['valor_passagem'],
-            'data_inicio'       => $data['data_inicio'] ?? null,
-            'data_fim'          => $data['data_fim'] ?? null,
-            'status'            => $data['status'],
-            'observacoes'       => $data['observacoes'] ?? null,
-            'created_at'        => now(),
-            'updated_at'        => now(),
+            'empresa_id'         => $empresaId,
+            'usuario_id'         => (int) $data['usuario_id'],
+            'linha_id'           => $linhaId,
+            'parada_id'          => !empty($data['parada_id']) ? (int) $data['parada_id'] : null,
+            'tipo_acesso'        => $data['tipo_acesso'],
+            'numero_cartao'      => $data['numero_cartao'] ?? null,
+            'numero_vale_ticket' => $data['numero_vale_ticket'] ?? null,
+            'valor_passagem'     => $data['valor_passagem'],
+            'data_inicio'        => $data['data_inicio'] ?? null,
+            'data_fim'           => $data['data_fim'] ?? null,
+            'status'             => $data['status'],
+            'observacoes'        => $data['observacoes'] ?? null,
+            'created_at'         => now(),
+            'updated_at'         => now(),
         ]);
 
         return back()->with('alert_success', 'Colaborador vinculado.');
@@ -629,16 +558,9 @@ class TransporteLinhasController extends Controller
         return back()->with('alert_success', 'Uso encerrado.');
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | IMPORTAR CUSTOS (Tela 27) - placeholder seguro
-    |--------------------------------------------------------------------------
-    */
     public function importarCustosForm(Request $request, string $sub)
     {
-        return view('beneficios.transporte.relatorios.importar_custos', [
-            'sub' => $sub,
-        ]);
+        return view('beneficios.transporte.relatorios.importar_custos', ['sub' => $sub]);
     }
 
     public function importarCustos(Request $request, string $sub)
