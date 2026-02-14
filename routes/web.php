@@ -15,7 +15,7 @@ use App\Http\Controllers\Config\GrupoPermissaoController;
 use App\Http\Controllers\Config\FiliaisController;
 use App\Http\Controllers\Config\WhatsappIntegracoesController;
 use App\Http\Controllers\Config\ConfiguracoesController;
-use App\Http\Controllers\Config\FilaMensagensController; // ✅ NOVO
+use App\Http\Controllers\Config\FilaMensagensController;
 
 // WEBHOOKS
 use App\Http\Controllers\Webhooks\EvolutionWebhookController;
@@ -33,10 +33,11 @@ use App\Http\Controllers\Beneficios\BolsaAprovacoesController;
 // RECRUTAMENTO
 use App\Http\Controllers\Recrutamento\FluxoAprovacaoController;
 
-// ✅ AVD (Avaliação de Desempenho)
+// ✅ AVD (Avaliação de Desempenho) — PADRÃO: pasta/namespace AVD
 use App\Http\Controllers\AVD\CiclosController;
-use App\Http\Controllers\AVD\MinhasAvaliacoesController;
-use App\Http\Controllers\AVD\PublicAvaliacaoController;
+use App\Http\Controllers\AVD\PendenciasController;
+use App\Http\Controllers\AVD\AvaliacaoPublicaController;
+use App\Http\Controllers\AVD\ResultadosController;
 
 Route::domain('{sub}.conecttarh.com.br')
     ->middleware(['web', 'tenant'])
@@ -68,15 +69,15 @@ Route::domain('{sub}.conecttarh.com.br')
         | URL pública segura:
         | /avaliacao/{token}
         */
-        Route::get('/avaliacao/{token}', [PublicAvaliacaoController::class, 'show'])
+        Route::get('/avaliacao/{token}', [AvaliacaoPublicaController::class, 'show'])
             ->name('avd.public.show');
 
-        Route::post('/avaliacao/{token}', [PublicAvaliacaoController::class, 'submit'])
+        Route::post('/avaliacao/{token}', [AvaliacaoPublicaController::class, 'submit'])
             ->name('avd.public.submit');
 
         Route::middleware(['auth', 'tenant.user'])->group(function () {
 
-            Route::get('/dashboard', fn () => view('dashboard.index'))
+            Route::get('/dashboard', fn() => view('dashboard.index'))
                 ->name('dashboard');
 
             /*
@@ -108,116 +109,152 @@ Route::domain('{sub}.conecttarh.com.br')
                 ->name('colaboradores.importar.rejeitados');
 
             /*
-|--------------------------------------------------------------------------
-| AVD → AVALIAÇÃO DE DESEMPENHO
-|--------------------------------------------------------------------------
-| Telas:
-| 17 = Ciclos (listagem + cadastro/edição)
-| 18 = Minhas Avaliações (pendências do usuário)
-*/
-Route::prefix('avd')->group(function () {
-
-    /*
-    |--------------------------------------------------------------------------
-    | Tela 17 — Ciclos (listagem + cadastro/edição)
-    |--------------------------------------------------------------------------
-    | Slug: avd/desempenho
-    */
-    Route::prefix('desempenho')
-        ->middleware('screen:17')
-        ->group(function () {
-
-            // Listagem
-            Route::get('/', [\App\Http\Controllers\AVD\CiclosController::class, 'index'])
-                ->name('avd.ciclos.index');
-
-            // Criar / Salvar
-            Route::get('/criar', [\App\Http\Controllers\AVD\CiclosController::class, 'create'])
-                ->name('avd.ciclos.create');
-
-            Route::post('/', [\App\Http\Controllers\AVD\CiclosController::class, 'store'])
-                ->name('avd.ciclos.store');
-
-            // Editar / Atualizar
-            Route::get('/{id}/editar', [\App\Http\Controllers\AVD\CiclosController::class, 'edit'])
-                ->whereNumber('id')
-                ->name('avd.ciclos.edit');
-
-            Route::put('/{id}', [\App\Http\Controllers\AVD\CiclosController::class, 'update'])
-                ->whereNumber('id')
-                ->name('avd.ciclos.update');
-
-            // Excluir (soft delete)
-            Route::delete('/{id}', [\App\Http\Controllers\AVD\CiclosController::class, 'destroy'])
-                ->whereNumber('id')
-                ->name('avd.ciclos.destroy');
-
-            // Iniciar / Encerrar manualmente
-            Route::post('/{id}/iniciar', [\App\Http\Controllers\AVD\CiclosController::class, 'iniciar'])
-                ->whereNumber('id')
-                ->name('avd.ciclos.iniciar');
-
-            Route::post('/{id}/encerrar', [\App\Http\Controllers\AVD\CiclosController::class, 'encerrar'])
-                ->whereNumber('id')
-                ->name('avd.ciclos.encerrar');
-
-            /*
             |--------------------------------------------------------------------------
-            | AJAX: TAB UNIDADES
+            | AVD → AVALIAÇÃO DE DESEMPENHO
             |--------------------------------------------------------------------------
+            | Telas:
+            | 17 = Ciclos (listagem + cadastro/edição)
+            | 18 = Pendências do usuário (Minhas Avaliações)
+            | 20 = Resultados
             */
-            Route::get('/{id}/tab-unidades', [\App\Http\Controllers\AVD\CiclosController::class, 'tabUnidades'])
-                ->whereNumber('id')
-                ->name('avd.ciclos.tab.unidades');
+            Route::prefix('avd')->group(function () {
 
-            Route::post('/{id}/unidades/vincular', [\App\Http\Controllers\AVD\CiclosController::class, 'unidadesVincular'])
-                ->whereNumber('id')
-                ->name('avd.ciclos.unidades.vincular');
+                /*
+                |--------------------------------------------------------------------------
+                | Tela 17 — Ciclos (listagem + cadastro/edição)
+                |--------------------------------------------------------------------------
+                | Slug: avd/desempenho
+                */
+                Route::prefix('desempenho')
+                    ->middleware('screen:17')
+                    ->group(function () {
 
-            Route::delete('/{id}/unidades/{vinculo_id}', [\App\Http\Controllers\AVD\CiclosController::class, 'unidadesDesvincular'])
-                ->whereNumber('id')
-                ->whereNumber('vinculo_id')
-                ->name('avd.ciclos.unidades.desvincular');
+                        // Listagem + grid
+                        Route::get('/', [CiclosController::class, 'index'])
+                            ->name('avd.ciclos.index');
 
-            /*
-            |--------------------------------------------------------------------------
-            | AJAX: TAB PARTICIPANTES
-            |--------------------------------------------------------------------------
-            */
-            Route::get('/{id}/tab-participantes', [\App\Http\Controllers\AVD\CiclosController::class, 'tabParticipantes'])
-                ->whereNumber('id')
-                ->name('avd.ciclos.tab.participantes');
+                        Route::get('/grid', [CiclosController::class, 'grid'])
+                            ->name('avd.ciclos.grid');
 
-            Route::post('/{id}/participantes/vincular', [\App\Http\Controllers\AVD\CiclosController::class, 'participantesVincular'])
-                ->whereNumber('id')
-                ->name('avd.ciclos.participantes.vincular');
+                        // Criar / Salvar
+                        Route::get('/criar', [CiclosController::class, 'create'])
+                            ->name('avd.ciclos.create');
 
-            Route::post('/{id}/participantes/vincular-lote', [\App\Http\Controllers\AVD\CiclosController::class, 'participantesVincularLote'])
-                ->whereNumber('id')
-                ->name('avd.ciclos.participantes.vincular_lote');
+                        Route::post('/', [CiclosController::class, 'store'])
+                            ->name('avd.ciclos.store');
 
-            Route::put('/{id}/participantes/{pid}/atualizar', [\App\Http\Controllers\AVD\CiclosController::class, 'participantesAtualizar'])
-                ->whereNumber('id')
-                ->whereNumber('pid')
-                ->name('avd.ciclos.participantes.atualizar');
+                        // Editar / Atualizar
+                        Route::get('/{id}/editar', [CiclosController::class, 'edit'])
+                            ->whereNumber('id')
+                            ->name('avd.ciclos.edit');
 
-            Route::delete('/{id}/participantes/{pid}', [\App\Http\Controllers\AVD\CiclosController::class, 'participantesRemover'])
-                ->whereNumber('id')
-                ->whereNumber('pid')
-                ->name('avd.ciclos.participantes.remover');
-        });
+                        Route::put('/{id}', [CiclosController::class, 'update'])
+                            ->whereNumber('id')
+                            ->name('avd.ciclos.update');
 
-    /*
-    |--------------------------------------------------------------------------
-    | Tela 18 — Minhas Avaliações (pendências do usuário)
-    |--------------------------------------------------------------------------
-    | Slug: avd/gestor
-    */
-    Route::get('/gestor', [\App\Http\Controllers\AVD\MinhasAvaliacoesController::class, 'index'])
-        ->middleware('screen:18')
-        ->name('avd.minhas.index');
-});
+                        // Excluir (soft delete)
+                        Route::delete('/{id}', [CiclosController::class, 'destroy'])
+                            ->whereNumber('id')
+                            ->name('avd.ciclos.destroy');
 
+                        // Iniciar / Encerrar manualmente
+                        Route::post('/{id}/iniciar', [CiclosController::class, 'iniciar'])
+                            ->whereNumber('id')
+                            ->name('avd.ciclos.iniciar');
+
+                        Route::post('/{id}/encerrar', [CiclosController::class, 'encerrar'])
+                            ->whereNumber('id')
+                            ->name('avd.ciclos.encerrar');
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | AJAX: TAB UNIDADES
+                        |--------------------------------------------------------------------------
+                        | Vincular:
+                        | - modo=uma + filial_id
+                        | - modo=todas
+                        | Desvincular: usa filial_id no path
+                        */
+                        Route::post('/{id}/unidades/vincular', [CiclosController::class, 'unidadesVincular'])
+                            ->whereNumber('id')
+                            ->name('avd.ciclos.unidades.vincular');
+
+                        Route::delete('/{id}/unidades/{filial_id}', [CiclosController::class, 'unidadesDesvincular'])
+                            ->whereNumber('id')
+                            ->whereNumber('filial_id')
+                            ->name('avd.ciclos.unidades.desvincular');
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | AJAX: TAB COLABORADORES (PARTICIPANTES)
+                        |--------------------------------------------------------------------------
+                        | Vincular:
+                        | - modo=individual + colaborador_id
+                        | - modo=lote_filial + filial_id
+                        */
+                        Route::post('/{id}/participantes/vincular', [CiclosController::class, 'participantesVincular'])
+                            ->whereNumber('id')
+                            ->name('avd.ciclos.participantes.vincular');
+
+                        Route::put('/{id}/participantes/{pid}/whatsapp', [CiclosController::class, 'participantesAtualizarWhatsapp'])
+                            ->whereNumber('id')
+                            ->whereNumber('pid')
+                            ->name('avd.ciclos.participantes.whatsapp');
+
+                        Route::delete('/{id}/participantes/{pid}', [CiclosController::class, 'participantesRemover'])
+                            ->whereNumber('id')
+                            ->whereNumber('pid')
+                            ->name('avd.ciclos.participantes.remover');
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | AJAX: TAB PILARES
+                        |--------------------------------------------------------------------------
+                        */
+                        Route::post('/{id}/pilares/salvar', [CiclosController::class, 'pilaresSalvar'])
+                            ->whereNumber('id')
+                            ->name('avd.ciclos.pilares.salvar');
+
+                        Route::delete('/{id}/pilares/{pilar_id}', [CiclosController::class, 'pilaresExcluir'])
+                            ->whereNumber('id')
+                            ->whereNumber('pilar_id')
+                            ->name('avd.ciclos.pilares.excluir');
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | AJAX: TAB PERGUNTAS
+                        |--------------------------------------------------------------------------
+                        */
+                        Route::post('/{id}/perguntas/salvar', [CiclosController::class, 'perguntasSalvar'])
+                            ->whereNumber('id')
+                            ->name('avd.ciclos.perguntas.salvar');
+
+                        Route::delete('/{id}/perguntas/{pergunta_id}', [CiclosController::class, 'perguntasExcluir'])
+                            ->whereNumber('id')
+                            ->whereNumber('pergunta_id')
+                            ->name('avd.ciclos.perguntas.excluir');
+                    });
+
+                /*
+                |--------------------------------------------------------------------------
+                | Tela 18 — Pendências do usuário (Minhas Avaliações)
+                |--------------------------------------------------------------------------
+                | Slug: avd/gestor
+                */
+                Route::get('/gestor', [PendenciasController::class, 'index'])
+                    ->middleware('screen:18')
+                    ->name('avd.pendencias.index');
+
+                /*
+                |--------------------------------------------------------------------------
+                | Tela 20 — Resultados
+                |--------------------------------------------------------------------------
+                | Slug: avd/resultados
+                */
+                Route::get('/resultados', [ResultadosController::class, 'index'])
+                    ->middleware('screen:20')
+                    ->name('avd.resultados.index');
+            });
 
             /*
             |--------------------------------------------------------------------------
