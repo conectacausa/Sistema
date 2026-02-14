@@ -5,10 +5,13 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
+    <meta name="description" content="">
+    <meta name="author" content="">
+
     <link rel="icon" href="{{ asset('assets/images/favicon.ico') }}">
 
     <title>
-        {{ ($tenant->nome_fantasia ?? 'Conectta RH') }} - @yield('title', 'Dashboard')
+        {{ ($tenant->nome_fantasia ?? 'Conectta RH') }} | @yield('title', 'Dashboard')
     </title>
 
     <!-- Vendors Style -->
@@ -34,7 +37,16 @@
     <!-- Content Wrapper. Contains page content -->
     <div class="content-wrapper overflow-visible">
         <div class="container-full">
+
+            <!-- Content Header (Page header) -->
+            <div class="content-header">
+                @yield('content_header')
+            </div>
+
+            <!-- Main content -->
             @yield('content')
+            <!-- /.content -->
+
         </div>
     </div>
     <!-- /.content-wrapper -->
@@ -55,7 +67,7 @@
 <script src="https://fastly.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
 <script src="{{ asset('assets/vendor_components/OwlCarousel2/dist/owl.carousel.js') }}"></script>
 
-<!-- DataTables JS (igual ao template) -->
+<!-- DataTables JS -->
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 
 <!-- App -->
