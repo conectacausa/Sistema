@@ -40,7 +40,7 @@ class TransporteLinhasController extends Controller
         $empresaId = $this->empresaId();
         $q = trim((string) $request->get('q', ''));
 
-        // ✅ Necessário porque a view usa $motoristas (e normalmente $veiculos)
+        // ✅ A view usa $motoristas, $veiculos e $filiais
         $motoristas = DB::table(self::T_MOTORISTAS)
             ->where('empresa_id', $empresaId)
             ->whereNull('deleted_at')
@@ -51,6 +51,12 @@ class TransporteLinhasController extends Controller
             ->where('empresa_id', $empresaId)
             ->whereNull('deleted_at')
             ->orderBy('id', 'desc')
+            ->get();
+
+        $filiais = DB::table(self::T_FILIAIS)
+            ->where('empresa_id', $empresaId)
+            ->whereNull('deleted_at')
+            ->orderBy('id', 'asc')
             ->get();
 
         $linhas = DB::table(self::T_LINHAS . ' as l')
@@ -73,7 +79,8 @@ class TransporteLinhasController extends Controller
             'linhas',
             'q',
             'motoristas',
-            'veiculos'
+            'veiculos',
+            'filiais'
         ));
     }
 
@@ -82,16 +89,22 @@ class TransporteLinhasController extends Controller
         $empresaId = $this->empresaId();
 
         $motoristas = DB::table(self::T_MOTORISTAS)
-            ->where('empresa_id', $empresaId)->whereNull('deleted_at')
-            ->orderBy('nome')->get();
+            ->where('empresa_id', $empresaId)
+            ->whereNull('deleted_at')
+            ->orderBy('nome')
+            ->get();
 
         $veiculos = DB::table(self::T_VEICULOS)
-            ->where('empresa_id', $empresaId)->whereNull('deleted_at')
-            ->orderBy('id', 'desc')->get();
+            ->where('empresa_id', $empresaId)
+            ->whereNull('deleted_at')
+            ->orderBy('id', 'desc')
+            ->get();
 
         $filiais = DB::table(self::T_FILIAIS)
-            ->where('empresa_id', $empresaId)->whereNull('deleted_at')
-            ->orderBy('id', 'asc')->get();
+            ->where('empresa_id', $empresaId)
+            ->whereNull('deleted_at')
+            ->orderBy('id', 'asc')
+            ->get();
 
         return view('beneficios.transporte.linhas.create', compact('sub', 'motoristas', 'veiculos', 'filiais'));
     }
@@ -158,21 +171,27 @@ class TransporteLinhasController extends Controller
         abort_unless($linha, 404);
 
         $motoristas = DB::table(self::T_MOTORISTAS)
-            ->where('empresa_id', $empresaId)->whereNull('deleted_at')
-            ->orderBy('nome')->get();
+            ->where('empresa_id', $empresaId)
+            ->whereNull('deleted_at')
+            ->orderBy('nome')
+            ->get();
 
         $veiculos = DB::table(self::T_VEICULOS)
-            ->where('empresa_id', $empresaId)->whereNull('deleted_at')
-            ->orderBy('id', 'desc')->get();
+            ->where('empresa_id', $empresaId)
+            ->whereNull('deleted_at')
+            ->orderBy('id', 'desc')
+            ->get();
 
         $filiais = DB::table(self::T_FILIAIS)
-            ->where('empresa_id', $empresaId)->whereNull('deleted_at')
-            ->orderBy('id', 'asc')->get();
+            ->where('empresa_id', $empresaId)
+            ->whereNull('deleted_at')
+            ->orderBy('id', 'asc')
+            ->get();
 
         $linhaFiliais = DB::table(self::T_LINHA_FILIAIS)
             ->where('linha_id', $id)
             ->pluck('filial_id')
-            ->map(fn($x) => (int) $x)
+            ->map(fn ($x) => (int) $x)
             ->toArray();
 
         return view('beneficios.transporte.linhas.edit', compact('sub', 'linha', 'motoristas', 'veiculos', 'filiais', 'linhaFiliais'));
@@ -274,7 +293,13 @@ class TransporteLinhasController extends Controller
         $vinculos = DB::table(self::T_VINCULOS . ' as tv')
             ->leftJoin(self::T_COLABS . ' as c', 'c.id', '=', 'tv.colaborador_id')
             ->leftJoin(self::T_PARADAS . ' as p', 'p.id', '=', 'tv.parada_id')
-            ->select('tv.*', 'c.nome_completo as colaborador_nome', 'c.matricula as colaborador_matricula', 'p.nome as parada_nome', 'p.hora as parada_hora')
+            ->select(
+                'tv.*',
+                'c.nome_completo as colaborador_nome',
+                'c.matricula as colaborador_matricula',
+                'p.nome as parada_nome',
+                'p.hora as parada_hora'
+            )
             ->where('tv.linha_id', $id)
             ->whereNull('tv.deleted_at')
             ->orderBy('tv.id', 'desc')
