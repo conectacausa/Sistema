@@ -1,147 +1,229 @@
 @extends('layouts.app')
 
-@section('title', 'Transporte - Nova Linha')
+@section('title', 'Transporte - Linhas')
 
 @section('content')
-<div class="content-header">
-  <div class="d-flex align-items-center">
-    <div class="me-auto">
-      <h3 class="m-0">Nova Linha</h3>
-      <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="{{ route('dashboard', ['sub'=>$sub]) }}"><i class="mdi mdi-home-outline"></i></a></li>
-        <li class="breadcrumb-item">Benefícios</li>
-        <li class="breadcrumb-item"><a href="{{ route('beneficios.transporte.linhas.index', ['sub'=>$sub]) }}">Transporte</a></li>
-        <li class="breadcrumb-item active">Nova Linha</li>
-      </ol>
-    </div>
-  </div>
-</div>
-
 <section class="content">
+
   <div class="row">
     <div class="col-12">
       <div class="box">
         <div class="box-body">
 
-          @if($errors->any())
-            <div class="alert alert-danger">
-              <ul class="mb-0">
-                @foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach
-              </ul>
-            </div>
-          @endif
-
-          <form method="POST" action="{{ route('beneficios.transporte.linhas.store', ['sub'=>$sub]) }}">
-            @csrf
-
-            <div class="row">
-              <div class="col-md-6">
-                <div class="form-group">
-                  <label class="form-label">Nome</label>
-                  <input type="text" name="nome" class="form-control" value="{{ old('nome') }}" required>
-                </div>
-              </div>
-
-              <div class="col-md-3">
-                <div class="form-group">
-                  <label class="form-label">Tipo</label>
-                  <select name="tipo_linha" class="form-select" required>
-                    <option value="fretada" {{ old('tipo_linha','fretada')=='fretada'?'selected':'' }}>Fretada</option>
-                    <option value="publica" {{ old('tipo_linha')=='publica'?'selected':'' }}>Pública</option>
-                  </select>
-                </div>
-              </div>
-
-              <div class="col-md-3">
-                <div class="form-group">
-                  <label class="form-label">Controle</label>
-                  <select name="controle_acesso" class="form-select" required>
-                    <option value="cartao" {{ old('controle_acesso','cartao')=='cartao'?'selected':'' }}>Cartão</option>
-                    <option value="ticket" {{ old('controle_acesso')=='ticket'?'selected':'' }}>Ticket</option>
-                  </select>
-                </div>
-              </div>
+          <div class="d-flex align-items-center mb-3">
+            <div class="me-auto">
+              <h4 class="page-title mb-0">Transporte</h4>
+              <small class="text-muted">Benefícios • Transporte • Linhas</small>
             </div>
 
-            <div class="row">
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label class="form-label">Motorista</label>
-                  <select name="motorista_id" class="form-select" required>
-                    <option value="">Selecione</option>
-                    @foreach($motoristas as $m)
-                      <option value="{{ $m->id }}" {{ old('motorista_id')==$m->id?'selected':'' }}>{{ $m->nome }}</option>
-                    @endforeach
-                  </select>
-                </div>
-              </div>
+            <a href="{{ route('beneficios.transporte.linhas.create', ['sub' => $sub]) }}"
+               class="waves-effect waves-light btn bg-gradient-success">
+              Nova Linha
+            </a>
+          </div>
 
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label class="form-label">Veículo</label>
-                  <select name="veiculo_id" class="form-select" required>
-                    <option value="">Selecione</option>
-                    @foreach($veiculos as $v)
-                      <option value="{{ $v->id }}" {{ old('veiculo_id')==$v->id?'selected':'' }}>
-                        {{ $v->placa ?? '-' }} {{ $v->modelo ? ' - '.$v->modelo : '' }}
-                      </option>
-                    @endforeach
-                  </select>
+          {{-- Filtros --}}
+          <div class="row">
+            <div class="col-12">
+              <div class="box">
+                <div class="box-header with-border">
+                  <h4 class="box-title">Filtros</h4>
                 </div>
-              </div>
+                <div class="box-body">
+                  <form id="formFiltros" method="GET" action="{{ route('beneficios.transporte.linhas.index', ['sub' => $sub]) }}">
+                    <div class="row">
+                      <div class="col-md-12">
+                        <div class="form-group">
+                          <label class="form-label">Nome Linha, Veículo ou Motorista</label>
+                          <input type="text"
+                                 class="form-control"
+                                 name="q"
+                                 id="filtro_q"
+                                 value="{{ $q ?? '' }}"
+                                 placeholder="Linha, Veículo ou Motorista">
+                        </div>
+                      </div>
+                    </div>
 
-              <div class="col-md-4">
-                <div class="form-group">
-                  <label class="form-label">Status</label>
-                  <select name="status" class="form-select">
-                    <option value="ativo" {{ old('status','ativo')=='ativo'?'selected':'' }}>Ativo</option>
-                    <option value="inativo" {{ old('status')=='inativo'?'selected':'' }}>Inativo</option>
-                  </select>
+                    <div class="row">
+                      <div class="col-md-6">
+                        <div class="form-group">
+                          <label class="form-label">Tipo</label>
+                          <select class="form-select" name="tipo" id="filtro_tipo">
+                            <option value="">Todos</option>
+                            <option value="fretada" {{ ($tipo ?? '') === 'fretada' ? 'selected' : '' }}>Fretada</option>
+                            <option value="publica" {{ ($tipo ?? '') === 'publica' ? 'selected' : '' }}>Pública</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div class="col-md-6">
+                        <div class="form-group">
+                          <label class="form-label">Filial</label>
+                          <select class="form-select" name="filial_id" id="filtro_filial">
+                            <option value="0">Todas</option>
+                            @foreach(($filiais ?? []) as $f)
+                              <option value="{{ $f->id }}" {{ (int)($filialId ?? 0) === (int)$f->id ? 'selected' : '' }}>
+                                {{ $f->nome_fantasia ?? $f->nome ?? ('Filial #'.$f->id) }}
+                              </option>
+                            @endforeach
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {{-- sem botão: filtro é automático --}}
+                  </form>
                 </div>
               </div>
             </div>
+          </div>
 
-            <div class="row">
-              <div class="col-12">
-                <div class="form-group">
-                  <label class="form-label">Filiais (obrigatório)</label>
-                  <select name="filiais[]" class="form-select" multiple required>
-                    @foreach($filiais as $f)
-                      <option value="{{ $f->id }}" {{ collect(old('filiais', []))->contains($f->id) ? 'selected' : '' }}>
-                        {{ $f->nome ?? $f->nome_fantasia ?? ('Filial #'.$f->id) }}
-                      </option>
-                    @endforeach
-                  </select>
-                  <small class="text-muted">Segure CTRL para selecionar mais de uma filial.</small>
+          {{-- Tabela --}}
+          <div class="row">
+            <div class="col-12">
+              <div class="box">
+                <div class="box-header with-border">
+                  <h4 class="box-title">Linhas</h4>
+                </div>
+
+                <div class="box-body">
+                  <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                      <thead class="bg-primary">
+                        <tr>
+                          <th>Nome</th>
+                          <th>Capacidade</th>
+                          <th>Disponibilidade</th>
+                          <th class="text-end">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @forelse($linhas as $l)
+                          @php
+                            $cap = (int) ($l->capacidade ?? 0);
+                            $vinc = (int) ($l->vinculados_ativos ?? 0);
+                            $disp = $cap - $vinc;
+                            if ($disp < 0) $disp = 0;
+                          @endphp
+
+                          <tr>
+                            <td>
+                              <div class="fw-600">{{ $l->nome }}</div>
+                              <div class="text-muted small">
+                                {{ ($l->tipo_linha ?? '-') === 'fretada' ? 'Fretada' : (($l->tipo_linha ?? '-') === 'publica' ? 'Pública' : '-') }}
+                                • {{ $l->motorista_nome ?? 'Sem motorista' }}
+                                • {{ trim(($l->veiculo_modelo ?? '').' '.($l->veiculo_placa ?? '')) ?: 'Sem veículo' }}
+                              </div>
+                            </td>
+
+                            <td>{{ $cap }}</td>
+
+                            <td>
+                              <span class="{{ $disp === 0 ? 'text-danger fw-600' : 'text-success fw-600' }}">
+                                {{ $disp }}
+                              </span>
+                              <div class="text-muted small">Vinculados: {{ $vinc }}</div>
+                            </td>
+
+                            <td class="text-end">
+                              <a href="{{ route('beneficios.transporte.linhas.operacao', ['sub' => $sub, 'id' => $l->id]) }}"
+                                 class="btn btn-sm btn-primary">
+                                Operação
+                              </a>
+
+                              <a href="{{ route('beneficios.transporte.linhas.edit', ['sub' => $sub, 'id' => $l->id]) }}"
+                                 class="btn btn-sm btn-info">
+                                <i data-feather="edit"></i>
+                              </a>
+
+                              <form method="POST"
+                                    action="{{ route('beneficios.transporte.linhas.destroy', ['sub' => $sub, 'id' => $l->id]) }}"
+                                    class="d-inline js-form-delete">
+                                @csrf
+                                @method('DELETE')
+                                <button type="button"
+                                        class="btn btn-danger btn-sm js-btn-delete"
+                                        data-title="Confirmar exclusão"
+                                        data-text="Deseja realmente excluir este registro?"
+                                        data-confirm="Sim, excluir"
+                                        data-cancel="Cancelar">
+                                  <i data-feather="trash-2"></i>
+                                </button>
+                              </form>
+                            </td>
+                          </tr>
+                        @empty
+                          <tr>
+                            <td colspan="4" class="text-center text-muted py-4">
+                              Nenhuma linha encontrada com os filtros atuais.
+                            </td>
+                          </tr>
+                        @endforelse
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {{-- Paginação --}}
+                  <div class="d-flex justify-content-end mt-3">
+                    {!! $linhas->links() !!}
+                  </div>
+
                 </div>
               </div>
             </div>
-
-            <div class="row">
-              <div class="col-12">
-                <div class="form-group">
-                  <label class="form-label">Observações</label>
-                  <textarea name="observacoes" class="form-control" rows="3">{{ old('observacoes') }}</textarea>
-                </div>
-              </div>
-            </div>
-
-            {{-- BOTÃO SALVAR fora de abas (aqui não tem abas, mas mantém padrão no final) --}}
-            <div class="d-flex justify-content-end mt-10">
-              <button type="submit" class="btn btn-primary">Salvar</button>
-            </div>
-
-          </form>
+          </div>
 
         </div>
       </div>
     </div>
   </div>
+
 </section>
 @endsection
 
 @push('scripts')
 <script>
+(function () {
+  // Feather
   if (window.feather) feather.replace();
+
+  // Toastr (se estiver disponível no vendors)
+  function toast(type, msg, title) {
+    if (window.toastr) {
+      toastr.options = {
+        closeButton: true,
+        progressBar: true,
+        timeOut: 3500
+      };
+      toastr[type || 'info'](msg, title || '');
+    }
+  }
+
+  @if(session('success'))
+    toast('success', @json(session('success')));
+  @endif
+  @if(session('error'))
+    toast('error', @json(session('error')));
+  @endif
+
+  // Auto-submit com debounce
+  const form = document.getElementById('formFiltros');
+  if (!form) return;
+
+  const q = document.getElementById('filtro_q');
+  const tipo = document.getElementById('filtro_tipo');
+  const filial = document.getElementById('filtro_filial');
+
+  let t = null;
+  const submitDebounced = () => {
+    clearTimeout(t);
+    t = setTimeout(() => form.submit(), 350);
+  };
+
+  if (q) q.addEventListener('keyup', submitDebounced);
+  if (tipo) tipo.addEventListener('change', submitDebounced);
+  if (filial) filial.addEventListener('change', submitDebounced);
+})();
 </script>
 @endpush
