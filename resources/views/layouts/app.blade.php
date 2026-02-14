@@ -74,6 +74,52 @@
 <script src="{{ asset('assets/js/demo.js') }}"></script>
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
+{{-- ✅ Simple Toastr Alerts (GLOBAL) --}}
+<script src="{{ asset('assets/js/pages/toastr.js') }}"></script>
+<script src="{{ asset('assets/js/pages/notification.js') }}"></script>
+
+<script>
+(function () {
+    // Feather (inclusive para páginas renderizadas via AJAX)
+    if (window.feather) feather.replace();
+
+    // Dispara toastr global via session flash
+    function fire(type, msg) {
+        try {
+            if (window.toastr && typeof toastr[type] === 'function') {
+                toastr.options = {
+                    closeButton: true,
+                    progressBar: true,
+                    timeOut: 4000,
+                    positionClass: 'toast-top-right'
+                };
+                toastr[type](msg);
+                return;
+            }
+        } catch (e) {}
+
+        // fallback
+        alert(msg);
+    }
+
+    @if(session('success'))
+        fire('success', @json(session('success')));
+    @endif
+
+    @if(session('error'))
+        fire('error', @json(session('error')));
+    @endif
+
+    @if(session('warning'))
+        fire('warning', @json(session('warning')));
+    @endif
+
+    @if(session('info'))
+        fire('info', @json(session('info')));
+    @endif
+})();
+</script>
+
 @stack('scripts')
 
 </body>
