@@ -5,521 +5,484 @@ namespace App\Http\Controllers\Beneficios;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 
 class TransporteLinhasController extends Controller
 {
-    // ✅ Ajuste apenas se seus migrations usaram outros nomes
-    private const T_LINHAS   = 'transporte_linhas';
-    private const T_LINHA_FILIAIS = 'transporte_linha_filiais';
-    private const T_PARADAS  = 'transporte_paradas';
-    private const T_VINCULOS = 'transporte_vinculos';
-    private const T_MOTORISTAS = 'transporte_motoristas';
-    private const T_VEICULOS = 'transporte_veiculos';
-    private const T_FILIAIS  = 'filiais';
-    private const T_COLABS   = 'colaboradores';
-    private const T_CUSTOS   = 'transporte_linha_custos';
+    // Ajuste estes nomes se no seu banco estiver diferente
+    private const T_LINHAS         = 'transporte_linhas';
+    private const T_LINHA_FILIAIS  = 'transporte_linha_filiais';
+    private const T_MOTORISTAS     = 'transporte_motoristas';
+    private const T_VEICULOS       = 'transporte_veiculos';
+    private const T_VINCULOS       = 'transporte_vinculos';
+    private const T_FILIAIS        = 'filiais';
 
+    /*
+    |--------------------------------------------------------------------------
+    | Helpers
+    |--------------------------------------------------------------------------
+    */
     private function empresaId(): int
     {
         return (int) (auth()->user()->empresa_id ?? 0);
     }
 
-    private function now()
+    private function hasColumn(string $table, string $column): bool
     {
-        return now();
+        try {
+            return Schema::hasColumn($table, $column);
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    private function baseFiliaisQuery(int $empresaId)
+    {
+        $q = DB::table(self::T_FILIAIS)->where('empresa_id', $empresaId);
+
+        if ($this->hasColumn(self::T_FILIAIS, 'deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
+
+        return $q;
+    }
+
+    private function baseMotoristasQuery(int $empresaId)
+    {
+        $q = DB::table(self::T_MOTORISTAS)->where('empresa_id', $empresaId);
+
+        if ($this->hasColumn(self::T_MOTORISTAS, 'deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
+
+        return $q;
+    }
+
+    private function baseVeiculosQuery(int $empresaId)
+    {
+        $q = DB::table(self::T_VEICULOS)->where('empresa_id', $empresaId);
+
+        if ($this->hasColumn(self::T_VEICULOS, 'deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
+
+        return $q;
+    }
+
+    private function baseLinhasQuery(int $empresaId)
+    {
+        $q = DB::table(self::T_LINHAS)->where('empresa_id', $empresaId);
+
+        if ($this->hasColumn(self::T_LINHAS, 'deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
+
+        return $q;
     }
 
     /*
     |--------------------------------------------------------------------------
-    | INDEX
+    | Index (Listagem)
     |--------------------------------------------------------------------------
     */
     public function index(Request $request, string $sub)
-{
-    $empresaId = $this->empresaId();
+    {
+        $empresaId = $this->empresaId();
 
-    $q        = trim((string) $request->get('q', ''));
-    $tipo     = trim((string) $request->get('tipo', '')); // publica|fretada
-    $filialId = (int) $request->get('filial_id', 0);
+        $q        = trim((string) $request->get('q', ''));
+        $tipo     = trim((string) $request->get('tipo', '')); // publica|fretada
+        $filialId = (int) $request->get('filial_id', 0);
 
-    // Filtros (combos)
-    $motoristas = DB::table(self::T_MOTORISTAS)
-        ->where('empresa_id', $empresaId)
-        ->whereNull('deleted_at')
-        ->orderBy('nome')
-        ->get();
+        $motoristas = $this->baseMotoristasQuery($empresaId)
+            ->orderBy('nome')
+            ->get();
 
-    $veiculos = DB::table(self::T_VEICULOS)
-        ->where('empresa_id', $empresaId)
-        ->whereNull('deleted_at')
-        ->orderBy('id', 'desc')
-        ->get();
+        $veiculos = $this->baseVeiculosQuery($empresaId)
+            ->orderBy('id', 'desc')
+            ->get();
 
-    $filiais = DB::table(self::T_FILIAIS)
-        ->where('empresa_id', $empresaId)
-        ->whereNull('deleted_at')
-        ->orderBy('id', 'asc')
-        ->get();
+        $filiais = $this->baseFiliaisQuery($empresaId)
+            ->orderBy('id', 'asc')
+            ->get();
 
-    // Listagem
-    $linhasQuery = DB::table(self::T_LINHAS . ' as l')
-        ->leftJoin(self::T_MOTORISTAS . ' as m', 'm.id', '=', 'l.motorista_id')
-        ->leftJoin(self::T_VEICULOS . ' as v', 'v.id', '=', 'l.veiculo_id')
-        ->select([
-            'l.id',
-            'l.nome',
-            'l.tipo_linha',
-            'l.controle_acesso',
-            'l.status',
-            'l.motorista_id',
-            'l.veiculo_id',
-            'm.nome as motorista_nome',
-            'v.modelo as veiculo_modelo',
-            'v.placa as veiculo_placa',
-            'v.capacidade as capacidade',
-        ])
-        // ✅ qtd vinculados ativos (data_fim null ou >= hoje)
-        ->selectRaw("
-            (
-                SELECT COUNT(1)
-                FROM " . self::T_VINCULOS . " tv
-                WHERE tv.linha_id = l.id
-                  AND tv.deleted_at IS NULL
-                  AND (tv.data_fim IS NULL OR tv.data_fim >= CURRENT_DATE)
-            ) as vinculados_ativos
-        ")
-        ->where('l.empresa_id', $empresaId)
-        ->whereNull('l.deleted_at');
+        $linhasQuery = DB::table(self::T_LINHAS . ' as l')
+            ->leftJoin(self::T_MOTORISTAS . ' as m', 'm.id', '=', 'l.motorista_id')
+            ->leftJoin(self::T_VEICULOS . ' as v', 'v.id', '=', 'l.veiculo_id')
+            ->select([
+                'l.id',
+                'l.nome',
+                'l.tipo_linha',
+                'l.controle_acesso',
+                'l.status',
+                'l.motorista_id',
+                'l.veiculo_id',
+                'm.nome as motorista_nome',
+                'v.modelo as veiculo_modelo',
+                'v.placa as veiculo_placa',
+                'v.capacidade as capacidade',
+            ])
+            ->selectRaw("
+                (
+                    SELECT COUNT(1)
+                    FROM " . self::T_VINCULOS . " tv
+                    WHERE tv.linha_id = l.id
+                      AND tv.deleted_at IS NULL
+                      AND (tv.data_fim IS NULL OR tv.data_fim >= CURRENT_DATE)
+                ) as vinculados_ativos
+            ")
+            ->where('l.empresa_id', $empresaId);
 
-    // Busca (linha, motorista, veiculo)
-    if ($q !== '') {
-        $linhasQuery->where(function ($w) use ($q) {
-            $w->where('l.nome', 'ilike', "%{$q}%")
-              ->orWhere('m.nome', 'ilike', "%{$q}%")
-              ->orWhere('v.modelo', 'ilike', "%{$q}%")
-              ->orWhere('v.placa', 'ilike', "%{$q}%");
-        });
+        if ($this->hasColumn(self::T_LINHAS, 'deleted_at')) {
+            $linhasQuery->whereNull('l.deleted_at');
+        }
+
+        if ($q !== '') {
+            $linhasQuery->where(function ($w) use ($q) {
+                $w->where('l.nome', 'ilike', "%{$q}%")
+                    ->orWhere('m.nome', 'ilike', "%{$q}%")
+                    ->orWhere('v.modelo', 'ilike', "%{$q}%")
+                    ->orWhere('v.placa', 'ilike', "%{$q}%");
+            });
+        }
+
+        if (in_array($tipo, ['publica', 'fretada'], true)) {
+            $linhasQuery->where('l.tipo_linha', $tipo);
+        }
+
+        if ($filialId > 0) {
+            $linhasQuery->whereExists(function ($sq) use ($filialId) {
+                $sq->select(DB::raw(1))
+                    ->from(self::T_LINHA_FILIAIS . ' as lf')
+                    ->whereColumn('lf.linha_id', 'l.id')
+                    ->where('lf.filial_id', $filialId);
+            });
+        }
+
+        $linhas = $linhasQuery
+            ->orderBy('l.id', 'desc')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('beneficios.transporte.linhas.index', compact(
+            'sub',
+            'linhas',
+            'q',
+            'tipo',
+            'filialId',
+            'motoristas',
+            'veiculos',
+            'filiais'
+        ));
     }
 
-    // Tipo
-    if (in_array($tipo, ['publica', 'fretada'], true)) {
-        $linhasQuery->where('l.tipo_linha', $tipo);
-    }
-
-    // Filial (linha pode ter várias -> whereExists no pivot)
-    if ($filialId > 0) {
-        $linhasQuery->whereExists(function ($sq) use ($filialId) {
-            $sq->select(DB::raw(1))
-                ->from(self::T_LINHA_FILIAIS . ' as lf')
-                ->whereColumn('lf.linha_id', 'l.id')
-                ->where('lf.filial_id', $filialId);
-        });
-    }
-
-    $linhas = $linhasQuery
-        ->orderBy('l.id', 'desc')
-        ->paginate(25)
-        ->withQueryString();
-
-    return view('beneficios.transporte.linhas.index', compact(
-        'sub',
-        'linhas',
-        'q',
-        'tipo',
-        'filialId',
-        'motoristas',
-        'veiculos',
-        'filiais'
-    ));
-}
-
-
+    /*
+    |--------------------------------------------------------------------------
+    | Create
+    |--------------------------------------------------------------------------
+    */
     public function create(Request $request, string $sub)
     {
         $empresaId = $this->empresaId();
 
-        $motoristas = DB::table(self::T_MOTORISTAS)
-            ->where('empresa_id', $empresaId)
-            ->whereNull('deleted_at')
+        $motoristas = $this->baseMotoristasQuery($empresaId)
             ->orderBy('nome')
             ->get();
 
-        $veiculos = DB::table(self::T_VEICULOS)
-            ->where('empresa_id', $empresaId)
-            ->whereNull('deleted_at')
+        $veiculos = $this->baseVeiculosQuery($empresaId)
             ->orderBy('id', 'desc')
             ->get();
 
-        $filiais = DB::table(self::T_FILIAIS)
-            ->where('empresa_id', $empresaId)
-            ->whereNull('deleted_at')
+        $filiais = $this->baseFiliaisQuery($empresaId)
             ->orderBy('id', 'asc')
             ->get();
 
         return view('beneficios.transporte.linhas.create', compact('sub', 'motoristas', 'veiculos', 'filiais'));
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Store
+    |--------------------------------------------------------------------------
+    */
     public function store(Request $request, string $sub)
     {
         $empresaId = $this->empresaId();
 
-        $v = Validator::make($request->all(), [
-            'nome'            => 'required|string|max:255',
-            'tipo_linha'      => 'required|in:publica,fretada',
-            'controle_acesso' => 'required|in:cartao,ticket',
-            'motorista_id'    => 'required|integer|min:1',
-            'veiculo_id'      => 'required|integer|min:1',
-            'status'          => 'nullable|in:ativo,inativo',
-            'filiais'         => 'required|array|min:1',
-            'filiais.*'       => 'integer|min:1',
-            'observacoes'     => 'nullable|string',
+        $rules = [
+            'nome'          => ['required', 'string', 'max:255'],
+            'tipo_linha'    => ['required', 'in:fretada,publica'],
+            'controle_acesso' => ['required', 'in:cartao,ticket'],
+            'status'        => ['required', 'in:ativo,inativo'],
+            'filial_id'     => ['required', 'integer', 'min:1'],
+            'veiculo_id'    => ['nullable', 'integer', 'min:1'],
+            'motorista_id'  => ['nullable', 'integer', 'min:1'],
+        ];
+
+        $validator = Validator::make($request->all(), $rules, [
+            'nome.required' => 'Informe o nome da linha.',
+            'filial_id.required' => 'Selecione uma filial.',
         ]);
 
-        if ($v->fails()) {
-            return back()->withErrors($v)->withInput();
+        if ($validator->fails()) {
+            return back()
+                ->withErrors($validator)
+                ->withInput()
+                ->with('error', 'Revise os campos do formulário.');
         }
 
-        return DB::transaction(function () use ($request, $sub, $empresaId) {
-            $id = DB::table(self::T_LINHAS)->insertGetId([
+        try {
+            DB::beginTransaction();
+
+            $linhaId = DB::table(self::T_LINHAS)->insertGetId([
                 'empresa_id'      => $empresaId,
-                'nome'            => $request->string('nome')->toString(),
-                'tipo_linha'      => $request->string('tipo_linha')->toString(),
-                'controle_acesso' => $request->string('controle_acesso')->toString(),
-                'motorista_id'    => (int) $request->get('motorista_id'),
-                'veiculo_id'      => (int) $request->get('veiculo_id'),
-                'status'          => $request->get('status', 'ativo'),
-                'observacoes'     => $request->get('observacoes'),
-                'created_at'      => $this->now(),
-                'updated_at'      => $this->now(),
+                'nome'            => trim((string) $request->input('nome')),
+                'tipo_linha'      => $request->input('tipo_linha'),
+                'controle_acesso' => $request->input('controle_acesso'),
+                'status'          => $request->input('status'),
+                'veiculo_id'      => $request->input('veiculo_id') ?: null,
+                'motorista_id'    => $request->input('motorista_id') ?: null,
+                'created_at'      => now(),
+                'updated_at'      => now(),
             ]);
 
-            $filiais = array_values(array_unique(array_map('intval', (array) $request->get('filiais', []))));
-            foreach ($filiais as $filialId) {
-                DB::table(self::T_LINHA_FILIAIS)->insert([
-                    'linha_id'   => $id,
-                    'filial_id'  => $filialId,
-                    'created_at' => $this->now(),
-                    'updated_at' => $this->now(),
-                ]);
-            }
+            // Pivot filial (single select)
+            DB::table(self::T_LINHA_FILIAIS)->insert([
+                'linha_id'   => $linhaId,
+                'filial_id'  => (int) $request->input('filial_id'),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
 
-            return redirect()->route('beneficios.transporte.linhas.edit', ['sub' => $sub, 'id' => $id])
+            DB::commit();
+
+            return redirect()
+                ->route('beneficios.transporte.linhas.edit', ['sub' => $sub, 'id' => $linhaId])
                 ->with('success', 'Linha criada com sucesso.');
-        });
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return back()
+                ->withInput()
+                ->with('error', 'Não foi possível salvar a linha. Verifique os dados e tente novamente.');
+        }
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Edit
+    |--------------------------------------------------------------------------
+    */
     public function edit(Request $request, string $sub, int $id)
     {
         $empresaId = $this->empresaId();
 
-        $linha = DB::table(self::T_LINHAS)
-            ->where('empresa_id', $empresaId)
-            ->where('id', $id)
-            ->whereNull('deleted_at')
-            ->first();
+        $linha = $this->baseLinhasQuery($empresaId)->where('id', $id)->first();
+        if (!$linha) {
+            return redirect()
+                ->route('beneficios.transporte.linhas.index', ['sub' => $sub])
+                ->with('error', 'Linha não encontrada.');
+        }
 
-        abort_unless($linha, 404);
-
-        $motoristas = DB::table(self::T_MOTORISTAS)
-            ->where('empresa_id', $empresaId)
-            ->whereNull('deleted_at')
+        $motoristas = $this->baseMotoristasQuery($empresaId)
             ->orderBy('nome')
             ->get();
 
-        $veiculos = DB::table(self::T_VEICULOS)
-            ->where('empresa_id', $empresaId)
-            ->whereNull('deleted_at')
+        $veiculos = $this->baseVeiculosQuery($empresaId)
             ->orderBy('id', 'desc')
             ->get();
 
-        $filiais = DB::table(self::T_FILIAIS)
-            ->where('empresa_id', $empresaId)
-            ->whereNull('deleted_at')
+        $filiais = $this->baseFiliaisQuery($empresaId)
             ->orderBy('id', 'asc')
             ->get();
 
-        $linhaFiliais = DB::table(self::T_LINHA_FILIAIS)
+        $filialAtualId = (int) (DB::table(self::T_LINHA_FILIAIS)
             ->where('linha_id', $id)
-            ->pluck('filial_id')
-            ->map(fn ($x) => (int) $x)
-            ->toArray();
+            ->orderBy('id', 'asc')
+            ->value('filial_id') ?? 0);
 
-        return view('beneficios.transporte.linhas.edit', compact('sub', 'linha', 'motoristas', 'veiculos', 'filiais', 'linhaFiliais'));
+        return view('beneficios.transporte.linhas.edit', compact(
+            'sub',
+            'linha',
+            'motoristas',
+            'veiculos',
+            'filiais',
+            'filialAtualId'
+        ));
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Update
+    |--------------------------------------------------------------------------
+    */
     public function update(Request $request, string $sub, int $id)
     {
         $empresaId = $this->empresaId();
 
-        $v = Validator::make($request->all(), [
-            'nome'            => 'required|string|max:255',
-            'tipo_linha'      => 'required|in:publica,fretada',
-            'controle_acesso' => 'required|in:cartao,ticket',
-            'motorista_id'    => 'required|integer|min:1',
-            'veiculo_id'      => 'required|integer|min:1',
-            'status'          => 'nullable|in:ativo,inativo',
-            'filiais'         => 'required|array|min:1',
-            'filiais.*'       => 'integer|min:1',
-            'observacoes'     => 'nullable|string',
-        ]);
-
-        if ($v->fails()) {
-            return back()->withErrors($v)->withInput();
+        $linha = $this->baseLinhasQuery($empresaId)->where('id', $id)->first();
+        if (!$linha) {
+            return redirect()
+                ->route('beneficios.transporte.linhas.index', ['sub' => $sub])
+                ->with('error', 'Linha não encontrada.');
         }
 
-        return DB::transaction(function () use ($request, $sub, $empresaId, $id) {
-            $ok = DB::table(self::T_LINHAS)
+        $rules = [
+            'nome'          => ['required', 'string', 'max:255'],
+            'tipo_linha'    => ['required', 'in:fretada,publica'],
+            'controle_acesso' => ['required', 'in:cartao,ticket'],
+            'status'        => ['required', 'in:ativo,inativo'],
+            'filial_id'     => ['required', 'integer', 'min:1'],
+            'veiculo_id'    => ['nullable', 'integer', 'min:1'],
+            'motorista_id'  => ['nullable', 'integer', 'min:1'],
+        ];
+
+        $validator = Validator::make($request->all(), $rules);
+
+        if ($validator->fails()) {
+            return back()
+                ->withErrors($validator)
+                ->withInput()
+                ->with('error', 'Revise os campos do formulário.');
+        }
+
+        try {
+            DB::beginTransaction();
+
+            DB::table(self::T_LINHAS)
                 ->where('empresa_id', $empresaId)
                 ->where('id', $id)
-                ->whereNull('deleted_at')
                 ->update([
-                    'nome'            => $request->string('nome')->toString(),
-                    'tipo_linha'      => $request->string('tipo_linha')->toString(),
-                    'controle_acesso' => $request->string('controle_acesso')->toString(),
-                    'motorista_id'    => (int) $request->get('motorista_id'),
-                    'veiculo_id'      => (int) $request->get('veiculo_id'),
-                    'status'          => $request->get('status', 'ativo'),
-                    'observacoes'     => $request->get('observacoes'),
-                    'updated_at'      => $this->now(),
+                    'nome'            => trim((string) $request->input('nome')),
+                    'tipo_linha'      => $request->input('tipo_linha'),
+                    'controle_acesso' => $request->input('controle_acesso'),
+                    'status'          => $request->input('status'),
+                    'veiculo_id'      => $request->input('veiculo_id') ?: null,
+                    'motorista_id'    => $request->input('motorista_id') ?: null,
+                    'updated_at'      => now(),
                 ]);
 
-            if (!$ok) {
-                return back()->with('error', 'Linha não encontrada.');
-            }
-
-            DB::table(self::T_LINHA_FILIAIS)->where('linha_id', $id)->delete();
-
-            $filiais = array_values(array_unique(array_map('intval', (array) $request->get('filiais', []))));
-            foreach ($filiais as $filialId) {
+            // Atualiza pivot: mantém apenas 1 filial vinculada
+            $exists = DB::table(self::T_LINHA_FILIAIS)->where('linha_id', $id)->exists();
+            if ($exists) {
+                DB::table(self::T_LINHA_FILIAIS)
+                    ->where('linha_id', $id)
+                    ->update([
+                        'filial_id'  => (int) $request->input('filial_id'),
+                        'updated_at' => now(),
+                    ]);
+            } else {
                 DB::table(self::T_LINHA_FILIAIS)->insert([
                     'linha_id'   => $id,
-                    'filial_id'  => $filialId,
-                    'created_at' => $this->now(),
-                    'updated_at' => $this->now(),
+                    'filial_id'  => (int) $request->input('filial_id'),
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
             }
 
-            return back()->with('success', 'Linha atualizada com sucesso.');
-        });
+            DB::commit();
+
+            return redirect()
+                ->route('beneficios.transporte.linhas.edit', ['sub' => $sub, 'id' => $id])
+                ->with('success', 'Linha atualizada com sucesso.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return back()
+                ->withInput()
+                ->with('error', 'Não foi possível atualizar a linha. Tente novamente.');
+        }
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Destroy (soft delete quando possível)
+    |--------------------------------------------------------------------------
+    */
     public function destroy(Request $request, string $sub, int $id)
     {
         $empresaId = $this->empresaId();
 
-        DB::table(self::T_LINHAS)
-            ->where('empresa_id', $empresaId)
-            ->where('id', $id)
-            ->update([
-                'deleted_at' => $this->now(),
-                'updated_at' => $this->now(),
-            ]);
+        try {
+            if ($this->hasColumn(self::T_LINHAS, 'deleted_at')) {
+                DB::table(self::T_LINHAS)
+                    ->where('empresa_id', $empresaId)
+                    ->where('id', $id)
+                    ->update([
+                        'deleted_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+            } else {
+                DB::table(self::T_LINHAS)
+                    ->where('empresa_id', $empresaId)
+                    ->where('id', $id)
+                    ->delete();
+            }
 
-        return redirect()->route('beneficios.transporte.linhas.index', ['sub' => $sub])
-            ->with('success', 'Linha removida com sucesso.');
+            return redirect()
+                ->route('beneficios.transporte.linhas.index', ['sub' => $sub])
+                ->with('success', 'Linha removida com sucesso.');
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('beneficios.transporte.linhas.index', ['sub' => $sub])
+                ->with('error', 'Não foi possível remover a linha.');
+        }
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Operação da Linha (placeholder)
+    |--------------------------------------------------------------------------
+    */
     public function operacao(Request $request, string $sub, int $id)
     {
-        $empresaId = $this->empresaId();
-
-        $linha = DB::table(self::T_LINHAS . ' as l')
-            ->leftJoin(self::T_MOTORISTAS . ' as m', 'm.id', '=', 'l.motorista_id')
-            ->leftJoin(self::T_VEICULOS . ' as v', 'v.id', '=', 'l.veiculo_id')
-            ->select('l.*', 'm.nome as motorista_nome', 'v.placa as veiculo_placa', 'v.modelo as veiculo_modelo')
-            ->where('l.empresa_id', $empresaId)
-            ->where('l.id', $id)
-            ->whereNull('l.deleted_at')
-            ->first();
-
-        abort_unless($linha, 404);
-
-        $paradas = DB::table(self::T_PARADAS)
-            ->where('linha_id', $id)
-            ->whereNull('deleted_at')
-            ->orderBy('hora', 'asc')
-            ->get();
-
-        $vinculos = DB::table(self::T_VINCULOS . ' as tv')
-            ->leftJoin(self::T_COLABS . ' as c', 'c.id', '=', 'tv.colaborador_id')
-            ->leftJoin(self::T_PARADAS . ' as p', 'p.id', '=', 'tv.parada_id')
-            ->select(
-                'tv.*',
-                'c.nome_completo as colaborador_nome',
-                'c.matricula as colaborador_matricula',
-                'p.nome as parada_nome',
-                'p.hora as parada_hora'
-            )
-            ->where('tv.linha_id', $id)
-            ->whereNull('tv.deleted_at')
-            ->orderBy('tv.id', 'desc')
-            ->get();
-
-        $colaboradores = DB::table(self::T_COLABS)
-            ->where('empresa_id', $empresaId)
-            ->whereNull('deleted_at')
-            ->orderBy('nome_completo')
-            ->limit(5000)
-            ->get();
-
-        return view('beneficios.transporte.linhas.operacao', compact('sub', 'linha', 'paradas', 'vinculos', 'colaboradores'));
+        // Mantém a tela no ar. Ajustaremos depois conforme o módulo evoluir.
+        return view('beneficios.transporte.linhas.operacao', compact('sub', 'id'));
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Paradas / Vínculos (placeholders)
+    |--------------------------------------------------------------------------
+    | Deixe como está se você já implementou. Se não, manteremos simples.
+    */
     public function paradaStore(Request $request, string $sub, int $linhaId)
     {
-        $v = Validator::make($request->all(), [
-            'nome'  => 'required|string|max:255',
-            'hora'  => 'required|string|max:10',
-            'valor' => 'nullable|numeric|min:0',
-        ]);
-
-        if ($v->fails()) {
-            return back()->withErrors($v)->withInput();
-        }
-
-        DB::table(self::T_PARADAS)->insert([
-            'linha_id'   => $linhaId,
-            'nome'       => $request->string('nome')->toString(),
-            'hora'       => $request->string('hora')->toString(),
-            'valor'      => $request->get('valor'),
-            'created_at' => $this->now(),
-            'updated_at' => $this->now(),
-        ]);
-
-        return back()->with('success', 'Parada adicionada.');
+        return back()->with('error', 'Ainda não implementado.');
     }
 
     public function paradaUpdate(Request $request, string $sub, int $linhaId, int $paradaId)
     {
-        $v = Validator::make($request->all(), [
-            'nome'  => 'required|string|max:255',
-            'hora'  => 'required|string|max:10',
-            'valor' => 'nullable|numeric|min:0',
-        ]);
-
-        if ($v->fails()) {
-            return back()->withErrors($v)->withInput();
-        }
-
-        DB::table(self::T_PARADAS)
-            ->where('linha_id', $linhaId)
-            ->where('id', $paradaId)
-            ->update([
-                'nome'       => $request->string('nome')->toString(),
-                'hora'       => $request->string('hora')->toString(),
-                'valor'      => $request->get('valor'),
-                'updated_at' => $this->now(),
-            ]);
-
-        return back()->with('success', 'Parada atualizada.');
+        return back()->with('error', 'Ainda não implementado.');
     }
 
     public function paradaDestroy(Request $request, string $sub, int $linhaId, int $paradaId)
     {
-        DB::table(self::T_PARADAS)
-            ->where('linha_id', $linhaId)
-            ->where('id', $paradaId)
-            ->update([
-                'deleted_at' => $this->now(),
-                'updated_at' => $this->now(),
-            ]);
-
-        return back()->with('success', 'Parada removida.');
+        return back()->with('error', 'Ainda não implementado.');
     }
 
     public function vinculoStore(Request $request, string $sub, int $linhaId)
     {
-        $v = Validator::make($request->all(), [
-            'colaborador_id' => 'required|integer|min:1',
-            'parada_id'      => 'required|integer|min:1',
-            'tipo'           => 'required|in:cartao,ticket',
-            'cartao_numero'  => 'nullable|string|max:50',
-            'ticket_ref'     => 'nullable|string|max:50',
-            'valor_passagem' => 'required|numeric|min:0',
-            'data_inicio'    => 'required|date',
-        ]);
-
-        if ($v->fails()) {
-            return back()->withErrors($v)->withInput();
-        }
-
-        DB::table(self::T_VINCULOS)->insert([
-            'linha_id'       => $linhaId,
-            'parada_id'      => (int) $request->get('parada_id'),
-            'colaborador_id' => (int) $request->get('colaborador_id'),
-            'tipo'           => $request->string('tipo')->toString(),
-            'cartao_numero'  => $request->get('cartao_numero'),
-            'ticket_ref'     => $request->get('ticket_ref'),
-            'valor_passagem' => $request->get('valor_passagem'),
-            'data_inicio'    => $request->get('data_inicio'),
-            'data_fim'       => null,
-            'created_at'     => $this->now(),
-            'updated_at'     => $this->now(),
-        ]);
-
-        return back()->with('success', 'Colaborador vinculado à linha.');
+        return back()->with('error', 'Ainda não implementado.');
     }
 
     public function vinculoEncerrar(Request $request, string $sub, int $linhaId, int $vinculoId)
     {
-        $v = Validator::make($request->all(), [
-            'data_fim' => 'required|date',
-        ]);
-
-        if ($v->fails()) {
-            return back()->withErrors($v)->withInput();
-        }
-
-        DB::table(self::T_VINCULOS)
-            ->where('linha_id', $linhaId)
-            ->where('id', $vinculoId)
-            ->update([
-                'data_fim'   => $request->get('data_fim'),
-                'updated_at' => $this->now(),
-            ]);
-
-        return back()->with('success', 'Vínculo encerrado.');
+        return back()->with('error', 'Ainda não implementado.');
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Importar custos (placeholder)
+    |--------------------------------------------------------------------------
+    */
     public function importarCustosForm(Request $request, string $sub)
     {
-        $empresaId = $this->empresaId();
-
-        $linhas = DB::table(self::T_LINHAS)
-            ->where('empresa_id', $empresaId)
-            ->whereNull('deleted_at')
-            ->orderBy('nome')
-            ->get();
-
-        return view('beneficios.transporte.linhas.importar_custos', compact('sub', 'linhas'));
+        return view('beneficios.transporte.relatorios.importar_custos', compact('sub'));
     }
 
     public function importarCustos(Request $request, string $sub)
     {
-        $empresaId = $this->empresaId();
-
-        $v = Validator::make($request->all(), [
-            'linha_id'   => 'required|integer|min:1',
-            'mes'        => 'required|date_format:Y-m',
-            'valor'      => 'required|numeric|min:0',
-            'observacao' => 'nullable|string|max:255',
-        ]);
-
-        if ($v->fails()) {
-            return back()->withErrors($v)->withInput();
-        }
-
-        DB::table(self::T_CUSTOS)->insert([
-            'empresa_id' => $empresaId,
-            'linha_id'   => (int) $request->get('linha_id'),
-            'mes'        => $request->string('mes')->toString(),
-            'valor'      => $request->get('valor'),
-            'observacao' => $request->get('observacao'),
-            'created_at' => $this->now(),
-            'updated_at' => $this->now(),
-        ]);
-
-        return back()->with('success', 'Custo registrado com sucesso.');
+        return back()->with('error', 'Ainda não implementado.');
     }
 }
