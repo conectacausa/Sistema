@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Validator;
 
 class TransporteLinhasController extends Controller
 {
-    // Ajuste estes nomes se no seu banco estiver diferente
+    // Tabelas
     private const T_LINHAS         = 'transporte_linhas';
     private const T_LINHA_FILIAIS  = 'transporte_linha_filiais';
     private const T_MOTORISTAS     = 'transporte_motoristas';
@@ -94,9 +94,13 @@ class TransporteLinhasController extends Controller
         $tipo     = trim((string) $request->get('tipo', '')); // publica|fretada
         $filialId = (int) $request->get('filial_id', 0);
 
+        // Para selects/filtros
         $motoristas = $this->baseMotoristasQuery($empresaId)->orderBy('nome')->get();
         $veiculos   = $this->baseVeiculosQuery($empresaId)->orderBy('id', 'desc')->get();
         $filiais    = $this->baseFiliaisQuery($empresaId)->orderBy('id', 'asc')->get();
+
+        // ✅ coluna real no seu banco
+        $hasCapacidade = $this->hasColumn(self::T_VEICULOS, 'capacidade_passageiros');
 
         $linhasQuery = DB::table(self::T_LINHAS . ' as l')
             ->leftJoin(self::T_MOTORISTAS . ' as m', 'm.id', '=', 'l.motorista_id')
@@ -112,8 +116,12 @@ class TransporteLinhasController extends Controller
                 'm.nome as motorista_nome',
                 'v.modelo as veiculo_modelo',
                 'v.placa as veiculo_placa',
-                'v.capacidade as capacidade',
             ])
+            ->when(
+                $hasCapacidade,
+                fn($qq) => $qq->addSelect('v.capacidade_passageiros as capacidade'),
+                fn($qq) => $qq->selectRaw('0 as capacidade')
+            )
             ->selectRaw("
                 (
                     SELECT COUNT(1)
@@ -132,9 +140,9 @@ class TransporteLinhasController extends Controller
         if ($q !== '') {
             $linhasQuery->where(function ($w) use ($q) {
                 $w->where('l.nome', 'ilike', "%{$q}%")
-                  ->orWhere('m.nome', 'ilike', "%{$q}%")
-                  ->orWhere('v.modelo', 'ilike', "%{$q}%")
-                  ->orWhere('v.placa', 'ilike', "%{$q}%");
+                    ->orWhere('m.nome', 'ilike', "%{$q}%")
+                    ->orWhere('v.modelo', 'ilike', "%{$q}%")
+                    ->orWhere('v.placa', 'ilike', "%{$q}%");
             });
         }
 
@@ -202,15 +210,18 @@ class TransporteLinhasController extends Controller
             'veiculo_id'      => ['nullable', 'integer', 'min:1'],
             'motorista_id'    => ['nullable', 'integer', 'min:1'],
         ], [
-            'nome.required'      => 'Informe o nome da linha.',
-            'filial_id.required' => 'Selecione uma filial.',
+            'nome.required'            => 'Informe o nome da linha.',
+            'tipo_linha.required'      => 'Selecione o tipo da linha.',
+            'controle_acesso.required' => 'Selecione o tipo de controle.',
+            'status.required'          => 'Selecione a situação.',
+            'filial_id.required'       => 'Selecione uma filial.',
         ]);
 
         if ($validator->fails()) {
             return back()
                 ->withErrors($validator)
                 ->withInput()
-                ->with('error', 'Revise os campos do formulário.');
+                ->with('error', 'Existem campos obrigatórios pendentes.');
         }
 
         try {
@@ -252,9 +263,8 @@ class TransporteLinhasController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | Edit (placeholder mínimo)
+    | Edit
     |--------------------------------------------------------------------------
-    | Se você já tem um edit completo, pode manter o seu e ignorar este.
     */
     public function edit(Request $request, string $sub, int $id)
     {
@@ -288,18 +298,88 @@ class TransporteLinhasController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | Update (placeholder mínimo)
+    | Update
     |--------------------------------------------------------------------------
-    | Se você já tem um update completo, pode manter o seu.
     */
     public function update(Request $request, string $sub, int $id)
     {
-        return back()->with('info', 'Update ainda não ajustado nesta etapa.');
+        $empresaId = $this->empresaId();
+
+        $linha = $this->baseLinhasQuery($empresaId)->where('id', $id)->first();
+        if (!$linha) {
+            return redirect()
+                ->route('beneficios.transporte.linhas.index', ['sub' => $sub])
+                ->with('error', 'Linha não encontrada.');
+        }
+
+        $validator = Validator::make($request->all(), [
+            'nome'            => ['required', 'string', 'max:255'],
+            'tipo_linha'      => ['required', 'in:fretada,publica'],
+            'controle_acesso' => ['required', 'in:cartao,ticket'],
+            'status'          => ['required', 'in:ativo,inativo'],
+            'filial_id'       => ['required', 'integer', 'min:1'],
+            'veiculo_id'      => ['nullable', 'integer', 'min:1'],
+            'motorista_id'    => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        if ($validator->fails()) {
+            return back()
+                ->withErrors($validator)
+                ->withInput()
+                ->with('error', 'Existem campos obrigatórios pendentes.');
+        }
+
+        try {
+            DB::beginTransaction();
+
+            DB::table(self::T_LINHAS)
+                ->where('empresa_id', $empresaId)
+                ->where('id', $id)
+                ->update([
+                    'nome'            => trim((string) $request->input('nome')),
+                    'tipo_linha'      => $request->input('tipo_linha'),
+                    'controle_acesso' => $request->input('controle_acesso'),
+                    'status'          => $request->input('status'),
+                    'veiculo_id'      => $request->input('veiculo_id') ?: null,
+                    'motorista_id'    => $request->input('motorista_id') ?: null,
+                    'updated_at'      => now(),
+                ]);
+
+            // Pivot filial (single select)
+            $exists = DB::table(self::T_LINHA_FILIAIS)->where('linha_id', $id)->exists();
+            if ($exists) {
+                DB::table(self::T_LINHA_FILIAIS)
+                    ->where('linha_id', $id)
+                    ->update([
+                        'filial_id'  => (int) $request->input('filial_id'),
+                        'updated_at' => now(),
+                    ]);
+            } else {
+                DB::table(self::T_LINHA_FILIAIS)->insert([
+                    'linha_id'   => $id,
+                    'filial_id'  => (int) $request->input('filial_id'),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            DB::commit();
+
+            return redirect()
+                ->route('beneficios.transporte.linhas.edit', ['sub' => $sub, 'id' => $id])
+                ->with('success', 'Linha atualizada com sucesso.');
+        } catch (\Throwable $e) {
+            DB::rollBack();
+
+            return back()
+                ->withInput()
+                ->with('error', 'Não foi possível atualizar a linha. Tente novamente.');
+        }
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Destroy (soft delete quando possível)
+    | Destroy
     |--------------------------------------------------------------------------
     */
     public function destroy(Request $request, string $sub, int $id)
