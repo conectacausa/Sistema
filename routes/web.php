@@ -30,7 +30,7 @@ use App\Http\Controllers\Beneficios\BolsaDocumentosController;
 use App\Http\Controllers\Beneficios\BolsaRelatoriosController;
 use App\Http\Controllers\Beneficios\BolsaAprovacoesController;
 
-// BENEFÍCIOS → TRANSPORTE
+// ✅ TRANSPORTE (Benefícios)
 use App\Http\Controllers\Beneficios\TransporteLinhasController;
 use App\Http\Controllers\Beneficios\TransporteMotoristasController;
 use App\Http\Controllers\Beneficios\TransporteVeiculosController;
@@ -75,8 +75,6 @@ Route::domain('{sub}.conecttarh.com.br')
         |--------------------------------------------------------------------------
         | AVD (PÚBLICO POR TOKEN) - SEM AUTH (mas dentro do tenant/subdomínio)
         |--------------------------------------------------------------------------
-        | URL pública segura:
-        | /avaliacao/{token}
         */
         Route::get('/avaliacao/{token}', [AvaliacaoPublicaController::class, 'show'])
             ->name('avd.public.show');
@@ -138,21 +136,18 @@ Route::domain('{sub}.conecttarh.com.br')
                     ->middleware('screen:17')
                     ->group(function () {
 
-                        // Listagem + grid
                         Route::get('/', [CiclosController::class, 'index'])
                             ->name('avd.ciclos.index');
 
                         Route::get('/grid', [CiclosController::class, 'grid'])
                             ->name('avd.ciclos.grid');
 
-                        // Criar / Salvar
                         Route::get('/criar', [CiclosController::class, 'create'])
                             ->name('avd.ciclos.create');
 
                         Route::post('/', [CiclosController::class, 'store'])
                             ->name('avd.ciclos.store');
 
-                        // Editar / Atualizar
                         Route::get('/{id}/editar', [CiclosController::class, 'edit'])
                             ->whereNumber('id')
                             ->name('avd.ciclos.edit');
@@ -161,12 +156,10 @@ Route::domain('{sub}.conecttarh.com.br')
                             ->whereNumber('id')
                             ->name('avd.ciclos.update');
 
-                        // Excluir (soft delete)
                         Route::delete('/{id}', [CiclosController::class, 'destroy'])
                             ->whereNumber('id')
                             ->name('avd.ciclos.destroy');
 
-                        // Iniciar / Encerrar manualmente
                         Route::post('/{id}/iniciar', [CiclosController::class, 'iniciar'])
                             ->whereNumber('id')
                             ->name('avd.ciclos.iniciar');
@@ -175,15 +168,7 @@ Route::domain('{sub}.conecttarh.com.br')
                             ->whereNumber('id')
                             ->name('avd.ciclos.encerrar');
 
-                        /*
-                        |--------------------------------------------------------------------------
-                        | AJAX: TAB UNIDADES
-                        |--------------------------------------------------------------------------
-                        | Vincular:
-                        | - modo=uma + filial_id
-                        | - modo=todas
-                        | Desvincular: usa filial_id no path
-                        */
+                        // AJAX: Unidades
                         Route::post('/{id}/unidades/vincular', [CiclosController::class, 'unidadesVincular'])
                             ->whereNumber('id')
                             ->name('avd.ciclos.unidades.vincular');
@@ -193,14 +178,7 @@ Route::domain('{sub}.conecttarh.com.br')
                             ->whereNumber('filial_id')
                             ->name('avd.ciclos.unidades.desvincular');
 
-                        /*
-                        |--------------------------------------------------------------------------
-                        | AJAX: TAB COLABORADORES (PARTICIPANTES)
-                        |--------------------------------------------------------------------------
-                        | Vincular:
-                        | - modo=individual + colaborador_id
-                        | - modo=lote_filial + filial_id
-                        */
+                        // AJAX: Participantes
                         Route::post('/{id}/participantes/vincular', [CiclosController::class, 'participantesVincular'])
                             ->whereNumber('id')
                             ->name('avd.ciclos.participantes.vincular');
@@ -215,11 +193,7 @@ Route::domain('{sub}.conecttarh.com.br')
                             ->whereNumber('pid')
                             ->name('avd.ciclos.participantes.remover');
 
-                        /*
-                        |--------------------------------------------------------------------------
-                        | AJAX: TAB PILARES
-                        |--------------------------------------------------------------------------
-                        */
+                        // AJAX: Pilares
                         Route::post('/{id}/pilares/salvar', [CiclosController::class, 'pilaresSalvar'])
                             ->whereNumber('id')
                             ->name('avd.ciclos.pilares.salvar');
@@ -229,11 +203,7 @@ Route::domain('{sub}.conecttarh.com.br')
                             ->whereNumber('pilar_id')
                             ->name('avd.ciclos.pilares.excluir');
 
-                        /*
-                        |--------------------------------------------------------------------------
-                        | AJAX: TAB PERGUNTAS
-                        |--------------------------------------------------------------------------
-                        */
+                        // AJAX: Perguntas
                         Route::post('/{id}/perguntas/salvar', [CiclosController::class, 'perguntasSalvar'])
                             ->whereNumber('id')
                             ->name('avd.ciclos.perguntas.salvar');
@@ -244,22 +214,10 @@ Route::domain('{sub}.conecttarh.com.br')
                             ->name('avd.ciclos.perguntas.excluir');
                     });
 
-                /*
-                |--------------------------------------------------------------------------
-                | Tela 18 — Pendências do usuário (Minhas Avaliações)
-                |--------------------------------------------------------------------------
-                | Slug: avd/gestor
-                */
                 Route::get('/gestor', [PendenciasController::class, 'index'])
                     ->middleware('screen:18')
                     ->name('avd.pendencias.index');
 
-                /*
-                |--------------------------------------------------------------------------
-                | Tela 20 — Resultados
-                |--------------------------------------------------------------------------
-                | Slug: avd/resultados
-                */
                 Route::get('/resultados', [ResultadosController::class, 'index'])
                     ->middleware('screen:20')
                     ->name('avd.resultados.index');
@@ -278,7 +236,6 @@ Route::domain('{sub}.conecttarh.com.br')
                     Route::get('/', [ConfiguracoesController::class, 'index'])
                         ->name('config.index');
 
-                    // WhatsApp (Evolution)
                     Route::post('/whatsapp/criar-instancia', [ConfiguracoesController::class, 'whatsappCriarInstancia'])
                         ->name('config.whatsapp.criar_instancia');
 
@@ -568,22 +525,17 @@ Route::domain('{sub}.conecttarh.com.br')
             | BENEFÍCIOS → TRANSPORTE
             |--------------------------------------------------------------------------
             | Telas:
-            | 21 = Linhas (inclui Operação)
+            | 21 = Linhas
             | 22 = Motoristas
             | 23 = Veículos
             | 24 = Inspeções
-            | 25 = Importar Saldos + Usos do Cartão
-            | 26 = Consulta Cartão
-            | 27 = Relatórios + Exportação folha + Importar custos + Tickets
+            | 25 = Cartões (importar saldos + usos)
+            | 26 = Consulta cartão
+            | 27 = Relatórios / Tickets / Importar custos
             */
             Route::prefix('beneficios/transporte')->group(function () {
 
-                /*
-                |----------------------------------------------------------------------
-                | LINHAS (Tela 21)
-                |----------------------------------------------------------------------
-                | Slug: beneficios/transporte/linhas
-                */
+                // LINHAS (Tela 21)
                 Route::prefix('linhas')
                     ->middleware('screen:21')
                     ->group(function () {
@@ -609,64 +561,49 @@ Route::domain('{sub}.conecttarh.com.br')
                             ->whereNumber('id')
                             ->name('beneficios.transporte.linhas.destroy');
 
-                        // Operação (tabs: paradas, vínculos, encerrar)
                         Route::get('/{id}/operacao', [TransporteLinhasController::class, 'operacao'])
                             ->whereNumber('id')
                             ->name('beneficios.transporte.linhas.operacao');
 
-                        // Paradas (CRUD mínimo dentro da operação)
+                        // Paradas
                         Route::post('/{linhaId}/paradas', [TransporteLinhasController::class, 'paradaStore'])
                             ->whereNumber('linhaId')
-                            ->name('beneficios.transporte.linhas.parada.store');
+                            ->name('beneficios.transporte.linhas.paradas.store');
 
                         Route::put('/{linhaId}/paradas/{paradaId}', [TransporteLinhasController::class, 'paradaUpdate'])
                             ->whereNumber('linhaId')
                             ->whereNumber('paradaId')
-                            ->name('beneficios.transporte.linhas.parada.update');
+                            ->name('beneficios.transporte.linhas.paradas.update');
 
                         Route::delete('/{linhaId}/paradas/{paradaId}', [TransporteLinhasController::class, 'paradaDestroy'])
                             ->whereNumber('linhaId')
                             ->whereNumber('paradaId')
-                            ->name('beneficios.transporte.linhas.parada.destroy');
+                            ->name('beneficios.transporte.linhas.paradas.destroy');
 
-                        // Vínculos (dentro da operação)
+                        // Vínculos
                         Route::post('/{linhaId}/vinculos', [TransporteLinhasController::class, 'vinculoStore'])
                             ->whereNumber('linhaId')
-                            ->name('beneficios.transporte.linhas.vinculo.store');
+                            ->name('beneficios.transporte.linhas.vinculos.store');
 
-                        Route::put('/{linhaId}/vinculos/{vinculoId}/encerrar', [TransporteLinhasController::class, 'vinculoEncerrar'])
+                        Route::post('/{linhaId}/vinculos/{vinculoId}/encerrar', [TransporteLinhasController::class, 'vinculoEncerrar'])
                             ->whereNumber('linhaId')
                             ->whereNumber('vinculoId')
-                            ->name('beneficios.transporte.linhas.vinculo.encerrar');
-                    });
+                            ->name('beneficios.transporte.linhas.vinculos.encerrar');
 
-                /*
-                |----------------------------------------------------------------------
-                | IMPORTAR CUSTOS (Tela 27) - view em /linhas/importar_custos.blade.php
-                |----------------------------------------------------------------------
-                | Slug: beneficios/transporte/linhas/importar-custos (ID 27)
-                */
-                Route::prefix('linhas')
-                    ->middleware('screen:27')
-                    ->group(function () {
-
+                        // Importar custos (Tela 27)
                         Route::get('/importar-custos', [TransporteLinhasController::class, 'importarCustosForm'])
+                            ->middleware('screen:27')
                             ->name('beneficios.transporte.linhas.importar_custos.form');
 
                         Route::post('/importar-custos', [TransporteLinhasController::class, 'importarCustos'])
-                            ->name('beneficios.transporte.linhas.importar_custos');
+                            ->middleware('screen:27')
+                            ->name('beneficios.transporte.linhas.importar_custos.store');
                     });
 
-                /*
-                |----------------------------------------------------------------------
-                | MOTORISTAS (Tela 22)
-                |----------------------------------------------------------------------
-                | Slug: beneficios/transporte/motoristas
-                */
+                // MOTORISTAS (Tela 22)
                 Route::prefix('motoristas')
                     ->middleware('screen:22')
                     ->group(function () {
-
                         Route::get('/', [TransporteMotoristasController::class, 'index'])
                             ->name('beneficios.transporte.motoristas.index');
 
@@ -689,16 +626,10 @@ Route::domain('{sub}.conecttarh.com.br')
                             ->name('beneficios.transporte.motoristas.destroy');
                     });
 
-                /*
-                |----------------------------------------------------------------------
-                | VEÍCULOS (Tela 23)
-                |----------------------------------------------------------------------
-                | Slug: beneficios/transporte/veiculos
-                */
+                // VEÍCULOS (Tela 23)
                 Route::prefix('veiculos')
                     ->middleware('screen:23')
                     ->group(function () {
-
                         Route::get('/', [TransporteVeiculosController::class, 'index'])
                             ->name('beneficios.transporte.veiculos.index');
 
@@ -721,16 +652,10 @@ Route::domain('{sub}.conecttarh.com.br')
                             ->name('beneficios.transporte.veiculos.destroy');
                     });
 
-                /*
-                |----------------------------------------------------------------------
-                | INSPEÇÕES (Tela 24)
-                |----------------------------------------------------------------------
-                | Slug: beneficios/transporte/inspecoes
-                */
+                // INSPEÇÕES (Tela 24)
                 Route::prefix('inspecoes')
                     ->middleware('screen:24')
                     ->group(function () {
-
                         Route::get('/', [TransporteInspecoesController::class, 'index'])
                             ->name('beneficios.transporte.inspecoes.index');
 
@@ -745,56 +670,30 @@ Route::domain('{sub}.conecttarh.com.br')
                             ->name('beneficios.transporte.inspecoes.show');
                     });
 
-                /*
-                |----------------------------------------------------------------------
-                | CARTÕES (IDs 25 e 26)
-                |----------------------------------------------------------------------
-                */
+                // CARTÕES (Tela 25 e 26)
                 Route::prefix('cartoes')->group(function () {
 
-                    /*
-                    |------------------------------------------------------------------
-                    | Importar Saldos (Tela 25)
-                    |------------------------------------------------------------------
-                    | Slug: beneficios/transporte/cartoes/importar-saldos
-                    */
+                    // Importar saldos (Tela 25)
                     Route::get('/importar-saldos', [TransporteCartoesController::class, 'importarSaldosForm'])
                         ->middleware('screen:25')
                         ->name('beneficios.transporte.cartoes.importar_saldos.form');
 
                     Route::post('/importar-saldos', [TransporteCartoesController::class, 'importarSaldos'])
                         ->middleware('screen:25')
-                        ->name('beneficios.transporte.cartoes.importar_saldos');
+                        ->name('beneficios.transporte.cartoes.importar_saldos.store');
 
-                    /*
-                    |------------------------------------------------------------------
-                    | Usos do Cartão (Tela 25 - mesmo ID)
-                    |------------------------------------------------------------------
-                    | Slug: beneficios/transporte/cartoes/usos
-                    */
+                    // Usos do cartão (usa também o ID 25)
                     Route::get('/usos', [TransporteCartoesController::class, 'usos'])
                         ->middleware('screen:25')
                         ->name('beneficios.transporte.cartoes.usos');
 
-                    /*
-                    |------------------------------------------------------------------
-                    | Consulta Cartão (Tela 26)
-                    |------------------------------------------------------------------
-                    | Slug: beneficios/transporte/cartoes/consulta
-                    */
+                    // Consulta (Tela 26)
                     Route::get('/consulta', [TransporteCartoesController::class, 'consulta'])
                         ->middleware('screen:26')
                         ->name('beneficios.transporte.cartoes.consulta');
                 });
 
-                /*
-                |----------------------------------------------------------------------
-                | RELATÓRIOS (Tela 27)
-                |----------------------------------------------------------------------
-                | Slugs:
-                | - beneficios/transporte/relatorios/recarga (ID 27)
-                | - beneficios/transporte/relatorios/exportacao-folha (ID 27)
-                */
+                // RELATÓRIOS (Tela 27)
                 Route::prefix('relatorios')
                     ->middleware('screen:27')
                     ->group(function () {
@@ -806,14 +705,7 @@ Route::domain('{sub}.conecttarh.com.br')
                             ->name('beneficios.transporte.relatorios.exportacao_folha');
                     });
 
-                /*
-                |----------------------------------------------------------------------
-                | TICKETS (Tela 27)
-                |----------------------------------------------------------------------
-                | Slugs:
-                | - beneficios/transporte/tickets/blocos (ID 27)
-                | - beneficios/transporte/tickets/entregas (ID 27)
-                */
+                // TICKETS (Tela 27)
                 Route::prefix('tickets')
                     ->middleware('screen:27')
                     ->group(function () {
