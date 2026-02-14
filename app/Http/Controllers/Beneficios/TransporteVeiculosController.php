@@ -2,66 +2,83 @@
 
 namespace App\Http\Controllers\Beneficios;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use App\Models\Beneficios\Transporte\TransporteVeiculo;
 
-class TransporteVeiculosController extends TransporteBaseController
+class TransporteVeiculosController extends Controller
 {
-    private int $TELA_ID = 23;
+    private const T_VEICULOS = 'transporte_veiculos';
+
+    private function empresaId(): int
+    {
+        return (int) (auth()->user()->empresa_id ?? 0);
+    }
+
+    private function now()
+    {
+        return now();
+    }
 
     public function index(Request $request, string $sub)
     {
-        if ($r = $this->requireTela($request, $sub, $this->TELA_ID)) return $r;
-
         $empresaId = $this->empresaId();
         $q = trim((string) $request->get('q', ''));
 
-        $veiculos = TransporteVeiculo::query()
+        $veiculos = DB::table(self::T_VEICULOS)
             ->where('empresa_id', $empresaId)
-            ->when($q, function ($qq) use ($q) {
-                $qq->where('placa', 'ilike', "%{$q}%")
-                   ->orWhere('modelo', 'ilike', "%{$q}%")
-                   ->orWhere('marca', 'ilike', "%{$q}%");
+            ->whereNull('deleted_at')
+            ->when($q !== '', function ($qq) use ($q) {
+                $qq->where(function ($w) use ($q) {
+                    $w->where('placa', 'ilike', "%{$q}%")
+                      ->orWhere('modelo', 'ilike', "%{$q}%")
+                      ->orWhere('descricao', 'ilike', "%{$q}%");
+                });
             })
             ->orderBy('id', 'desc')
             ->paginate(20)
-            ->appends($request->all());
+            ->withQueryString();
 
-        return view('beneficios.transporte.veiculos.index', compact('sub','veiculos','q'));
+        return view('beneficios.transporte.veiculos.index', compact('sub', 'veiculos', 'q'));
     }
 
     public function create(Request $request, string $sub)
     {
-        if ($r = $this->requireTela($request, $sub, $this->TELA_ID)) return $r;
-        return view('beneficios.transporte.veiculos.create', compact('sub'));
+        $veiculo = null;
+        return view('beneficios.transporte.veiculos.create', compact('sub', 'veiculo'));
     }
 
     public function store(Request $request, string $sub)
     {
-        if ($r = $this->requireTela($request, $sub, $this->TELA_ID)) return $r;
         $empresaId = $this->empresaId();
 
         $v = Validator::make($request->all(), [
-            'tipo' => 'required|string|max:30',
-            'placa' => 'nullable|string|max:20',
-            'renavam' => 'nullable|string|max:30',
-            'chassi' => 'nullable|string|max:40',
-            'marca' => 'nullable|string|max:100',
-            'modelo' => 'nullable|string|max:100',
-            'ano' => 'nullable|integer|min:1900|max:2100',
-            'capacidade_passageiros' => 'nullable|integer|min:0',
-            'inspecao_cada_meses' => 'required|integer|min:1|max:120',
-            'status' => 'nullable|in:ativo,inativo,manutencao',
-            'observacoes' => 'nullable|string',
+            'placa'              => 'nullable|string|max:20',
+            'modelo'             => 'required|string|max:255',
+            'descricao'          => 'nullable|string|max:255',
+            'capacidade'         => 'nullable|integer|min:0',
+            'meses_inspecao'     => 'required|integer|min:1|max:60',
+            'status'             => 'nullable|in:ativo,inativo',
+            'observacoes'        => 'nullable|string',
         ]);
 
-        if ($v->fails()) return back()->withErrors($v)->withInput();
+        if ($v->fails()) {
+            return back()->withErrors($v)->withInput();
+        }
 
-        TransporteVeiculo::create(array_merge(
-            $v->validated(),
-            ['empresa_id' => $empresaId, 'status' => $request->status ?: 'ativo']
-        ));
+        DB::table(self::T_VEICULOS)->insert([
+            'empresa_id'      => $empresaId,
+            'placa'           => $request->get('placa'),
+            'modelo'          => $request->string('modelo')->toString(),
+            'descricao'       => $request->get('descricao'),
+            'capacidade'      => $request->get('capacidade'),
+            'meses_inspecao'  => (int) $request->get('meses_inspecao'),
+            'status'          => $request->get('status', 'ativo'),
+            'observacoes'     => $request->get('observacoes'),
+            'created_at'      => $this->now(),
+            'updated_at'      => $this->now(),
+        ]);
 
         return redirect()->route('beneficios.transporte.veiculos.index', ['sub' => $sub])
             ->with('success', 'Veículo cadastrado com sucesso.');
@@ -69,55 +86,67 @@ class TransporteVeiculosController extends TransporteBaseController
 
     public function edit(Request $request, string $sub, int $id)
     {
-        if ($r = $this->requireTela($request, $sub, $this->TELA_ID)) return $r;
-
         $empresaId = $this->empresaId();
-        $veiculo = TransporteVeiculo::query()->where('empresa_id', $empresaId)->findOrFail($id);
 
-        return view('beneficios.transporte.veiculos.edit', compact('sub','veiculo'));
+        $veiculo = DB::table(self::T_VEICULOS)
+            ->where('empresa_id', $empresaId)
+            ->where('id', $id)
+            ->whereNull('deleted_at')
+            ->first();
+
+        abort_unless($veiculo, 404);
+
+        return view('beneficios.transporte.veiculos.edit', compact('sub', 'veiculo'));
     }
 
     public function update(Request $request, string $sub, int $id)
     {
-        if ($r = $this->requireTela($request, $sub, $this->TELA_ID)) return $r;
-
         $empresaId = $this->empresaId();
-        $veiculo = TransporteVeiculo::query()->where('empresa_id', $empresaId)->findOrFail($id);
 
         $v = Validator::make($request->all(), [
-            'tipo' => 'required|string|max:30',
-            'placa' => 'nullable|string|max:20',
-            'renavam' => 'nullable|string|max:30',
-            'chassi' => 'nullable|string|max:40',
-            'marca' => 'nullable|string|max:100',
-            'modelo' => 'nullable|string|max:100',
-            'ano' => 'nullable|integer|min:1900|max:2100',
-            'capacidade_passageiros' => 'nullable|integer|min:0',
-            'inspecao_cada_meses' => 'required|integer|min:1|max:120',
-            'status' => 'nullable|in:ativo,inativo,manutencao',
-            'observacoes' => 'nullable|string',
+            'placa'              => 'nullable|string|max:20',
+            'modelo'             => 'required|string|max:255',
+            'descricao'          => 'nullable|string|max:255',
+            'capacidade'         => 'nullable|integer|min:0',
+            'meses_inspecao'     => 'required|integer|min:1|max:60',
+            'status'             => 'nullable|in:ativo,inativo',
+            'observacoes'        => 'nullable|string',
         ]);
 
-        if ($v->fails()) return back()->withErrors($v)->withInput();
+        if ($v->fails()) {
+            return back()->withErrors($v)->withInput();
+        }
 
-        $veiculo->update(array_merge(
-            $v->validated(),
-            ['status' => $request->status ?: $veiculo->status]
-        ));
+        DB::table(self::T_VEICULOS)
+            ->where('empresa_id', $empresaId)
+            ->where('id', $id)
+            ->whereNull('deleted_at')
+            ->update([
+                'placa'           => $request->get('placa'),
+                'modelo'          => $request->string('modelo')->toString(),
+                'descricao'       => $request->get('descricao'),
+                'capacidade'      => $request->get('capacidade'),
+                'meses_inspecao'  => (int) $request->get('meses_inspecao'),
+                'status'          => $request->get('status', 'ativo'),
+                'observacoes'     => $request->get('observacoes'),
+                'updated_at'      => $this->now(),
+            ]);
 
-        return redirect()->route('beneficios.transporte.veiculos.index', ['sub' => $sub])
-            ->with('success', 'Veículo atualizado com sucesso.');
+        return back()->with('success', 'Veículo atualizado.');
     }
 
     public function destroy(Request $request, string $sub, int $id)
     {
-        if ($r = $this->requireTela($request, $sub, $this->TELA_ID)) return $r;
-
         $empresaId = $this->empresaId();
-        $veiculo = TransporteVeiculo::query()->where('empresa_id', $empresaId)->findOrFail($id);
-        $veiculo->delete();
 
-        return redirect()->route('beneficios.transporte.veiculos.index', ['sub' => $sub])
-            ->with('success', 'Veículo removido com sucesso.');
+        DB::table(self::T_VEICULOS)
+            ->where('empresa_id', $empresaId)
+            ->where('id', $id)
+            ->update([
+                'deleted_at' => $this->now(),
+                'updated_at' => $this->now(),
+            ]);
+
+        return back()->with('success', 'Veículo removido.');
     }
 }
