@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Avd;
+namespace App\Http\Controllers\AVD;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -34,23 +34,21 @@ class CiclosController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | Index
+    | Index + Grid
     |--------------------------------------------------------------------------
     */
-    public function index(Request $request, string $sub)
+    public function index(Request $request, $sub)
     {
-        return view('avd.desempenho.index', [
-            'sub' => $sub,
-        ]);
+        return view('avd.desempenho.index', ['sub' => $sub]);
     }
 
-    public function grid(Request $request, string $sub)
+    public function grid(Request $request, $sub)
     {
         $empresaId = $this->empresaId();
 
-        $q      = trim((string) $request->get('q', ''));
-        $status = trim((string) $request->get('status', ''));
-        $filial = (int) $request->get('filial_id', 0);
+        $q        = trim((string) $request->get('q', ''));
+        $status   = trim((string) $request->get('status', ''));
+        $filialId = (int) $request->get('filial_id', 0);
 
         $sql = DB::table('avd_ciclos as c')
             ->where('c.empresa_id', $empresaId)
@@ -62,18 +60,17 @@ class CiclosController extends Controller
         if ($status !== '') {
             $sql->where('c.status', $status);
         }
-        if ($filial > 0) {
-            $sql->whereExists(function ($q2) use ($filial) {
+        if ($filialId > 0) {
+            $sql->whereExists(function ($q2) use ($filialId) {
                 $q2->select(DB::raw(1))
                     ->from('avd_ciclo_unidades as u')
                     ->whereColumn('u.ciclo_id', 'c.id')
-                    ->where('u.filial_id', $filial);
+                    ->where('u.filial_id', $filialId);
             });
         }
 
         $rows = $sql->orderByDesc('c.id')->limit(200)->get();
 
-        // métricas simples por ciclo (participantes/respondentes)
         $ids = $rows->pluck('id')->all();
         $participantes = [];
         $respondentes  = [];
@@ -96,10 +93,10 @@ class CiclosController extends Controller
         }
 
         return view('avd.desempenho.partials.table', [
-            'sub'          => $sub,
-            'rows'         => $rows,
-            'participantes'=> $participantes,
-            'respondentes' => $respondentes,
+            'sub'           => $sub,
+            'rows'          => $rows,
+            'participantes' => $participantes,
+            'respondentes'  => $respondentes,
         ]);
     }
 
@@ -108,16 +105,20 @@ class CiclosController extends Controller
     | Create / Store
     |--------------------------------------------------------------------------
     */
-    public function create(Request $request, string $sub)
+    public function create(Request $request, $sub)
     {
         return view('avd.desempenho.edit', [
-            'sub'   => $sub,
-            'id'    => 0,
+            'sub' => $sub,
+            'id'  => 0,
             'ciclo' => null,
+            'unidades' => collect(),
+            'participantes' => collect(),
+            'pilares' => collect(),
+            'perguntas' => collect(),
         ]);
     }
 
-    public function store(Request $request, string $sub)
+    public function store(Request $request, $sub)
     {
         $empresaId = $this->empresaId();
 
@@ -134,12 +135,11 @@ class CiclosController extends Controller
             'peso_gestor'            => ['required', 'numeric', 'min:0', 'max:100'],
             'peso_pares'             => ['required', 'numeric', 'min:0', 'max:100'],
         ]);
-
         $v->validate();
 
-        // regra: em 180° pares = 0
-        $tipo = $request->get('tipo');
+        $tipo = (string) $request->get('tipo');
         $pesoPares = (float) $request->get('peso_pares');
+
         if ($tipo === '180') {
             $pesoPares = 0;
         }
@@ -150,7 +150,7 @@ class CiclosController extends Controller
             'inicio_em'  => $request->get('inicio_em') ?: null,
             'fim_em'     => $request->get('fim_em') ?: null,
             'tipo'       => $tipo,
-            'divergencia_tipo'  => $request->get('divergencia_tipo', 'percent'),
+            'divergencia_tipo'  => (string) $request->get('divergencia_tipo', 'percent'),
             'divergencia_valor' => (float) ($request->get('divergencia_valor', 0) ?: 0),
             'permitir_inicio_manual' => (bool) $request->boolean('permitir_inicio_manual', true),
             'permitir_reabrir'       => (bool) $request->boolean('permitir_reabrir', false),
@@ -158,13 +158,15 @@ class CiclosController extends Controller
             'peso_auto'  => (float) $request->get('peso_auto'),
             'peso_gestor'=> (float) $request->get('peso_gestor'),
             'peso_pares' => (float) $pesoPares,
-            'msg_auto'   => $request->get('msg_auto'),
-            'msg_gestor' => $request->get('msg_gestor'),
-            'msg_pares'  => $request->get('msg_pares'),
+
+            'msg_auto'     => $request->get('msg_auto'),
+            'msg_gestor'   => $request->get('msg_gestor'),
+            'msg_pares'    => $request->get('msg_pares'),
             'msg_consenso' => $request->get('msg_consenso'),
             'msg_lembrete' => $request->get('msg_lembrete'),
             'lembrete_cada_dias' => $request->get('lembrete_cada_dias') ?: null,
             'parar_lembrete_apos_responder' => (bool) $request->boolean('parar_lembrete_apos_responder', true),
+
             'created_at' => $this->nowDb(),
             'updated_at' => $this->nowDb(),
         ]);
@@ -178,12 +180,13 @@ class CiclosController extends Controller
     | Edit / Update
     |--------------------------------------------------------------------------
     */
-    public function edit(Request $request, string $sub, int $id)
+    public function edit(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaId();
+        $id = (int) $id;
+
         $ciclo = $this->cicloOrFail($empresaId, $id);
 
-        // listas básicas para as tabs
         $unidades = DB::table('avd_ciclo_unidades as cu')
             ->join('filiais as f', 'f.id', '=', 'cu.filial_id')
             ->where('cu.empresa_id', $empresaId)
@@ -226,20 +229,16 @@ class CiclosController extends Controller
             ->orderBy('pg.id')
             ->get();
 
-        return view('avd.desempenho.edit', [
-            'sub'          => $sub,
-            'id'           => $id,
-            'ciclo'        => $ciclo,
-            'unidades'     => $unidades,
-            'participantes'=> $participantes,
-            'pilares'      => $pilares,
-            'perguntas'    => $perguntas,
-        ]);
+        return view('avd.desempenho.edit', compact(
+            'sub', 'id', 'ciclo', 'unidades', 'participantes', 'pilares', 'perguntas'
+        ));
     }
 
-    public function update(Request $request, string $sub, int $id)
+    public function update(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaId();
+        $id = (int) $id;
+
         $ciclo = $this->cicloOrFail($empresaId, $id);
 
         $v = Validator::make($request->all(), [
@@ -257,11 +256,9 @@ class CiclosController extends Controller
         ]);
         $v->validate();
 
-        $tipo = $request->get('tipo');
+        $tipo = (string) $request->get('tipo');
         $pesoPares = (float) $request->get('peso_pares');
-        if ($tipo === '180') {
-            $pesoPares = 0;
-        }
+        if ($tipo === '180') $pesoPares = 0;
 
         DB::table('avd_ciclos')
             ->where('empresa_id', $empresaId)
@@ -271,29 +268,31 @@ class CiclosController extends Controller
                 'inicio_em'  => $request->get('inicio_em') ?: null,
                 'fim_em'     => $request->get('fim_em') ?: null,
                 'tipo'       => $tipo,
-                'divergencia_tipo'  => $request->get('divergencia_tipo', 'percent'),
+                'divergencia_tipo'  => (string) $request->get('divergencia_tipo', 'percent'),
                 'divergencia_valor' => (float) ($request->get('divergencia_valor', 0) ?: 0),
                 'permitir_inicio_manual' => (bool) $request->boolean('permitir_inicio_manual', true),
                 'permitir_reabrir'       => (bool) $request->boolean('permitir_reabrir', false),
                 'peso_auto'   => (float) $request->get('peso_auto'),
                 'peso_gestor' => (float) $request->get('peso_gestor'),
                 'peso_pares'  => (float) $pesoPares,
-                'msg_auto'    => $request->get('msg_auto'),
-                'msg_gestor'  => $request->get('msg_gestor'),
-                'msg_pares'   => $request->get('msg_pares'),
-                'msg_consenso'=> $request->get('msg_consenso'),
-                'msg_lembrete'=> $request->get('msg_lembrete'),
+
+                'msg_auto'     => $request->get('msg_auto'),
+                'msg_gestor'   => $request->get('msg_gestor'),
+                'msg_pares'    => $request->get('msg_pares'),
+                'msg_consenso' => $request->get('msg_consenso'),
+                'msg_lembrete' => $request->get('msg_lembrete'),
                 'lembrete_cada_dias' => $request->get('lembrete_cada_dias') ?: null,
                 'parar_lembrete_apos_responder' => (bool) $request->boolean('parar_lembrete_apos_responder', true),
-                'updated_at'  => $this->nowDb(),
+
+                'updated_at' => $this->nowDb(),
             ]);
 
-        // se mudou para 180°, garante peso_pares = 0 em participantes (nota_pares pode ficar)
+        // se mudou para 180, remove token_pares dos participantes
         if ($tipo === '180') {
             DB::table('avd_ciclo_participantes')
                 ->where('empresa_id', $empresaId)
                 ->where('ciclo_id', $id)
-                ->update(['token_pares' => null]);
+                ->update(['token_pares' => null, 'updated_at' => $this->nowDb()]);
         }
 
         return back()->with('success', 'Ciclo atualizado.');
@@ -304,9 +303,11 @@ class CiclosController extends Controller
     | Destroy (soft delete)
     |--------------------------------------------------------------------------
     */
-    public function destroy(Request $request, string $sub, int $id)
+    public function destroy(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaId();
+        $id = (int) $id;
+
         $this->cicloOrFail($empresaId, $id);
 
         DB::table('avd_ciclos')
@@ -323,60 +324,54 @@ class CiclosController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | Ações do ciclo: iniciar / encerrar
+    | Iniciar / Encerrar
     |--------------------------------------------------------------------------
     */
-    public function iniciar(Request $request, string $sub, int $id)
+    public function iniciar(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaId();
+        $id = (int) $id;
+
         $ciclo = $this->cicloOrFail($empresaId, $id);
 
         if ($ciclo->status !== 'aguardando') {
             return back()->with('warning', 'Somente ciclos em "Aguardando" podem ser iniciados.');
         }
 
-        DB::table('avd_ciclos')
-            ->where('empresa_id', $empresaId)
-            ->where('id', $id)
-            ->update([
-                'status' => 'iniciada',
-                'updated_at' => $this->nowDb(),
-            ]);
+        DB::table('avd_ciclos')->where('empresa_id', $empresaId)->where('id', $id)
+            ->update(['status' => 'iniciada', 'updated_at' => $this->nowDb()]);
 
-        // gera avaliações/tokens para todos participantes ainda sem avaliação
-        $this->gerarAvaliacoesParaCiclo($empresaId, $sub, $id);
+        $this->gerarAvaliacoesParaCiclo($empresaId, $id);
 
         return back()->with('success', 'Ciclo iniciado e avaliações geradas.');
     }
 
-    public function encerrar(Request $request, string $sub, int $id)
+    public function encerrar(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaId();
+        $id = (int) $id;
+
         $ciclo = $this->cicloOrFail($empresaId, $id);
 
         if (!in_array($ciclo->status, ['iniciada', 'em_consenso'], true)) {
             return back()->with('warning', 'Somente ciclos iniciados podem ser encerrados.');
         }
 
-        DB::table('avd_ciclos')
-            ->where('empresa_id', $empresaId)
-            ->where('id', $id)
-            ->update([
-                'status' => 'encerrada',
-                'updated_at' => $this->nowDb(),
-            ]);
+        DB::table('avd_ciclos')->where('empresa_id', $empresaId)->where('id', $id)
+            ->update(['status' => 'encerrada', 'updated_at' => $this->nowDb()]);
 
         return back()->with('success', 'Ciclo encerrado.');
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Unidades (Tab Unidades)
+    | Unidades (AJAX)
     |--------------------------------------------------------------------------
     */
-    public function unidadesVincular(Request $request, string $sub, int $id)
+    public function unidadesVincular(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaId();
+        $id = (int) $id;
         $this->cicloOrFail($empresaId, $id);
 
         $modo = (string) $request->get('modo', 'uma'); // uma | todas
@@ -395,8 +390,8 @@ class CiclosController extends Controller
                     'ciclo_id'   => $id,
                     'filial_id'  => $f->id,
                 ], [
-                    'updated_at' => $this->nowDb(),
                     'created_at' => $this->nowDb(),
+                    'updated_at' => $this->nowDb(),
                 ]);
             }
 
@@ -410,16 +405,19 @@ class CiclosController extends Controller
             'ciclo_id'   => $id,
             'filial_id'  => $filialId,
         ], [
-            'updated_at' => $this->nowDb(),
             'created_at' => $this->nowDb(),
+            'updated_at' => $this->nowDb(),
         ]);
 
         return response()->json(['ok' => true]);
     }
 
-    public function unidadesDesvincular(Request $request, string $sub, int $id, int $filialId)
+    public function unidadesDesvincular(Request $request, $sub, $id, $filialId)
     {
         $empresaId = $this->empresaId();
+        $id = (int) $id;
+        $filialId = (int) $filialId;
+
         $this->cicloOrFail($empresaId, $id);
 
         DB::table('avd_ciclo_unidades')
@@ -433,12 +431,14 @@ class CiclosController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | Participantes (Tab Colaboradores)
+    | Participantes (AJAX)
     |--------------------------------------------------------------------------
     */
-    public function participantesVincular(Request $request, string $sub, int $id)
+    public function participantesVincular(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaId();
+        $id = (int) $id;
+
         $ciclo = $this->cicloOrFail($empresaId, $id);
 
         $modo = (string) $request->get('modo', 'individual'); // individual | lote_filial
@@ -456,12 +456,17 @@ class CiclosController extends Controller
                 ->get();
 
             foreach ($cols as $c) {
-                $this->upsertParticipante($empresaId, $id, $c->id, (int)$c->filial_id, (string)($c->whatsapp ?? null));
+                $this->upsertParticipante(
+                    $empresaId,
+                    $id,
+                    (int) $c->id,
+                    (int) ($c->filial_id ?? 0),
+                    (string) ($c->whatsapp ?? '')
+                );
             }
 
-            // se ciclo já iniciado, gera avaliações
             if ($ciclo->status === 'iniciada') {
-                $this->gerarAvaliacoesParaCiclo($empresaId, $sub, $id);
+                $this->gerarAvaliacoesParaCiclo($empresaId, $id);
             }
 
             return response()->json(['ok' => true]);
@@ -478,18 +483,27 @@ class CiclosController extends Controller
 
         abort_if(!$c, 404);
 
-        $this->upsertParticipante($empresaId, $id, (int)$c->id, (int)($c->filial_id ?? 0), (string)($c->whatsapp ?? null));
+        $this->upsertParticipante(
+            $empresaId,
+            $id,
+            (int) $c->id,
+            (int) ($c->filial_id ?? 0),
+            (string) ($c->whatsapp ?? '')
+        );
 
         if ($ciclo->status === 'iniciada') {
-            $this->gerarAvaliacoesParaCiclo($empresaId, $sub, $id);
+            $this->gerarAvaliacoesParaCiclo($empresaId, $id);
         }
 
         return response()->json(['ok' => true]);
     }
 
-    public function participantesRemover(Request $request, string $sub, int $id, int $participanteId)
+    public function participantesRemover(Request $request, $sub, $id, $participanteId)
     {
         $empresaId = $this->empresaId();
+        $id = (int) $id;
+        $participanteId = (int) $participanteId;
+
         $this->cicloOrFail($empresaId, $id);
 
         DB::table('avd_ciclo_participantes')
@@ -501,45 +515,56 @@ class CiclosController extends Controller
                 'updated_at' => $this->nowDb(),
             ]);
 
-        // opcional: bloquear avaliações
         DB::table('avd_avaliacoes')
             ->where('empresa_id', $empresaId)
             ->where('ciclo_id', $id)
             ->where('participante_id', $participanteId)
-            ->update(['status' => 'bloqueado', 'updated_at' => $this->nowDb()]);
+            ->update([
+                'status' => 'bloqueado',
+                'updated_at' => $this->nowDb(),
+            ]);
 
         return response()->json(['ok' => true]);
     }
 
-    public function participantesAtualizarWhatsapp(Request $request, string $sub, int $id, int $participanteId)
+    public function participantesAtualizarWhatsapp(Request $request, $sub, $id, $participanteId)
     {
         $empresaId = $this->empresaId();
+        $id = (int) $id;
+        $participanteId = (int) $participanteId;
+
         $this->cicloOrFail($empresaId, $id);
 
-        $whatsapp = trim((string)$request->get('whatsapp', ''));
+        $whatsapp = trim((string) $request->get('whatsapp', ''));
 
         DB::table('avd_ciclo_participantes')
             ->where('empresa_id', $empresaId)
             ->where('ciclo_id', $id)
             ->where('id', $participanteId)
-            ->update(['whatsapp' => $whatsapp ?: null, 'updated_at' => $this->nowDb()]);
+            ->update([
+                'whatsapp' => $whatsapp !== '' ? $whatsapp : null,
+                'updated_at' => $this->nowDb(),
+            ]);
 
         return response()->json(['ok' => true]);
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Pilares (Tab Pilares)
+    | Pilares (AJAX)
     |--------------------------------------------------------------------------
     */
-    public function pilaresSalvar(Request $request, string $sub, int $id)
+    public function pilaresSalvar(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaId();
+        $id = (int) $id;
+
         $this->cicloOrFail($empresaId, $id);
 
-        $nome = trim((string)$request->get('nome', ''));
-        $peso = (float)$request->get('peso', 0);
-        $pilarId = (int)$request->get('pilar_id', 0);
+        $pilarId = (int) $request->get('pilar_id', 0);
+        $nome = trim((string) $request->get('nome', ''));
+        $peso = (float) $request->get('peso', 0);
+        $ordem = (int) $request->get('ordem', 0);
 
         abort_if($nome === '', 422, 'Nome inválido.');
 
@@ -551,6 +576,7 @@ class CiclosController extends Controller
                 ->update([
                     'nome' => $nome,
                     'peso' => $peso,
+                    'ordem' => $ordem,
                     'updated_at' => $this->nowDb(),
                 ]);
         } else {
@@ -559,7 +585,7 @@ class CiclosController extends Controller
                 'ciclo_id'   => $id,
                 'nome'       => $nome,
                 'peso'       => $peso,
-                'ordem'      => (int)$request->get('ordem', 0),
+                'ordem'      => $ordem,
                 'created_at' => $this->nowDb(),
                 'updated_at' => $this->nowDb(),
             ]);
@@ -568,55 +594,68 @@ class CiclosController extends Controller
         return response()->json(['ok' => true]);
     }
 
-    public function pilaresExcluir(Request $request, string $sub, int $id, int $pilarId)
+    public function pilaresExcluir(Request $request, $sub, $id, $pilarId)
     {
         $empresaId = $this->empresaId();
+        $id = (int) $id;
+        $pilarId = (int) $pilarId;
+
         $this->cicloOrFail($empresaId, $id);
 
         DB::table('avd_pilares')
             ->where('empresa_id', $empresaId)
             ->where('ciclo_id', $id)
             ->where('id', $pilarId)
-            ->update(['deleted_at' => $this->nowDb(), 'updated_at' => $this->nowDb()]);
+            ->update([
+                'deleted_at' => $this->nowDb(),
+                'updated_at' => $this->nowDb(),
+            ]);
 
-        // também “remove” perguntas do pilar
         DB::table('avd_perguntas')
             ->where('empresa_id', $empresaId)
             ->where('ciclo_id', $id)
             ->where('pilar_id', $pilarId)
-            ->update(['deleted_at' => $this->nowDb(), 'updated_at' => $this->nowDb()]);
+            ->update([
+                'deleted_at' => $this->nowDb(),
+                'updated_at' => $this->nowDb(),
+            ]);
 
         return response()->json(['ok' => true]);
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Perguntas (Tab Perguntas)
+    | Perguntas (AJAX)
     |--------------------------------------------------------------------------
     */
-    public function perguntasSalvar(Request $request, string $sub, int $id)
+    public function perguntasSalvar(Request $request, $sub, $id)
     {
         $empresaId = $this->empresaId();
+        $id = (int) $id;
+
         $this->cicloOrFail($empresaId, $id);
 
-        $perguntaId = (int)$request->get('pergunta_id', 0);
-        $texto = trim((string)$request->get('texto', ''));
-        $pilarId = (int)$request->get('pilar_id', 0);
+        $perguntaId = (int) $request->get('pergunta_id', 0);
+        $pilarId = (int) $request->get('pilar_id', 0);
+        $texto = trim((string) $request->get('texto', ''));
+        $peso = (float) $request->get('peso', 0);
+        $tipoResposta = (string) $request->get('tipo_resposta', '1_5');
+        $ordem = (int) $request->get('ordem', 0);
 
-        abort_if($texto === '', 422, 'Texto inválido.');
         abort_if($pilarId <= 0, 422, 'Pilar inválido.');
+        abort_if($texto === '', 422, 'Texto inválido.');
 
         $payload = [
             'empresa_id' => $empresaId,
             'ciclo_id'   => $id,
             'pilar_id'   => $pilarId,
             'texto'      => $texto,
-            'peso'       => (float)$request->get('peso', 0),
-            'tipo_resposta' => (string)$request->get('tipo_resposta', '1_5'),
-            'opcoes'     => $request->get('opcoes') ? json_encode($request->get('opcoes')) : null,
-            'exige_justificativa' => (bool)$request->boolean('exige_justificativa', false),
-            'permite_comentario'  => (bool)$request->boolean('permite_comentario', true),
-            'ordem'      => (int)$request->get('ordem', 0),
+            'peso'       => $peso,
+            'tipo_resposta' => $tipoResposta,
+            'opcoes'     => $request->has('opcoes') ? json_encode($request->get('opcoes')) : null,
+            'exige_justificativa' => (bool) $request->boolean('exige_justificativa', false),
+            'permite_comentario'  => (bool) $request->boolean('permite_comentario', true),
+            'ordem'      => $ordem,
             'updated_at' => $this->nowDb(),
         ];
 
@@ -634,16 +673,22 @@ class CiclosController extends Controller
         return response()->json(['ok' => true]);
     }
 
-    public function perguntasExcluir(Request $request, string $sub, int $id, int $perguntaId)
+    public function perguntasExcluir(Request $request, $sub, $id, $perguntaId)
     {
         $empresaId = $this->empresaId();
+        $id = (int) $id;
+        $perguntaId = (int) $perguntaId;
+
         $this->cicloOrFail($empresaId, $id);
 
         DB::table('avd_perguntas')
             ->where('empresa_id', $empresaId)
             ->where('ciclo_id', $id)
             ->where('id', $perguntaId)
-            ->update(['deleted_at' => $this->nowDb(), 'updated_at' => $this->nowDb()]);
+            ->update([
+                'deleted_at' => $this->nowDb(),
+                'updated_at' => $this->nowDb(),
+            ]);
 
         return response()->json(['ok' => true]);
     }
@@ -663,14 +708,18 @@ class CiclosController extends Controller
             'filial_id'  => $filialId > 0 ? $filialId : null,
             'whatsapp'   => $whatsapp ?: null,
             'deleted_at' => null,
-            'updated_at' => $this->nowDb(),
             'created_at' => $this->nowDb(),
+            'updated_at' => $this->nowDb(),
         ]);
     }
 
-    private function gerarAvaliacoesParaCiclo(int $empresaId, string $sub, int $cicloId): void
+    private function gerarAvaliacoesParaCiclo(int $empresaId, int $cicloId): void
     {
-        $ciclo = DB::table('avd_ciclos')->where('empresa_id', $empresaId)->where('id', $cicloId)->first();
+        $ciclo = DB::table('avd_ciclos')
+            ->where('empresa_id', $empresaId)
+            ->where('id', $cicloId)
+            ->first();
+
         if (!$ciclo) return;
 
         $participantes = DB::table('avd_ciclo_participantes')
@@ -680,34 +729,32 @@ class CiclosController extends Controller
             ->get();
 
         foreach ($participantes as $p) {
-            // garante tokens no participante
-            $tokenAuto = $p->token_auto ?: Str::random(60);
+            $tokenAuto   = $p->token_auto ?: Str::random(60);
             $tokenGestor = $p->token_gestor ?: Str::random(60);
-            $tokenPares = ($ciclo->tipo === '360') ? ($p->token_pares ?: Str::random(60)) : null;
+            $tokenPares  = ($ciclo->tipo === '360') ? ($p->token_pares ?: Str::random(60)) : null;
 
             DB::table('avd_ciclo_participantes')
                 ->where('empresa_id', $empresaId)
                 ->where('id', $p->id)
                 ->update([
-                    'token_auto'  => $tokenAuto,
-                    'token_gestor'=> $tokenGestor,
-                    'token_pares' => $tokenPares,
-                    'updated_at'  => $this->nowDb(),
+                    'token_auto'   => $tokenAuto,
+                    'token_gestor' => $tokenGestor,
+                    'token_pares'  => $tokenPares,
+                    'updated_at'   => $this->nowDb(),
                 ]);
 
-            // cria/garante avaliações
-            $this->upsertAvaliacao($empresaId, $cicloId, $p->id, 'auto', $tokenAuto);
-            $this->upsertAvaliacao($empresaId, $cicloId, $p->id, 'gestor', $tokenGestor);
+            $this->upsertAvaliacao($empresaId, $cicloId, (int) $p->id, 'auto', $tokenAuto);
+            $this->upsertAvaliacao($empresaId, $cicloId, (int) $p->id, 'gestor', $tokenGestor);
+
             if ($ciclo->tipo === '360') {
-                $this->upsertAvaliacao($empresaId, $cicloId, $p->id, 'pares', $tokenPares);
+                $this->upsertAvaliacao($empresaId, $cicloId, (int) $p->id, 'pares', $tokenPares);
             }
 
-            // registra notificações (fila interna AVD)
-            // OBS: envio WhatsApp pode ser um worker/cron que lê avd_notificacoes e joga na fila_mensagens
-            $this->criarNotificacao($empresaId, $cicloId, $p->id, 'auto', $tokenAuto);
-            $this->criarNotificacao($empresaId, $cicloId, $p->id, 'gestor', $tokenGestor);
+            // cria notificações (fila interna AVD)
+            $this->criarNotificacao($empresaId, $cicloId, (int) $p->id, 'auto', $tokenAuto);
+            $this->criarNotificacao($empresaId, $cicloId, (int) $p->id, 'gestor', $tokenGestor);
             if ($ciclo->tipo === '360') {
-                $this->criarNotificacao($empresaId, $cicloId, $p->id, 'pares', $tokenPares);
+                $this->criarNotificacao($empresaId, $cicloId, (int) $p->id, 'pares', $tokenPares);
             }
         }
     }
