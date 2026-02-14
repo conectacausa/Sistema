@@ -94,17 +94,9 @@ class TransporteLinhasController extends Controller
         $tipo     = trim((string) $request->get('tipo', '')); // publica|fretada
         $filialId = (int) $request->get('filial_id', 0);
 
-        $motoristas = $this->baseMotoristasQuery($empresaId)
-            ->orderBy('nome')
-            ->get();
-
-        $veiculos = $this->baseVeiculosQuery($empresaId)
-            ->orderBy('id', 'desc')
-            ->get();
-
-        $filiais = $this->baseFiliaisQuery($empresaId)
-            ->orderBy('id', 'asc')
-            ->get();
+        $motoristas = $this->baseMotoristasQuery($empresaId)->orderBy('nome')->get();
+        $veiculos   = $this->baseVeiculosQuery($empresaId)->orderBy('id', 'desc')->get();
+        $filiais    = $this->baseFiliaisQuery($empresaId)->orderBy('id', 'asc')->get();
 
         $linhasQuery = DB::table(self::T_LINHAS . ' as l')
             ->leftJoin(self::T_MOTORISTAS . ' as m', 'm.id', '=', 'l.motorista_id')
@@ -140,9 +132,9 @@ class TransporteLinhasController extends Controller
         if ($q !== '') {
             $linhasQuery->where(function ($w) use ($q) {
                 $w->where('l.nome', 'ilike', "%{$q}%")
-                    ->orWhere('m.nome', 'ilike', "%{$q}%")
-                    ->orWhere('v.modelo', 'ilike', "%{$q}%")
-                    ->orWhere('v.placa', 'ilike', "%{$q}%");
+                  ->orWhere('m.nome', 'ilike', "%{$q}%")
+                  ->orWhere('v.modelo', 'ilike', "%{$q}%")
+                  ->orWhere('v.placa', 'ilike', "%{$q}%");
             });
         }
 
@@ -185,17 +177,9 @@ class TransporteLinhasController extends Controller
     {
         $empresaId = $this->empresaId();
 
-        $motoristas = $this->baseMotoristasQuery($empresaId)
-            ->orderBy('nome')
-            ->get();
-
-        $veiculos = $this->baseVeiculosQuery($empresaId)
-            ->orderBy('id', 'desc')
-            ->get();
-
-        $filiais = $this->baseFiliaisQuery($empresaId)
-            ->orderBy('id', 'asc')
-            ->get();
+        $motoristas = $this->baseMotoristasQuery($empresaId)->orderBy('nome')->get();
+        $veiculos   = $this->baseVeiculosQuery($empresaId)->orderBy('id', 'desc')->get();
+        $filiais    = $this->baseFiliaisQuery($empresaId)->orderBy('id', 'asc')->get();
 
         return view('beneficios.transporte.linhas.create', compact('sub', 'motoristas', 'veiculos', 'filiais'));
     }
@@ -209,18 +193,16 @@ class TransporteLinhasController extends Controller
     {
         $empresaId = $this->empresaId();
 
-        $rules = [
-            'nome'          => ['required', 'string', 'max:255'],
-            'tipo_linha'    => ['required', 'in:fretada,publica'],
+        $validator = Validator::make($request->all(), [
+            'nome'            => ['required', 'string', 'max:255'],
+            'tipo_linha'      => ['required', 'in:fretada,publica'],
             'controle_acesso' => ['required', 'in:cartao,ticket'],
-            'status'        => ['required', 'in:ativo,inativo'],
-            'filial_id'     => ['required', 'integer', 'min:1'],
-            'veiculo_id'    => ['nullable', 'integer', 'min:1'],
-            'motorista_id'  => ['nullable', 'integer', 'min:1'],
-        ];
-
-        $validator = Validator::make($request->all(), $rules, [
-            'nome.required' => 'Informe o nome da linha.',
+            'status'          => ['required', 'in:ativo,inativo'],
+            'filial_id'       => ['required', 'integer', 'min:1'],
+            'veiculo_id'      => ['nullable', 'integer', 'min:1'],
+            'motorista_id'    => ['nullable', 'integer', 'min:1'],
+        ], [
+            'nome.required'      => 'Informe o nome da linha.',
             'filial_id.required' => 'Selecione uma filial.',
         ]);
 
@@ -270,8 +252,9 @@ class TransporteLinhasController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | Edit
+    | Edit (placeholder mínimo)
     |--------------------------------------------------------------------------
+    | Se você já tem um edit completo, pode manter o seu e ignorar este.
     */
     public function edit(Request $request, string $sub, int $id)
     {
@@ -284,17 +267,9 @@ class TransporteLinhasController extends Controller
                 ->with('error', 'Linha não encontrada.');
         }
 
-        $motoristas = $this->baseMotoristasQuery($empresaId)
-            ->orderBy('nome')
-            ->get();
-
-        $veiculos = $this->baseVeiculosQuery($empresaId)
-            ->orderBy('id', 'desc')
-            ->get();
-
-        $filiais = $this->baseFiliaisQuery($empresaId)
-            ->orderBy('id', 'asc')
-            ->get();
+        $motoristas = $this->baseMotoristasQuery($empresaId)->orderBy('nome')->get();
+        $veiculos   = $this->baseVeiculosQuery($empresaId)->orderBy('id', 'desc')->get();
+        $filiais    = $this->baseFiliaisQuery($empresaId)->orderBy('id', 'asc')->get();
 
         $filialAtualId = (int) (DB::table(self::T_LINHA_FILIAIS)
             ->where('linha_id', $id)
@@ -313,85 +288,13 @@ class TransporteLinhasController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | Update
+    | Update (placeholder mínimo)
     |--------------------------------------------------------------------------
+    | Se você já tem um update completo, pode manter o seu.
     */
     public function update(Request $request, string $sub, int $id)
     {
-        $empresaId = $this->empresaId();
-
-        $linha = $this->baseLinhasQuery($empresaId)->where('id', $id)->first();
-        if (!$linha) {
-            return redirect()
-                ->route('beneficios.transporte.linhas.index', ['sub' => $sub])
-                ->with('error', 'Linha não encontrada.');
-        }
-
-        $rules = [
-            'nome'          => ['required', 'string', 'max:255'],
-            'tipo_linha'    => ['required', 'in:fretada,publica'],
-            'controle_acesso' => ['required', 'in:cartao,ticket'],
-            'status'        => ['required', 'in:ativo,inativo'],
-            'filial_id'     => ['required', 'integer', 'min:1'],
-            'veiculo_id'    => ['nullable', 'integer', 'min:1'],
-            'motorista_id'  => ['nullable', 'integer', 'min:1'],
-        ];
-
-        $validator = Validator::make($request->all(), $rules);
-
-        if ($validator->fails()) {
-            return back()
-                ->withErrors($validator)
-                ->withInput()
-                ->with('error', 'Revise os campos do formulário.');
-        }
-
-        try {
-            DB::beginTransaction();
-
-            DB::table(self::T_LINHAS)
-                ->where('empresa_id', $empresaId)
-                ->where('id', $id)
-                ->update([
-                    'nome'            => trim((string) $request->input('nome')),
-                    'tipo_linha'      => $request->input('tipo_linha'),
-                    'controle_acesso' => $request->input('controle_acesso'),
-                    'status'          => $request->input('status'),
-                    'veiculo_id'      => $request->input('veiculo_id') ?: null,
-                    'motorista_id'    => $request->input('motorista_id') ?: null,
-                    'updated_at'      => now(),
-                ]);
-
-            // Atualiza pivot: mantém apenas 1 filial vinculada
-            $exists = DB::table(self::T_LINHA_FILIAIS)->where('linha_id', $id)->exists();
-            if ($exists) {
-                DB::table(self::T_LINHA_FILIAIS)
-                    ->where('linha_id', $id)
-                    ->update([
-                        'filial_id'  => (int) $request->input('filial_id'),
-                        'updated_at' => now(),
-                    ]);
-            } else {
-                DB::table(self::T_LINHA_FILIAIS)->insert([
-                    'linha_id'   => $id,
-                    'filial_id'  => (int) $request->input('filial_id'),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-            }
-
-            DB::commit();
-
-            return redirect()
-                ->route('beneficios.transporte.linhas.edit', ['sub' => $sub, 'id' => $id])
-                ->with('success', 'Linha atualizada com sucesso.');
-        } catch (\Throwable $e) {
-            DB::rollBack();
-
-            return back()
-                ->withInput()
-                ->with('error', 'Não foi possível atualizar a linha. Tente novamente.');
-        }
+        return back()->with('info', 'Update ainda não ajustado nesta etapa.');
     }
 
     /*
@@ -431,58 +334,11 @@ class TransporteLinhasController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | Operação da Linha (placeholder)
+    | Operação (placeholder)
     |--------------------------------------------------------------------------
     */
     public function operacao(Request $request, string $sub, int $id)
     {
-        // Mantém a tela no ar. Ajustaremos depois conforme o módulo evoluir.
         return view('beneficios.transporte.linhas.operacao', compact('sub', 'id'));
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Paradas / Vínculos (placeholders)
-    |--------------------------------------------------------------------------
-    | Deixe como está se você já implementou. Se não, manteremos simples.
-    */
-    public function paradaStore(Request $request, string $sub, int $linhaId)
-    {
-        return back()->with('error', 'Ainda não implementado.');
-    }
-
-    public function paradaUpdate(Request $request, string $sub, int $linhaId, int $paradaId)
-    {
-        return back()->with('error', 'Ainda não implementado.');
-    }
-
-    public function paradaDestroy(Request $request, string $sub, int $linhaId, int $paradaId)
-    {
-        return back()->with('error', 'Ainda não implementado.');
-    }
-
-    public function vinculoStore(Request $request, string $sub, int $linhaId)
-    {
-        return back()->with('error', 'Ainda não implementado.');
-    }
-
-    public function vinculoEncerrar(Request $request, string $sub, int $linhaId, int $vinculoId)
-    {
-        return back()->with('error', 'Ainda não implementado.');
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Importar custos (placeholder)
-    |--------------------------------------------------------------------------
-    */
-    public function importarCustosForm(Request $request, string $sub)
-    {
-        return view('beneficios.transporte.relatorios.importar_custos', compact('sub'));
-    }
-
-    public function importarCustos(Request $request, string $sub)
-    {
-        return back()->with('error', 'Ainda não implementado.');
     }
 }
