@@ -175,29 +175,58 @@
 @endsection
 
 @push('scripts')
-{{-- ✅ Select2 + tema Bootstrap4 para manter o estilo do template --}}
+{{-- Select2 (seu pacote tem apenas o padrão) --}}
 <link rel="stylesheet" href="{{ asset('assets/vendor_components/select2/dist/css/select2.min.css') }}">
-<link rel="stylesheet" href="{{ asset('assets/vendor_components/select2/dist/css/select2-bootstrap4.min.css') }}">
-<script src="{{ asset('assets/vendor_components/select2/dist/js/select2.full.js') }}"></script>
+<script src="{{ asset('assets/vendor_components/select2/dist/js/select2.full.min.js') }}"></script>
 
 {{-- Toastr --}}
 <script src="{{ asset('assets/js/pages/toastr.js') }}"></script>
+
+<style>
+  /* Faz o Select2 parecer um input do template */
+  .select2-container { width: 100% !important; }
+
+  .select2-container .select2-selection--single{
+    height: calc(2.25rem + 2px) !important;
+    border: 1px solid #d7dce3 !important; /* borda padrão “clean” */
+    border-radius: .25rem !important;
+    background-color: #fff !important;
+  }
+  .select2-container .select2-selection--single .select2-selection__rendered{
+    line-height: calc(2.25rem) !important;
+    padding-left: .75rem !important;
+    color: #495057 !important;
+  }
+  .select2-container .select2-selection--single .select2-selection__arrow{
+    height: calc(2.25rem + 2px) !important;
+    right: 6px !important;
+  }
+
+  /* Dropdown */
+  .select2-dropdown{
+    border: 1px solid #d7dce3 !important;
+    border-radius: .25rem !important;
+  }
+
+  /* Corrige quando está dentro de .input-group */
+  .input-group .select2-container--default{
+    flex: 1 1 auto;
+  }
+</style>
 
 <script>
 (function () {
   if (window.feather) feather.replace();
 
-  // Select2 com tema bootstrap4 (mantém estilo)
+  // Select2 sem tema (porque você não tem bootstrap4 theme no pacote)
   if (window.jQuery && jQuery.fn.select2) {
-    $('.select2bs4').select2({
-      theme: 'bootstrap4',
+    $('#veiculo_id, #motorista_id').select2({
       width: '100%',
       placeholder: 'Selecione...',
       allowClear: true
     });
   }
 
-  // Toastr sessions
   function toast(type, msg) {
     if (window.toastr) {
       toastr.options = { closeButton:true, progressBar:true, timeOut:4000 };
@@ -211,23 +240,7 @@
   @if(session('error'))
     toast('error', @json(session('error')));
   @endif
-
-  @if($errors && $errors->any())
-    toast('error', 'Revise os campos do formulário. Existem erros de validação.');
-  @endif
 })();
 </script>
-
-{{-- ✅ Pequeno ajuste de altura para ficar idêntico aos inputs do template --}}
-<style>
-  .select2-container--bootstrap4 .select2-selection--single {
-    height: calc(2.25rem + 2px);
-  }
-  .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
-    line-height: calc(2.25rem);
-  }
-  .select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow {
-    height: calc(2.25rem + 2px);
-  }
-</style>
 @endpush
+
