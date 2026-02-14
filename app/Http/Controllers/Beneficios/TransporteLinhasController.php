@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Symfony\Component\HttpFoundation\Response;
 
 class TransporteLinhasController extends Controller
 {
@@ -31,11 +30,28 @@ class TransporteLinhasController extends Controller
         return now();
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | INDEX
+    |--------------------------------------------------------------------------
+    */
     public function index(Request $request, string $sub)
     {
         $empresaId = $this->empresaId();
-
         $q = trim((string) $request->get('q', ''));
+
+        // ✅ Necessário porque a view usa $motoristas (e normalmente $veiculos)
+        $motoristas = DB::table(self::T_MOTORISTAS)
+            ->where('empresa_id', $empresaId)
+            ->whereNull('deleted_at')
+            ->orderBy('nome')
+            ->get();
+
+        $veiculos = DB::table(self::T_VEICULOS)
+            ->where('empresa_id', $empresaId)
+            ->whereNull('deleted_at')
+            ->orderBy('id', 'desc')
+            ->get();
 
         $linhas = DB::table(self::T_LINHAS . ' as l')
             ->select('l.*')
@@ -44,15 +60,21 @@ class TransporteLinhasController extends Controller
             ->when($q !== '', function ($qq) use ($q) {
                 $qq->where(function ($w) use ($q) {
                     $w->where('l.nome', 'ilike', "%{$q}%")
-                      ->orWhere('l.tipo_linha', 'ilike', "%{$q}%")
-                      ->orWhere('l.controle_acesso', 'ilike', "%{$q}%");
+                        ->orWhere('l.tipo_linha', 'ilike', "%{$q}%")
+                        ->orWhere('l.controle_acesso', 'ilike', "%{$q}%");
                 });
             })
             ->orderBy('l.id', 'desc')
             ->paginate(20)
             ->withQueryString();
 
-        return view('beneficios.transporte.linhas.index', compact('sub', 'linhas', 'q'));
+        return view('beneficios.transporte.linhas.index', compact(
+            'sub',
+            'linhas',
+            'q',
+            'motoristas',
+            'veiculos'
+        ));
     }
 
     public function create(Request $request, string $sub)
@@ -79,15 +101,15 @@ class TransporteLinhasController extends Controller
         $empresaId = $this->empresaId();
 
         $v = Validator::make($request->all(), [
-            'nome'           => 'required|string|max:255',
-            'tipo_linha'     => 'required|in:publica,fretada',
-            'controle_acesso'=> 'required|in:cartao,ticket',
-            'motorista_id'   => 'required|integer|min:1',
-            'veiculo_id'     => 'required|integer|min:1',
-            'status'         => 'nullable|in:ativo,inativo',
-            'filiais'        => 'required|array|min:1',
-            'filiais.*'      => 'integer|min:1',
-            'observacoes'    => 'nullable|string',
+            'nome'            => 'required|string|max:255',
+            'tipo_linha'      => 'required|in:publica,fretada',
+            'controle_acesso' => 'required|in:cartao,ticket',
+            'motorista_id'    => 'required|integer|min:1',
+            'veiculo_id'      => 'required|integer|min:1',
+            'status'          => 'nullable|in:ativo,inativo',
+            'filiais'         => 'required|array|min:1',
+            'filiais.*'       => 'integer|min:1',
+            'observacoes'     => 'nullable|string',
         ]);
 
         if ($v->fails()) {
@@ -108,7 +130,6 @@ class TransporteLinhasController extends Controller
                 'updated_at'      => $this->now(),
             ]);
 
-            // vincula filiais
             $filiais = array_values(array_unique(array_map('intval', (array) $request->get('filiais', []))));
             foreach ($filiais as $filialId) {
                 DB::table(self::T_LINHA_FILIAIS)->insert([
@@ -162,15 +183,15 @@ class TransporteLinhasController extends Controller
         $empresaId = $this->empresaId();
 
         $v = Validator::make($request->all(), [
-            'nome'           => 'required|string|max:255',
-            'tipo_linha'     => 'required|in:publica,fretada',
-            'controle_acesso'=> 'required|in:cartao,ticket',
-            'motorista_id'   => 'required|integer|min:1',
-            'veiculo_id'     => 'required|integer|min:1',
-            'status'         => 'nullable|in:ativo,inativo',
-            'filiais'        => 'required|array|min:1',
-            'filiais.*'      => 'integer|min:1',
-            'observacoes'    => 'nullable|string',
+            'nome'            => 'required|string|max:255',
+            'tipo_linha'      => 'required|in:publica,fretada',
+            'controle_acesso' => 'required|in:cartao,ticket',
+            'motorista_id'    => 'required|integer|min:1',
+            'veiculo_id'      => 'required|integer|min:1',
+            'status'          => 'nullable|in:ativo,inativo',
+            'filiais'         => 'required|array|min:1',
+            'filiais.*'       => 'integer|min:1',
+            'observacoes'     => 'nullable|string',
         ]);
 
         if ($v->fails()) {
@@ -197,7 +218,6 @@ class TransporteLinhasController extends Controller
                 return back()->with('error', 'Linha não encontrada.');
             }
 
-            // sync filiais
             DB::table(self::T_LINHA_FILIAIS)->where('linha_id', $id)->delete();
 
             $filiais = array_values(array_unique(array_map('intval', (array) $request->get('filiais', []))));
@@ -260,7 +280,6 @@ class TransporteLinhasController extends Controller
             ->orderBy('tv.id', 'desc')
             ->get();
 
-        // Para selects
         $colaboradores = DB::table(self::T_COLABS)
             ->where('empresa_id', $empresaId)
             ->whereNull('deleted_at')
@@ -275,7 +294,7 @@ class TransporteLinhasController extends Controller
     {
         $v = Validator::make($request->all(), [
             'nome'  => 'required|string|max:255',
-            'hora'  => 'required|string|max:10', // HH:MM
+            'hora'  => 'required|string|max:10',
             'valor' => 'nullable|numeric|min:0',
         ]);
 
@@ -405,9 +424,9 @@ class TransporteLinhasController extends Controller
         $empresaId = $this->empresaId();
 
         $v = Validator::make($request->all(), [
-            'linha_id' => 'required|integer|min:1',
-            'mes'      => 'required|date_format:Y-m',
-            'valor'    => 'required|numeric|min:0',
+            'linha_id'   => 'required|integer|min:1',
+            'mes'        => 'required|date_format:Y-m',
+            'valor'      => 'required|numeric|min:0',
             'observacao' => 'nullable|string|max:255',
         ]);
 
@@ -416,15 +435,15 @@ class TransporteLinhasController extends Controller
         }
 
         DB::table(self::T_CUSTOS)->insert([
-            'empresa_id'  => $empresaId,
-            'linha_id'    => (int) $request->get('linha_id'),
-            'mes'         => $request->string('mes')->toString(), // YYYY-MM
-            'valor'       => $request->get('valor'),
-            'observacao'  => $request->get('observacao'),
-            'created_at'  => $this->now(),
-            'updated_at'  => $this->now(),
+            'empresa_id' => $empresaId,
+            'linha_id'   => (int) $request->get('linha_id'),
+            'mes'        => $request->string('mes')->toString(),
+            'valor'      => $request->get('valor'),
+            'observacao' => $request->get('observacao'),
+            'created_at' => $this->now(),
+            'updated_at' => $this->now(),
         ]);
 
-        return back()->with('success', 'Custo importado/registrado com sucesso.');
+        return back()->with('success', 'Custo registrado com sucesso.');
     }
 }
