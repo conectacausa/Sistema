@@ -16,6 +16,7 @@
 
     <!-- Vendors Style -->
     <link rel="stylesheet" href="{{ asset('assets/css/vendors_css.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/vendor_components/jquery-toast-plugin-master/src/jquery.toast.css') }}">
 
     <!-- Style -->
     <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
@@ -75,48 +76,50 @@
 <script src="{{ asset('assets/js/template.js') }}"></script>
 
 {{-- ✅ Simple Toastr Alerts (GLOBAL) --}}
+<script src="{{ asset('assets/vendor_components/jquery-toast-plugin-master/src/jquery.toast.js') }}"></script>
 <script src="{{ asset('assets/js/pages/toastr.js') }}"></script>
 <script src="{{ asset('assets/js/pages/notification.js') }}"></script>
 
 <script>
 (function () {
-    // Feather (inclusive para páginas renderizadas via AJAX)
-    if (window.feather) feather.replace();
+  if (window.feather) feather.replace();
 
-    // Dispara toastr global via session flash
-    function fire(type, msg) {
-        try {
-            if (window.toastr && typeof toastr[type] === 'function') {
-                toastr.options = {
-                    closeButton: true,
-                    progressBar: true,
-                    timeOut: 4000,
-                    positionClass: 'toast-top-right'
-                };
-                toastr[type](msg);
-                return;
-            }
-        } catch (e) {}
-
-        // fallback
-        alert(msg);
+  function simpleToast(type, message, title) {
+    // type: success | error | warning | info
+    if (window.jQuery && typeof jQuery.toast === 'function') {
+      jQuery.toast({
+        heading: title || (type === 'success' ? 'Sucesso' :
+                          type === 'error'   ? 'Erro' :
+                          type === 'warning' ? 'Atenção' : 'Info'),
+        text: message,
+        icon: type,
+        position: 'top-right',
+        loader: true,
+        hideAfter: 4000,
+        stack: 5
+      });
+      return;
     }
 
-    @if(session('success'))
-        fire('success', @json(session('success')));
-    @endif
+    // fallback
+    alert(message);
+  }
 
-    @if(session('error'))
-        fire('error', @json(session('error')));
-    @endif
+  @if(session('success'))
+    simpleToast('success', @json(session('success')));
+  @endif
 
-    @if(session('warning'))
-        fire('warning', @json(session('warning')));
-    @endif
+  @if(session('error'))
+    simpleToast('error', @json(session('error')));
+  @endif
 
-    @if(session('info'))
-        fire('info', @json(session('info')));
-    @endif
+  @if(session('warning'))
+    simpleToast('warning', @json(session('warning')));
+  @endif
+
+  @if(session('info'))
+    simpleToast('info', @json(session('info')));
+  @endif
 })();
 </script>
 
