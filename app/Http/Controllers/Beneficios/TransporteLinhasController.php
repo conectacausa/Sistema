@@ -35,7 +35,7 @@ class TransporteLinhasController extends Controller
     | INDEX
     |--------------------------------------------------------------------------
     */
-    public function index(Request $request)
+    public function index(Request $request, string $sub)
     {
         $empresaId = $this->empresaId();
         $sub = $this->subdomain($request);
@@ -112,7 +112,7 @@ class TransporteLinhasController extends Controller
     | CREATE / STORE
     |--------------------------------------------------------------------------
     */
-    public function create(Request $request)
+    public function create(Request $request, string $sub)
     {
         $empresaId = $this->empresaId();
         $sub = $this->subdomain($request);
@@ -147,7 +147,7 @@ class TransporteLinhasController extends Controller
         ));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, string $sub)
     {
         $empresaId = $this->empresaId();
         $sub = $this->subdomain($request);
@@ -213,7 +213,7 @@ class TransporteLinhasController extends Controller
     | EDIT / UPDATE
     |--------------------------------------------------------------------------
     */
-    public function edit(Request $request, $id)
+    public function edit(Request $request, string $sub, int $id)
     {
         $empresaId = $this->empresaId();
         $sub = $this->subdomain($request);
@@ -360,7 +360,7 @@ class TransporteLinhasController extends Controller
         ));
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, string $sub, int $id)
     {
         $empresaId = $this->empresaId();
         $sub = $this->subdomain($request);
@@ -436,7 +436,7 @@ class TransporteLinhasController extends Controller
     | DESTROY (soft delete)
     |--------------------------------------------------------------------------
     */
-    public function destroy(Request $request, $id)
+    public function destroy(Request $request, string $sub, int $id)
     {
         $empresaId = $this->empresaId();
         $sub = $this->subdomain($request);
